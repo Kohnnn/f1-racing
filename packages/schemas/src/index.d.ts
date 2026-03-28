@@ -1,0 +1,14 @@
+import { z } from "zod";
+export const SessionRefSchema: z.ZodObject<any>;
+export const LatestManifestSchema: z.ZodObject<any>;
+export const SeasonIndexSchema: z.ZodObject<any>;
+export const SessionSummarySchema: z.ZodObject<any>;
+export const DriverSummarySchema: z.ZodObject<any>;
+export const LapRecordSchema: z.ZodObject<any>;
+export const TelemetryPointSchema: z.ZodObject<any>;
+export const TelemetryTraceSchema: z.ZodObject<any>;
+export const ComparePackSchema: z.ZodObject<any>;
+export const StintPackSchema: z.ZodObject<any>;
+export const SessionManifestSchema: z.ZodObject<any>;
+export const CarModelCatalogSchema: z.ZodObject<any>;
+export const WindOverlayPackSchema: z.ZodObject<any>;

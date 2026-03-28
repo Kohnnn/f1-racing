@@ -1,0 +1,13 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "f1-racing-metadata-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-03-28",
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "vars": {
+    "ASSET_ORIGIN": "https://f1-racing.pages.dev"
+  }
+}

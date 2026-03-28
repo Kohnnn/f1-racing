@@ -1,0 +1,57 @@
+{
+  "trackId": "albert-park",
+  "drivers": [
+    "VER",
+    "NOR"
+  ],
+  "laps": [
+    14,
+    16
+  ],
+  "deltaSections": [
+    {
+      "from": 0,
+      "to": 0.18,
+      "leader": "VER",
+      "deltaMs": 92
+    },
+    {
+      "from": 0.18,
+      "to": 0.33,
+      "leader": "NOR",
+      "deltaMs": 41
+    },
+    {
+      "from": 0.33,
+      "to": 0.62,
+      "leader": "VER",
+      "deltaMs": 58
+    },
+    {
+      "from": 0.62,
+      "to": 1,
+      "leader": "VER",
+      "deltaMs": 38
+    }
+  ],
+  "events": [
+    {
+      "type": "late_brake",
+      "driver": "VER",
+      "corner": 3,
+      "note": "VER keeps a later brake point into Turn 3 without destabilizing the exit."
+    },
+    {
+      "type": "better_exit",
+      "driver": "NOR",
+      "corner": 4,
+      "note": "NOR recovers a little time on throttle pick-up out of Turn 4."
+    },
+    {
+      "type": "high_speed_commitment",
+      "driver": "VER",
+      "corner": 9,
+      "note": "VER carries more confidence through the loaded middle of the lap."
+    }
+  ]
+}

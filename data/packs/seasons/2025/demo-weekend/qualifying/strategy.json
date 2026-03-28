@@ -1,0 +1,21 @@
+{
+  "trackId": "studio-ring",
+  "pitLossS": 20.8,
+  "safetyCarPitLossS": 11.4,
+  "recommendedWindows": [
+    {
+      "lapStart": 17,
+      "lapEnd": 21,
+      "reason": "medium-to-hard undercut window"
+    },
+    {
+      "lapStart": 24,
+      "lapEnd": 28,
+      "reason": "safer one-stop if degradation stays controlled"
+    }
+  ],
+  "weatherCrossover": {
+    "toIntermediate": 0.61,
+    "toWet": 0.79
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "sessionKey": 9689,
+  "summary": "summary.json",
+  "drivers": "drivers.json",
+  "laps": "laps.json",
+  "compare": {
+    "NOR-PIA": "compare/nor-pia.json"
+  },
+  "strategy": "strategy.json",
+  "stints": "stints.json"
+}

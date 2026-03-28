@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "modelId": "mclaren-2025-mcl39",
+  "scenarioId": "baseline-speed-280-yaw-1p5",
+  "metric": "cp",
+  "units": "coefficient",
+  "meshBinding": {
+    "renderMeshId": "body-shell",
+    "mappingMode": "triangle-sampled",
+    "triangleCount": 84216
+  },
+  "colorScale": {
+    "min": -2.2,
+    "max": 1.1,
+    "palette": [
+      "#1f4e79",
+      "#3d87b7",
+      "#7fc7da",
+      "#f2d2a2",
+      "#c54f2a"
+    ]
+  },
+  "scalarFields": [
+    {
+      "name": "cp",
+      "domain": "surface",
+      "stats": {
+        "min": -2.2,
+        "max": 1.1,
+        "mean": -0.32
+      }
+    },
+    {
+      "name": "cf",
+      "domain": "surface",
+      "stats": {
+        "min": 0.0,
+        "max": 0.064,
+        "mean": 0.012
+      }
+    }
+  ],
+  "overlays": {
+    "streamlines": [
+      {
+        "id": "roofline-feed",
+        "color": "#7fc7da",
+        "count": 36
+      },
+      {
+        "id": "floor-edge-wake",
+        "color": "#c54f2a",
+        "count": 24
+      }
+    ],
+    "hotspots": [
+      {
+        "id": "front-wing-mainplane",
+        "label": "Front wing stagnation zone",
+        "field": "cp",
+        "value": 0.84
+      },
+      {
+        "id": "floor-edge-seal",
+        "label": "Floor edge suction",
+        "field": "cp",
+        "value": -1.42
+      },
+      {
+        "id": "rear-wing-flap",
+        "label": "Rear flap pressure recovery",
+        "field": "cp",
+        "value": -0.58
+      }
+    ]
+  }
+}

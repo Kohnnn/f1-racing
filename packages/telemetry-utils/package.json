@@ -1,0 +1,9 @@
+{
+  "name": "@f1-racing/telemetry-utils",
+  "private": true,
+  "type": "module",
+  "types": "./src/index.d.ts",
+  "exports": {
+    ".": "./src/index.js"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "generatedAt": "2026-03-28T00:00:00Z",
+  "models": [
+    {
+      "id": "mclaren-2025-mcl39",
+      "constructor": "McLaren",
+      "constructorSlug": "mclaren",
+      "season": 2025,
+      "displayName": "McLaren MCL39",
+      "file": "/models/2025/mclaren/mcl39.glb",
+      "poster": "/posters/2025/mclaren/mcl39.svg",
+      "sizeLabel": "~116 MB",
+      "surfaceReady": true,
+      "notes": "Local GLB provided in the workspace. A first baked CFD overlay schema now targets this model, but production delivery still needs an optimized build."
+    },
+    {
+      "id": "apx-gp-2025-apx01",
+      "constructor": "APX GP",
+      "constructorSlug": "apx-gp",
+      "season": 2025,
+      "displayName": "APX GP APX01",
+      "file": "/models/2025/apx-gp/apx01.glb",
+      "poster": "/posters/2025/apx-gp/apx01.svg",
+      "sizeLabel": "~30 MB",
+      "surfaceReady": false,
+      "notes": "Local GLB provided in the workspace. Good candidate for the first hotspot and CFD-overlay prototype."
+    }
+  ]
+}

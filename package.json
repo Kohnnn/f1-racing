@@ -1,0 +1,26 @@
+{
+  "name": "f1-racing",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "workers/*"
+  ],
+  "scripts": {
+    "dev": "npm run generate:sample && npm run dev -w @f1-racing/web",
+    "build": "npm run generate:sample && npm run build -w @f1-racing/web",
+    "build:pages": "npm run generate:sample && npm run build -w @f1-racing/web",
+    "generate:sample": "node pipeline/export/src/generate-sample-data.mjs",
+    "check:data": "node pipeline/export/src/generate-sample-data.mjs --check",
+    "ingest:openf1:2025": "node pipeline/ingest/src/ingest-openf1-2025-season.mjs",
+    "build:openf1:session": "node pipeline/export/src/build-openf1-session-pack.mjs",
+    "worker:dev": "npm run dev -w @f1-racing/metadata-api",
+    "worker:check": "npm run check -w @f1-racing/metadata-api"
+  },
+  "devDependencies": {
+    "wrangler": "^4.39.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,1821 @@
+{
+  "trackId": "melbourne",
+  "drivers": [
+    "NOR",
+    "PIA"
+  ],
+  "laps": [
+    19,
+    17
+  ],
+  "deltaSections": [
+    {
+      "from": 0,
+      "to": 0.3457041653350378,
+      "leader": "NOR",
+      "deltaMs": 121
+    },
+    {
+      "from": 0.3457041653350378,
+      "to": 0.5720411206988387,
+      "leader": "PIA",
+      "deltaMs": 45
+    },
+    {
+      "from": 0.5720411206988387,
+      "to": 1,
+      "leader": "NOR",
+      "deltaMs": 8
+    }
+  ],
+  "events": [
+    {
+      "type": "sector_gain",
+      "driver": "NOR",
+      "corner": "S1",
+      "note": "NOR is faster through sector 1, likely from a cleaner line or more committed entry."
+    },
+    {
+      "type": "sector_response",
+      "driver": "PIA",
+      "corner": "S2",
+      "note": "PIA recovers time in sector 2, suggesting better rotation or exit traction."
+    },
+    {
+      "type": "sector_gain",
+      "driver": "NOR",
+      "corner": "S3",
+      "note": "NOR is faster through sector 3, likely from a cleaner line or more committed entry."
+    }
+  ],
+  "telemetry": {
+    "left": {
+      "driverCode": "NOR",
+      "lapNumber": 19,
+      "sampleHz": 3.7,
+      "points": [
+        {
+          "ratio": 0.002556727388942154,
+          "speed": 318,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 11161,
+          "drs": 14
+        },
+        {
+          "ratio": 0.015340364333652923,
+          "speed": 323,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 11375,
+          "drs": 14
+        },
+        {
+          "ratio": 0.029735272184936615,
+          "speed": 326,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 11643,
+          "drs": 14
+        },
+        {
+          "ratio": 0.04357089591988921,
+          "speed": 244,
+          "throttle": 0,
+          "brake": 100,
+          "gear": 8,
+          "rpm": 10117,
+          "drs": 8
+        },
+        {
+          "ratio": 0.05956375838926174,
+          "speed": 198,
+          "throttle": 78,
+          "brake": 0,
+          "gear": 5,
+          "rpm": 10631,
+          "drs": 8
+        },
+        {
+          "ratio": 0.07021678917652072,
+          "speed": 219,
+          "throttle": 100,
+          "brake": 0,
+          "gear": 5,
+          "rpm": 11483,
+          "drs": 8
+        },
+        {
+          "ratio": 0.08192180675402153,
+          "speed": 236,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 6,
+          "rpm": 10845,
+          "drs": 8
+        },
+        {
+          "ratio": 0.09842068818578886,
+          "speed": 254,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 6,
+          "rpm": 11726,
+          "drs": 8
+        },
+        {
+          "ratio": 0.10748908064344306,
+          "speed": 270,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 10725,
+          "drs": 14
+        },
+        {
+          "ratio": 0.11760945989133909,
+          "speed": 282,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 11317,
+          "drs": 14
+        },
+        {
+          "ratio": 0.12986044529668692,
+          "speed": 295,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 11136,
+          "drs": 14
+        },
+        {
+          "ratio": 0.13892883775434112,
+          "speed": 303,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 10680,
+          "drs": 14
+        },
+        {
+          "ratio": 0.15011452008096304,
+          "speed": 310,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 10935,
+          "drs": 14
+        },
+        {
+          "ratio": 0.15862362842228614,
+          "speed": 314,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 10903,
+          "drs": 14
+        },
+        {
+          "ratio": 0.16927665920954513,
+          "speed": 258,
+          "throttle": 0,
+          "brake": 100,
+          "gear": 8,
+          "rpm": 9219,
+          "drs": 8
+        },
+        {
+          "ratio": 0.17939703845744115,
+          "speed": 160,
+          "throttle": 0,
+          "brake": 100,
+          "gear": 8,
+          "rpm": 9866,
+          "drs": 8
+        },
+        {
+          "ratio": 0.18791946308724833,
+          "speed": 129,
+          "throttle": 0,
+          "brake": 100,
+          "gear": 3,
+          "rpm": 9059,
+          "drs": 8
+        },
+        {
+          "ratio": 0.1964418877170555,
+          "speed": 114,
+          "throttle": 0,
+          "brake": 0,
+          "gear": 3,
+          "rpm": 8066,
+          "drs": 8
+        },
+        {
+          "ratio": 0.20443166080749972,
+          "speed": 109,
+          "throttle": 35,
+          "brake": 0,
+          "gear": 3,
+          "rpm": 8054,
+          "drs": 8
+        },
+        {
+          "ratio": 0.21456535634387983,
+          "speed": 127,
+          "throttle": 78,
+          "brake": 0,
+          "gear": 3,
+          "rpm": 9582,
+          "drs": 8
+        },
+        {
+          "ratio": 0.22520507084265473,
+          "speed": 165,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 3,
+          "rpm": 11979,
+          "drs": 8
+        },
+        {
+          "ratio": 0.233740811760946,
+          "speed": 172,
+          "throttle": 3,
+          "brake": 0,
+          "gear": 4,
+          "rpm": 10401,
+          "drs": 8
+        },
+        {
+          "ratio": 0.24386119100884202,
+          "speed": 165,
+          "throttle": 68,
+          "brake": 0,
+          "gear": 4,
+          "rpm": 10151,
+          "drs": 8
+        },
+        {
+          "ratio": 0.2545009055076169,
+          "speed": 189,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 4,
+          "rpm": 11762,
+          "drs": 8
+        },
+        {
+          "ratio": 0.2662192393736018,
+          "speed": 218,
+          "throttle": 100,
+          "brake": 0,
+          "gear": 5,
+          "rpm": 11479,
+          "drs": 8
+        },
+        {
+          "ratio": 0.27367636092468306,
+          "speed": 231,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 5,
+          "rpm": 10714,
+          "drs": 8
+        },
+        {
+          "ratio": 0.284862043251305,
+          "speed": 250,
+          "throttle": 98,
+          "brake": 0,
+          "gear": 6,
+          "rpm": 11452,
+          "drs": 8
+        },
+        {
+          "ratio": 0.295515074038564,
+          "speed": 257,
+          "throttle": 98,
+          "brake": 0,
+          "gear": 6,
+          "rpm": 10362,
+          "drs": 8
+        },
+        {
+          "ratio": 0.30616810482582296,
+          "speed": 262,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 10583,
+          "drs": 8
+        },
+        {
+          "ratio": 0.316834451901566,
+          "speed": 276,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 10996,
+          "drs": 8
+        },
+        {
+          "ratio": 0.326954831149462,
+          "speed": 282,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 11257,
+          "drs": 8
+        },
+        {
+          "ratio": 0.33494460423990624,
+          "speed": 289,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 11490,
+          "drs": 8
+        },
+        {
+          "ratio": 0.34718227335677,
+          "speed": 290,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 11544,
+          "drs": 8
+        },
+        {
+          "ratio": 0.3562373495259401,
+          "speed": 263,
+          "throttle": 0,
+          "brake": 100,
+          "gear": 7,
+          "rpm": 11170,
+          "drs": 8
+        },
+        {
+          "ratio": 0.3652924256951103,
+          "speed": 243,
+          "throttle": 42,
+          "brake": 0,
+          "gear": 6,
+          "rpm": 10976,
+          "drs": 8
+        },
+        {
+          "ratio": 0.3743475018642804,
+          "speed": 238,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 6,
+          "rpm": 11044,
+          "drs": 8
+        },
+        {
+          "ratio": 0.38766379034835413,
+          "speed": 257,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 6,
+          "rpm": 11722,
+          "drs": 8
+        },
+        {
+          "ratio": 0.4004474272930649,
+          "speed": 273,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 10844,
+          "drs": 8
+        },
+        {
+          "ratio": 0.41003515500159793,
+          "speed": 280,
+          "throttle": 98,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 11207,
+          "drs": 8
+        },
+        {
+          "ratio": 0.420155534249494,
+          "speed": 283,
+          "throttle": 98,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 11416,
+          "drs": 8
+        },
+        {
+          "ratio": 0.4292239267071482,
+          "speed": 288,
+          "throttle": 98,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 11588,
+          "drs": 8
+        },
+        {
+          "ratio": 0.4398636412059231,
+          "speed": 294,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 10414,
+          "drs": 8
+        },
+        {
+          "ratio": 0.4521146266112709,
+          "speed": 300,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 10592,
+          "drs": 8
+        },
+        {
+          "ratio": 0.4627676573985299,
+          "speed": 304,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 10729,
+          "drs": 8
+        },
+        {
+          "ratio": 0.4707574304889741,
+          "speed": 305,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 10805,
+          "drs": 8
+        },
+        {
+          "ratio": 0.48034515819750717,
+          "speed": 307,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 10869,
+          "drs": 14
+        },
+        {
+          "ratio": 0.4915308405241291,
+          "speed": 314,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 11092,
+          "drs": 14
+        },
+        {
+          "ratio": 0.4979359752849686,
+          "speed": 318,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 11228,
+          "drs": 14
+        },
+        {
+          "ratio": 0.5069777351656546,
+          "speed": 321,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 11366,
+          "drs": 14
+        },
+        {
+          "ratio": 0.5186960690316395,
+          "speed": 325,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 11475,
+          "drs": 14
+        },
+        {
+          "ratio": 0.5314797059763503,
+          "speed": 326,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 11522,
+          "drs": 14
+        },
+        {
+          "ratio": 0.543730691381698,
+          "speed": 326,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 11495,
+          "drs": 14
+        },
+        {
+          "ratio": 0.5538510706295942,
+          "speed": 327,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 11566,
+          "drs": 14
+        },
+        {
+          "ratio": 0.5645041014168531,
+          "speed": 329,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 11593,
+          "drs": 14
+        },
+        {
+          "ratio": 0.5714285714285714,
+          "speed": 329,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 11559,
+          "drs": 14
+        },
+        {
+          "ratio": 0.5799509960583786,
+          "speed": 317,
+          "throttle": 0,
+          "brake": 100,
+          "gear": 8,
+          "rpm": 11130,
+          "drs": 10
+        },
+        {
+          "ratio": 0.5948652391605411,
+          "speed": 254,
+          "throttle": 44,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 10308,
+          "drs": 8
+        },
+        {
+          "ratio": 0.6044662831575583,
+          "speed": 262,
+          "throttle": 98,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 10472,
+          "drs": 8
+        },
+        {
+          "ratio": 0.6135080430382444,
+          "speed": 257,
+          "throttle": 96,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 10365,
+          "drs": 8
+        },
+        {
+          "ratio": 0.6252263769042292,
+          "speed": 259,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 10500,
+          "drs": 8
+        },
+        {
+          "ratio": 0.6396079684670288,
+          "speed": 276,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 11084,
+          "drs": 10
+        },
+        {
+          "ratio": 0.6518589538723767,
+          "speed": 290,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 11637,
+          "drs": 14
+        },
+        {
+          "ratio": 0.6614466815809098,
+          "speed": 300,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 10572,
+          "drs": 14
+        },
+        {
+          "ratio": 0.6726323639075317,
+          "speed": 307,
+          "throttle": 98,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 10841,
+          "drs": 14
+        },
+        {
+          "ratio": 0.6832987109832748,
+          "speed": 313,
+          "throttle": 98,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 11068,
+          "drs": 14
+        },
+        {
+          "ratio": 0.6950170448492596,
+          "speed": 320,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 11236,
+          "drs": 14
+        },
+        {
+          "ratio": 0.7051241078086715,
+          "speed": 322,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 11340,
+          "drs": 14
+        },
+        {
+          "ratio": 0.7163097901352935,
+          "speed": 247,
+          "throttle": 0,
+          "brake": 100,
+          "gear": 8,
+          "rpm": 9547,
+          "drs": 8
+        },
+        {
+          "ratio": 0.7296260786193672,
+          "speed": 143,
+          "throttle": 0,
+          "brake": 100,
+          "gear": 4,
+          "rpm": 10190,
+          "drs": 8
+        },
+        {
+          "ratio": 0.7392138063279002,
+          "speed": 131,
+          "throttle": 12,
+          "brake": 0,
+          "gear": 3,
+          "rpm": 9404,
+          "drs": 8
+        },
+        {
+          "ratio": 0.7514781080217322,
+          "speed": 140,
+          "throttle": 76,
+          "brake": 0,
+          "gear": 3,
+          "rpm": 10557,
+          "drs": 8
+        },
+        {
+          "ratio": 0.7631964418877171,
+          "speed": 178,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 4,
+          "rpm": 11166,
+          "drs": 8
+        },
+        {
+          "ratio": 0.7759667625439437,
+          "speed": 211,
+          "throttle": 98,
+          "brake": 0,
+          "gear": 5,
+          "rpm": 11199,
+          "drs": 8
+        },
+        {
+          "ratio": 0.7855678065409609,
+          "speed": 233,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 5,
+          "rpm": 10666,
+          "drs": 8
+        },
+        {
+          "ratio": 0.7956748695003728,
+          "speed": 245,
+          "throttle": 64,
+          "brake": 0,
+          "gear": 6,
+          "rpm": 11194,
+          "drs": 8
+        },
+        {
+          "ratio": 0.8052625972089059,
+          "speed": 237,
+          "throttle": 72,
+          "brake": 0,
+          "gear": 6,
+          "rpm": 10993,
+          "drs": 8
+        },
+        {
+          "ratio": 0.8153829764568019,
+          "speed": 244,
+          "throttle": 98,
+          "brake": 0,
+          "gear": 6,
+          "rpm": 11316,
+          "drs": 8
+        },
+        {
+          "ratio": 0.8260360072440609,
+          "speed": 251,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 6,
+          "rpm": 11473,
+          "drs": 8
+        },
+        {
+          "ratio": 0.8340257803345051,
+          "speed": 255,
+          "throttle": 9,
+          "brake": 100,
+          "gear": 6,
+          "rpm": 11117,
+          "drs": 8
+        },
+        {
+          "ratio": 0.8473420688185789,
+          "speed": 147,
+          "throttle": 0,
+          "brake": 100,
+          "gear": 4,
+          "rpm": 9891,
+          "drs": 8
+        },
+        {
+          "ratio": 0.8590604026845637,
+          "speed": 113,
+          "throttle": 0,
+          "brake": 100,
+          "gear": 3,
+          "rpm": 7728,
+          "drs": 8
+        },
+        {
+          "ratio": 0.868661446681581,
+          "speed": 98,
+          "throttle": 9,
+          "brake": 0,
+          "gear": 3,
+          "rpm": 7423,
+          "drs": 8
+        },
+        {
+          "ratio": 0.8814317673378076,
+          "speed": 122,
+          "throttle": 78,
+          "brake": 0,
+          "gear": 3,
+          "rpm": 9085,
+          "drs": 8
+        },
+        {
+          "ratio": 0.8899541919676148,
+          "speed": 155,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 3,
+          "rpm": 11423,
+          "drs": 8
+        },
+        {
+          "ratio": 0.9006072227548738,
+          "speed": 174,
+          "throttle": 67,
+          "brake": 0,
+          "gear": 4,
+          "rpm": 10897,
+          "drs": 8
+        },
+        {
+          "ratio": 0.9101949504634068,
+          "speed": 190,
+          "throttle": 97,
+          "brake": 0,
+          "gear": 4,
+          "rpm": 11342,
+          "drs": 8
+        },
+        {
+          "ratio": 0.9256551613934164,
+          "speed": 217,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 5,
+          "rpm": 11430,
+          "drs": 8
+        },
+        {
+          "ratio": 0.9378928305102802,
+          "speed": 240,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 6,
+          "rpm": 11022,
+          "drs": 14
+        },
+        {
+          "ratio": 0.9480265260466603,
+          "speed": 262,
+          "throttle": 100,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 10504,
+          "drs": 14
+        },
+        {
+          "ratio": 0.9597448599126451,
+          "speed": 277,
+          "throttle": 100,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 11126,
+          "drs": 14
+        },
+        {
+          "ratio": 0.9693325876211782,
+          "speed": 289,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 11573,
+          "drs": 14
+        },
+        {
+          "ratio": 0.9821029082774049,
+          "speed": 302,
+          "throttle": 100,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 10654,
+          "drs": 14
+        },
+        {
+          "ratio": 0.9927559390646639,
+          "speed": 309,
+          "throttle": 100,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 10893,
+          "drs": 14
+        },
+        {
+          "ratio": 1,
+          "speed": 313,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 11071,
+          "drs": 14
+        }
+      ]
+    },
+    "right": {
+      "driverCode": "PIA",
+      "lapNumber": 17,
+      "sampleHz": 3.7,
+      "points": [
+        {
+          "ratio": 0.004362862463421123,
+          "speed": 315,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 11106,
+          "drs": 12
+        },
+        {
+          "ratio": 0.016586858206969937,
+          "speed": 321,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 11275,
+          "drs": 12
+        },
+        {
+          "ratio": 0.02936951316839585,
+          "speed": 324,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 11376,
+          "drs": 12
+        },
+        {
+          "ratio": 0.0405293961159883,
+          "speed": 291,
+          "throttle": 0,
+          "brake": 100,
+          "gear": 8,
+          "rpm": 10077,
+          "drs": 8
+        },
+        {
+          "ratio": 0.049574354881617454,
+          "speed": 217,
+          "throttle": 0,
+          "brake": 100,
+          "gear": 8,
+          "rpm": 10715,
+          "drs": 8
+        },
+        {
+          "ratio": 0.06393987762702846,
+          "speed": 194,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 4,
+          "rpm": 11416,
+          "drs": 8
+        },
+        {
+          "ratio": 0.07564511838254855,
+          "speed": 223,
+          "throttle": 98,
+          "brake": 0,
+          "gear": 5,
+          "rpm": 11762,
+          "drs": 8
+        },
+        {
+          "ratio": 0.08256185155626497,
+          "speed": 231,
+          "throttle": 98,
+          "brake": 0,
+          "gear": 6,
+          "rpm": 10708,
+          "drs": 8
+        },
+        {
+          "ratio": 0.0910880553338654,
+          "speed": 246,
+          "throttle": 98,
+          "brake": 0,
+          "gear": 6,
+          "rpm": 11179,
+          "drs": 8
+        },
+        {
+          "ratio": 0.10277999467943602,
+          "speed": 258,
+          "throttle": 98,
+          "brake": 0,
+          "gear": 6,
+          "rpm": 11177,
+          "drs": 14
+        },
+        {
+          "ratio": 0.1144852354349561,
+          "speed": 275,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 11066,
+          "drs": 12
+        },
+        {
+          "ratio": 0.12459430699654163,
+          "speed": 288,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 11514,
+          "drs": 12
+        },
+        {
+          "ratio": 0.13949188613993083,
+          "speed": 301,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 10617,
+          "drs": 12
+        },
+        {
+          "ratio": 0.15226123969140729,
+          "speed": 310,
+          "throttle": 100,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 10919,
+          "drs": 12
+        },
+        {
+          "ratio": 0.16664006384676774,
+          "speed": 315,
+          "throttle": 0,
+          "brake": 100,
+          "gear": 8,
+          "rpm": 10398,
+          "drs": 8
+        },
+        {
+          "ratio": 0.18046022878425114,
+          "speed": 170,
+          "throttle": 0,
+          "brake": 100,
+          "gear": 6,
+          "rpm": 8982,
+          "drs": 8
+        },
+        {
+          "ratio": 0.19643522213354617,
+          "speed": 118,
+          "throttle": 0,
+          "brake": 100,
+          "gear": 3,
+          "rpm": 8114,
+          "drs": 8
+        },
+        {
+          "ratio": 0.20707635009310987,
+          "speed": 106,
+          "throttle": 27,
+          "brake": 0,
+          "gear": 3,
+          "rpm": 8070,
+          "drs": 8
+        },
+        {
+          "ratio": 0.2187682894386805,
+          "speed": 122,
+          "throttle": 85,
+          "brake": 0,
+          "gear": 3,
+          "rpm": 9813,
+          "drs": 8
+        },
+        {
+          "ratio": 0.2352487363660548,
+          "speed": 176,
+          "throttle": 0,
+          "brake": 0,
+          "gear": 4,
+          "rpm": 10455,
+          "drs": 8
+        },
+        {
+          "ratio": 0.2443069965416334,
+          "speed": 166,
+          "throttle": 74,
+          "brake": 0,
+          "gear": 4,
+          "rpm": 10358,
+          "drs": 8
+        },
+        {
+          "ratio": 0.25441606810321893,
+          "speed": 187,
+          "throttle": 98,
+          "brake": 0,
+          "gear": 4,
+          "rpm": 11557,
+          "drs": 8
+        },
+        {
+          "ratio": 0.26665336525671723,
+          "speed": 214,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 5,
+          "rpm": 11366,
+          "drs": 8
+        },
+        {
+          "ratio": 0.2757116254322958,
+          "speed": 231,
+          "throttle": 100,
+          "brake": 0,
+          "gear": 6,
+          "rpm": 10518,
+          "drs": 8
+        },
+        {
+          "ratio": 0.2868848097898377,
+          "speed": 250,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 6,
+          "rpm": 11556,
+          "drs": 8
+        },
+        {
+          "ratio": 0.29538441074753924,
+          "speed": 255,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 10364,
+          "drs": 8
+        },
+        {
+          "ratio": 0.306025538707103,
+          "speed": 263,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 10523,
+          "drs": 8
+        },
+        {
+          "ratio": 0.3161346102686885,
+          "speed": 271,
+          "throttle": 100,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 10893,
+          "drs": 8
+        },
+        {
+          "ratio": 0.32464751263633945,
+          "speed": 279,
+          "throttle": 100,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 11193,
+          "drs": 8
+        },
+        {
+          "ratio": 0.3331604150039904,
+          "speed": 286,
+          "throttle": 100,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 11430,
+          "drs": 8
+        },
+        {
+          "ratio": 0.3411412609736632,
+          "speed": 291,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 11622,
+          "drs": 8
+        },
+        {
+          "ratio": 0.3512636339451982,
+          "speed": 292,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 11614,
+          "drs": 8
+        },
+        {
+          "ratio": 0.36189146049481247,
+          "speed": 257,
+          "throttle": 4,
+          "brake": 0,
+          "gear": 6,
+          "rpm": 11341,
+          "drs": 8
+        },
+        {
+          "ratio": 0.37041766427241285,
+          "speed": 240,
+          "throttle": 83,
+          "brake": 0,
+          "gear": 6,
+          "rpm": 11156,
+          "drs": 8
+        },
+        {
+          "ratio": 0.38052673583399843,
+          "speed": 249,
+          "throttle": 98,
+          "brake": 0,
+          "gear": 6,
+          "rpm": 11708,
+          "drs": 8
+        },
+        {
+          "ratio": 0.3911545623836127,
+          "speed": 260,
+          "throttle": 98,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 10505,
+          "drs": 8
+        },
+        {
+          "ratio": 0.4028598031391327,
+          "speed": 274,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 11023,
+          "drs": 8
+        },
+        {
+          "ratio": 0.41030859271082737,
+          "speed": 280,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 11223,
+          "drs": 8
+        },
+        {
+          "ratio": 0.42148177706836926,
+          "speed": 286,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 11481,
+          "drs": 8
+        },
+        {
+          "ratio": 0.43212290502793294,
+          "speed": 291,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 11615,
+          "drs": 8
+        },
+        {
+          "ratio": 0.44276403298749667,
+          "speed": 295,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 10444,
+          "drs": 8
+        },
+        {
+          "ratio": 0.45341846235700983,
+          "speed": 300,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 10629,
+          "drs": 8
+        },
+        {
+          "ratio": 0.46352753391859536,
+          "speed": 303,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 10731,
+          "drs": 8
+        },
+        {
+          "ratio": 0.47150837988826816,
+          "speed": 304,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 10737,
+          "drs": 8
+        },
+        {
+          "ratio": 0.483732375631817,
+          "speed": 308,
+          "throttle": 100,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 10874,
+          "drs": 12
+        },
+        {
+          "ratio": 0.49277733439744614,
+          "speed": 314,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 11082,
+          "drs": 12
+        },
+        {
+          "ratio": 0.5018222931630753,
+          "speed": 318,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 11219,
+          "drs": 12
+        },
+        {
+          "ratio": 0.5108672519287044,
+          "speed": 321,
+          "throttle": 98,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 11332,
+          "drs": 12
+        },
+        {
+          "ratio": 0.5241686618781591,
+          "speed": 325,
+          "throttle": 98,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 11470,
+          "drs": 12
+        },
+        {
+          "ratio": 0.5369380154296356,
+          "speed": 325,
+          "throttle": 98,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 11474,
+          "drs": 12
+        },
+        {
+          "ratio": 0.5465150305932429,
+          "speed": 326,
+          "throttle": 98,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 11481,
+          "drs": 12
+        },
+        {
+          "ratio": 0.5566241021548284,
+          "speed": 327,
+          "throttle": 98,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 11551,
+          "drs": 12
+        },
+        {
+          "ratio": 0.565682362330407,
+          "speed": 328,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 11572,
+          "drs": 12
+        },
+        {
+          "ratio": 0.5763101888800213,
+          "speed": 328,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 11528,
+          "drs": 12
+        },
+        {
+          "ratio": 0.5885474860335196,
+          "speed": 290,
+          "throttle": 0,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 11510,
+          "drs": 8
+        },
+        {
+          "ratio": 0.5991886139930833,
+          "speed": 263,
+          "throttle": 74,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 10577,
+          "drs": 8
+        },
+        {
+          "ratio": 0.6071694599627561,
+          "speed": 264,
+          "throttle": 69,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 10572,
+          "drs": 8
+        },
+        {
+          "ratio": 0.6167464751263634,
+          "speed": 257,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 10512,
+          "drs": 8
+        },
+        {
+          "ratio": 0.6279196594839053,
+          "speed": 262,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 10618,
+          "drs": 8
+        },
+        {
+          "ratio": 0.6343176376695929,
+          "speed": 269,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 10853,
+          "drs": 8
+        },
+        {
+          "ratio": 0.6433492950252727,
+          "speed": 281,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 11265,
+          "drs": 12
+        },
+        {
+          "ratio": 0.6550545357807928,
+          "speed": 293,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 11752,
+          "drs": 12
+        },
+        {
+          "ratio": 0.6678238893322692,
+          "speed": 303,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 10740,
+          "drs": 12
+        },
+        {
+          "ratio": 0.6800611864857675,
+          "speed": 311,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 10962,
+          "drs": 12
+        },
+        {
+          "ratio": 0.690170258047353,
+          "speed": 317,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 11267,
+          "drs": 12
+        },
+        {
+          "ratio": 0.7008113860069167,
+          "speed": 323,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 11404,
+          "drs": 12
+        },
+        {
+          "ratio": 0.7077281191806332,
+          "speed": 324,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 11420,
+          "drs": 12
+        },
+        {
+          "ratio": 0.7162410215482842,
+          "speed": 252,
+          "throttle": 0,
+          "brake": 100,
+          "gear": 8,
+          "rpm": 9913,
+          "drs": 8
+        },
+        {
+          "ratio": 0.7311386006916734,
+          "speed": 139,
+          "throttle": 0,
+          "brake": 100,
+          "gear": 6,
+          "rpm": 9568,
+          "drs": 8
+        },
+        {
+          "ratio": 0.7407289172652302,
+          "speed": 124,
+          "throttle": 3,
+          "brake": 0,
+          "gear": 3,
+          "rpm": 9085,
+          "drs": 8
+        },
+        {
+          "ratio": 0.7497605746209098,
+          "speed": 127,
+          "throttle": 78,
+          "brake": 0,
+          "gear": 3,
+          "rpm": 10216,
+          "drs": 8
+        },
+        {
+          "ratio": 0.7614658153764299,
+          "speed": 173,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 4,
+          "rpm": 10892,
+          "drs": 8
+        },
+        {
+          "ratio": 0.7758313381218409,
+          "speed": 211,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 5,
+          "rpm": 11293,
+          "drs": 8
+        },
+        {
+          "ratio": 0.7880686352753392,
+          "speed": 237,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 6,
+          "rpm": 10901,
+          "drs": 8
+        },
+        {
+          "ratio": 0.7976456504389465,
+          "speed": 243,
+          "throttle": 71,
+          "brake": 0,
+          "gear": 6,
+          "rpm": 11121,
+          "drs": 8
+        },
+        {
+          "ratio": 0.8088188347964884,
+          "speed": 240,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 6,
+          "rpm": 11217,
+          "drs": 8
+        },
+        {
+          "ratio": 0.8194732641660016,
+          "speed": 246,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 6,
+          "rpm": 11547,
+          "drs": 8
+        },
+        {
+          "ratio": 0.8311785049215217,
+          "speed": 253,
+          "throttle": 98,
+          "brake": 0,
+          "gear": 6,
+          "rpm": 11630,
+          "drs": 8
+        },
+        {
+          "ratio": 0.8412742750731578,
+          "speed": 199,
+          "throttle": 0,
+          "brake": 100,
+          "gear": 5,
+          "rpm": 9628,
+          "drs": 8
+        },
+        {
+          "ratio": 0.8524474594306997,
+          "speed": 121,
+          "throttle": 0,
+          "brake": 100,
+          "gear": 3,
+          "rpm": 8206,
+          "drs": 8
+        },
+        {
+          "ratio": 0.8657488693801543,
+          "speed": 100,
+          "throttle": 0,
+          "brake": 0,
+          "gear": 3,
+          "rpm": 6894,
+          "drs": 8
+        },
+        {
+          "ratio": 0.8753258845437616,
+          "speed": 99,
+          "throttle": 60,
+          "brake": 0,
+          "gear": 3,
+          "rpm": 8071,
+          "drs": 8
+        },
+        {
+          "ratio": 0.8875764831072094,
+          "speed": 136,
+          "throttle": 94,
+          "brake": 0,
+          "gear": 3,
+          "rpm": 10290,
+          "drs": 8
+        },
+        {
+          "ratio": 0.8992817238627294,
+          "speed": 170,
+          "throttle": 77,
+          "brake": 0,
+          "gear": 4,
+          "rpm": 10898,
+          "drs": 8
+        },
+        {
+          "ratio": 0.9120377760042565,
+          "speed": 196,
+          "throttle": 97,
+          "brake": 0,
+          "gear": 4,
+          "rpm": 10750,
+          "drs": 8
+        },
+        {
+          "ratio": 0.9216280925778132,
+          "speed": 209,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 5,
+          "rpm": 11544,
+          "drs": 8
+        },
+        {
+          "ratio": 0.9317238627294493,
+          "speed": 230,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 6,
+          "rpm": 10578,
+          "drs": 14
+        },
+        {
+          "ratio": 0.9413008778930566,
+          "speed": 250,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 6,
+          "rpm": 11545,
+          "drs": 12
+        },
+        {
+          "ratio": 0.9514099494546422,
+          "speed": 265,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 10717,
+          "drs": 12
+        },
+        {
+          "ratio": 0.9620510774142059,
+          "speed": 280,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 11305,
+          "drs": 12
+        },
+        {
+          "ratio": 0.9700319233838787,
+          "speed": 289,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 7,
+          "rpm": 11639,
+          "drs": 12
+        },
+        {
+          "ratio": 0.9833333333333333,
+          "speed": 302,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 10714,
+          "drs": 12
+        },
+        {
+          "ratio": 0.9950385740888534,
+          "speed": 309,
+          "throttle": 99,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 10951,
+          "drs": 12
+        },
+        {
+          "ratio": 1,
+          "speed": 313,
+          "throttle": 100,
+          "brake": 0,
+          "gear": 8,
+          "rpm": 11056,
+          "drs": 12
+        }
+      ]
+    }
+  },
+  "annotations": [
+    {
+      "id": "corner-window-1",
+      "label": "S1",
+      "from": 0,
+      "to": 0.3457041653350378,
+      "leader": "NOR",
+      "summary": "NOR owns this window overall. NOR carries the later brake point, while NOR reaches throttle earlier on exit.",
+      "metrics": {
+        "left": {
+          "brakePointRatio": 0.044,
+          "minSpeed": 109,
+          "throttlePickupRatio": 0.215
+        },
+        "right": {
+          "brakePointRatio": 0.041,
+          "minSpeed": 106,
+          "throttlePickupRatio": 0.219
+        }
+      }
+    },
+    {
+      "id": "corner-window-2",
+      "label": "S2",
+      "from": 0.3457041653350378,
+      "to": 0.5720411206988387,
+      "leader": "PIA",
+      "summary": "PIA owns this window overall. NOR carries the later brake point, while PIA reaches throttle earlier on exit.",
+      "metrics": {
+        "left": {
+          "brakePointRatio": 0.356,
+          "minSpeed": 238,
+          "throttlePickupRatio": 0.374
+        },
+        "right": {
+          "brakePointRatio": null,
+          "minSpeed": 240,
+          "throttlePickupRatio": 0.37
+        }
+      }
+    },
+    {
+      "id": "corner-window-3",
+      "label": "S3",
+      "from": 0.5720411206988387,
+      "to": 1,
+      "leader": "NOR",
+      "summary": "NOR owns this window overall. PIA carries the later brake point, while PIA reaches throttle earlier on exit.",
+      "metrics": {
+        "left": {
+          "brakePointRatio": 0.58,
+          "minSpeed": 98,
+          "throttlePickupRatio": 0.881
+        },
+        "right": {
+          "brakePointRatio": 0.716,
+          "minSpeed": 99,
+          "throttlePickupRatio": 0.875
+        }
+      }
+    }
+  ]
+}

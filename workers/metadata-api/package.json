@@ -1,0 +1,8 @@
+{
+  "name": "@f1-racing/metadata-api",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "check": "wrangler deploy --dry-run"
+  }
+}
