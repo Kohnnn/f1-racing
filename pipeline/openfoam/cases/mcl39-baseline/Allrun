@@ -1,0 +1,18 @@
+#!/bin/sh
+set -eu
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+cd "$SCRIPT_DIR"
+
+if [ ! -f constant/triSurface/mcl39_clean.stl ]; then
+  printf '%s\n' "Missing constant/triSurface/mcl39_clean.stl"
+  printf '%s\n' "Export a clean watertight STL first."
+  exit 1
+fi
+
+surfaceCheck constant/triSurface/mcl39_clean.stl
+surfaceFeatureExtract
+blockMesh
+snappyHexMesh -overwrite
+checkMesh
+simpleFoam

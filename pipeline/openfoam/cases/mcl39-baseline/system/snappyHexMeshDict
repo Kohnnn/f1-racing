@@ -1,0 +1,96 @@
+FoamFile
+{
+  version 2.0;
+  format ascii;
+  class dictionary;
+  object snappyHexMeshDict;
+}
+
+castellatedMesh true;
+snap true;
+addLayers false;
+
+geometry
+{
+  mcl39_clean.stl
+  {
+    type triSurfaceMesh;
+    name car;
+  }
+
+  wakeBox
+  {
+    type searchableBox;
+    min (-1.5 -1.2 0.0);
+    max (4.0 1.2 1.5);
+  }
+}
+
+castellatedMeshControls
+{
+  maxLocalCells 800000;
+  maxGlobalCells 3000000;
+  minRefinementCells 10;
+  maxLoadUnbalance 0.10;
+  nCellsBetweenLevels 3;
+
+  features
+  (
+    {
+      file "mcl39_clean.eMesh";
+      level 5;
+    }
+  );
+
+  refinementSurfaces
+  {
+    car
+    {
+      level (4 5);
+      patchInfo
+      {
+        type wall;
+      }
+    }
+  }
+
+  resolveFeatureAngle 30;
+
+  refinementRegions
+  {
+    wakeBox
+    {
+      mode inside;
+      levels ((1E15 4));
+    }
+  }
+
+  locationInMesh (6 0 0.5);
+  allowFreeStandingZoneFaces false;
+}
+
+snapControls
+{
+  nSmoothPatch 3;
+  tolerance 2.0;
+  nSolveIter 30;
+  nRelaxIter 8;
+  nFeatureSnapIter 10;
+  explicitFeatureSnap true;
+  implicitFeatureSnap false;
+  multiRegionFeatureSnap false;
+}
+
+meshQualityControls
+{
+  #includeEtc "caseDicts/mesh/generation/meshQualityDict"
+}
+
+writeFlags
+(
+  scalarLevels
+  layerSets
+  layerFields
+);
+
+mergeTolerance 1e-6;

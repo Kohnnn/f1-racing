@@ -207,6 +207,122 @@ export const WindOverlayPackSchema = z.object({
   }),
 });
 
+export const CfdOverlaySchemaExampleSchema = z.object({
+  schemaVersion: z.number().int(),
+  generatedAt: z.string().optional(),
+  modelId: z.string(),
+  scenarioId: z.string(),
+  displayName: z.string().optional(),
+  metric: z.string(),
+  units: z.string(),
+  source: z.object({
+    kind: z.string(),
+    caseId: z.string(),
+    solver: z.string(),
+    turbulenceModel: z.string(),
+    referencePath: z.string(),
+    notes: z.array(z.string()).optional(),
+  }).optional(),
+  inputs: z.object({
+    speedMps: z.number(),
+    yawDeg: z.number(),
+    rideHeightMm: z.number(),
+    drsOpen: z.boolean().optional(),
+    groundMode: z.string(),
+    wheelMode: z.string(),
+  }).optional(),
+  reference: z.object({
+    airDensityKgM3: z.number(),
+    areaM2: z.number(),
+    lengthM: z.number(),
+    pressureReferencePa: z.number().optional(),
+  }).optional(),
+  meshBinding: z.object({
+    renderMeshId: z.string(),
+    mappingMode: z.string(),
+    triangleCount: z.number().int(),
+  }),
+  colorScale: z.object({
+    min: z.number(),
+    max: z.number(),
+    palette: z.array(z.string()),
+  }),
+  scalarFields: z.array(
+    z.object({
+      name: z.string(),
+      domain: z.string(),
+      sourceField: z.string().optional(),
+      transform: z.string().optional(),
+      stats: z.object({
+        min: z.number(),
+        max: z.number(),
+        mean: z.number(),
+      }),
+      storage: z.object({
+        format: z.string(),
+        path: z.string(),
+        valueColumn: z.string(),
+      }).optional(),
+    })
+  ),
+  overlays: z.object({
+    streamlines: z.array(
+      z.object({
+        id: z.string(),
+        color: z.string(),
+        count: z.number().int(),
+      })
+    ),
+    hotspots: z.array(
+      z.object({
+        id: z.string(),
+        label: z.string(),
+        field: z.string(),
+        value: z.number(),
+      })
+    ),
+  }),
+  artifacts: z.object({
+    streamlineGuidePath: z.string().optional(),
+    forceCoeffsPath: z.string().optional(),
+  }).optional(),
+  summary: z.object({
+    cd: z.number().optional(),
+    cl: z.number().optional(),
+    downforceBalancePct: z.number().optional(),
+  }).optional(),
+});
+
+export const OpenFoamStarterCaseSchema = z.object({
+  generatedAt: z.string(),
+  caseId: z.string(),
+  label: z.string(),
+  status: z.string(),
+  modelId: z.string(),
+  glbSourcePath: z.string(),
+  casePath: z.string(),
+  overlayConfigExamplePath: z.string(),
+  recommendedCommand: z.string(),
+  solver: z.string(),
+  turbulenceModel: z.string(),
+  defaults: z.object({
+    speedMps: z.number(),
+    yawDeg: z.number(),
+    rideHeightMm: z.number(),
+    groundMode: z.string(),
+    wheelMode: z.string(),
+  }),
+  requiredUserInputs: z.array(
+    z.object({
+      id: z.string(),
+      label: z.string(),
+      description: z.string(),
+    })
+  ),
+  outputs: z.array(z.string()),
+  notes: z.array(z.string()),
+});
+
 export const SessionManifestSchema = z.object({
   sessionKey: z.number().int(),
   summary: z.string(),

@@ -1,0 +1,21 @@
+{
+  "modelId": "mclaren-2025-mcl39",
+  "scenarioId": "mcl39-baseline-15ms",
+  "license": {
+    "confirmedForWebsite": false,
+    "sourceUrl": "",
+    "notes": "Set confirmedForWebsite to true only after you verify the source model license allows publishing derived assets."
+  },
+  "reference": {
+    "areaM2": null,
+    "lengthM": null
+  },
+  "meshBinding": {
+    "triangleCount": null,
+    "mappingNotes": "Set this after you settle the render-mesh mapping for the website overlay."
+  },
+  "artifacts": {
+    "cleanStlPath": "pipeline/openfoam/cases/mcl39-baseline/constant/triSurface/mcl39_clean.stl",
+    "surfaceCsvPath": "pipeline/openfoam/exports/mcl39-baseline-15ms/car-surface.csv"
+  }
+}

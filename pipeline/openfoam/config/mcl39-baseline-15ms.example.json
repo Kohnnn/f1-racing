@@ -1,6 +1,4 @@
 {
-  "schemaVersion": 1,
-  "generatedAt": "2026-03-28T00:00:00Z",
   "modelId": "mclaren-2025-mcl39",
   "scenarioId": "mcl39-baseline-15ms",
   "displayName": "McLaren MCL39 baseline 15 m/s",
@@ -13,8 +11,8 @@
     "turbulenceModel": "kOmegaSST",
     "referencePath": "pipeline/openfoam/cases/mcl39-baseline",
     "notes": [
-      "Example pack shape for the first local McLaren run.",
-      "Replace stats and summary values with real outputs after the case is solved."
+      "This config expects a single ParaView CSV export containing p and wallShearStress columns.",
+      "Update triangleCount, areaM2, and lengthM after you finalize the cleaned CFD mesh."
     ]
   },
   "inputs": {
@@ -28,7 +26,8 @@
   "reference": {
     "airDensityKgM3": 1.225,
     "areaM2": 1.5,
-    "lengthM": 5.2
+    "lengthM": 5.2,
+    "kinematicPressureRef": 0
   },
   "meshBinding": {
     "renderMeshId": "body-shell",
@@ -46,38 +45,30 @@
       "#c54f2a"
     ]
   },
-  "scalarFields": [
+  "output": {
+    "packRelativePath": "packs/sims/openfoam/mcl39-baseline-15ms.json",
+    "assetDirectory": "packs/sims/openfoam/mcl39-baseline-15ms"
+  },
+  "scalarInputs": [
     {
       "name": "cp",
       "domain": "surface",
       "sourceField": "p",
-      "transform": "cp = 2 * p / U^2",
-      "stats": {
-        "min": -2.2,
-        "max": 1.1,
-        "mean": -0.32
-      },
-      "storage": {
-        "format": "csv",
-        "path": "/data/packs/sims/openfoam/mcl39-baseline-15ms/cp.csv",
-        "valueColumn": "value"
-      }
+      "sourcePath": "../exports/mcl39-baseline-15ms/car-surface.csv",
+      "valueColumn": "p",
+      "normalizeAs": "cp"
     },
     {
       "name": "cf",
       "domain": "surface",
       "sourceField": "wallShearStress",
-      "transform": "cf = 2 * |tau_w| / U^2",
-      "stats": {
-        "min": 0.0,
-        "max": 0.064,
-        "mean": 0.012
-      },
-      "storage": {
-        "format": "csv",
-        "path": "/data/packs/sims/openfoam/mcl39-baseline-15ms/cf.csv",
-        "valueColumn": "value"
-      }
+      "sourcePath": "../exports/mcl39-baseline-15ms/car-surface.csv",
+      "vectorColumns": [
+        "wallShearStress:0",
+        "wallShearStress:1",
+        "wallShearStress:2"
+      ],
+      "normalizeAs": "cf"
     }
   ],
   "overlays": {

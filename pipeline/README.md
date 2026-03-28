@@ -9,3 +9,4 @@ Planned responsibilities:
 - derive compare, stint, strategy, and replay artifacts
 - export compressed browser-friendly packs
 - publish manifests
+- convert offline OpenFOAM outputs into browser-safe CFD packs

@@ -61,6 +61,8 @@ This file is the progress tracker for the new `f1-racing` product.
 ### Phase 7 - wind sim viewer
 - [x] Define sim scenario grid
 - [x] Build source-scenario manifest for sim results
+- [x] Scaffold first local OpenFOAM starter case and pack builder
+- [x] Add local-input readiness checks for the OpenFOAM starter flow
 - [ ] Publish first streamlines/pressure packs
 - [x] Build browser wind-sim explainer route
 - [x] Define baked overlay schema example

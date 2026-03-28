@@ -251,3 +251,16 @@ For this product, the best pattern is:
 - `model-viewer` or learn-page overlay rendering in the app
 
 That is feasible, scalable, and aligned with the static-first architecture already in `f1-racing`.
+
+## Repo starter assets
+
+This repo now includes a first McLaren starter path:
+
+- case scaffold: `pipeline/openfoam/cases/mcl39-baseline`
+- pack builder: `pipeline/openfoam/src/build-openfoam-overlay-pack.mjs`
+- readiness checker: `pipeline/openfoam/src/check-openfoam-readiness.mjs`
+- local-input applier: `pipeline/openfoam/src/apply-openfoam-user-inputs.mjs`
+- starter checklist: `data/packs/sims/openfoam-starter-case.json`
+- step-by-step walkthrough: `docs/openfoam-mcl39-pipeline.md`
+
+Use those to get from one cleaned STL to one publishable baseline overlay pack before attempting higher-fidelity scenarios.

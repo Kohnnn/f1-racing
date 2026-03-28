@@ -288,10 +288,26 @@ For baked mesh-linked overlays on the car viewer.
 ```json
 {
   "schemaVersion": 1,
+  "generatedAt": "2026-03-28T00:00:00Z",
   "modelId": "mclaren-2025-mcl39",
-  "scenarioId": "baseline-speed-280-yaw-1p5",
+  "scenarioId": "mcl39-baseline-15ms",
+  "displayName": "McLaren MCL39 baseline 15 m/s",
   "metric": "cp",
   "units": "coefficient",
+  "source": {
+    "kind": "openfoam",
+    "caseId": "mcl39-baseline-simplefoam",
+    "solver": "simpleFoam",
+    "turbulenceModel": "kOmegaSST",
+    "referencePath": "pipeline/openfoam/cases/mcl39-baseline"
+  },
+  "inputs": {
+    "speedMps": 15,
+    "yawDeg": 0,
+    "rideHeightMm": 35,
+    "groundMode": "moving-wall",
+    "wheelMode": "fixed"
+  },
   "meshBinding": {
     "renderMeshId": "body-shell",
     "mappingMode": "triangle-sampled",
@@ -303,12 +319,31 @@ For baked mesh-linked overlays on the car viewer.
     "palette": ["#1f4e79", "#3d87b7", "#7fc7da", "#f2d2a2", "#c54f2a"]
   },
   "scalarFields": [
-    { "name": "cp", "domain": "surface", "stats": { "min": -2.2, "max": 1.1, "mean": -0.32 } },
-    { "name": "cf", "domain": "surface", "stats": { "min": 0.0, "max": 0.064, "mean": 0.012 } }
+    {
+      "name": "cp",
+      "domain": "surface",
+      "sourceField": "p",
+      "transform": "cp = 2 * p / U^2",
+      "stats": { "min": -2.2, "max": 1.1, "mean": -0.32 },
+      "storage": { "format": "csv", "path": "/data/packs/sims/openfoam/mcl39-baseline-15ms/cp.csv", "valueColumn": "value" }
+    },
+    {
+      "name": "cf",
+      "domain": "surface",
+      "sourceField": "wallShearStress",
+      "transform": "cf = 2 * |tau_w| / U^2",
+      "stats": { "min": 0.0, "max": 0.064, "mean": 0.012 },
+      "storage": { "format": "csv", "path": "/data/packs/sims/openfoam/mcl39-baseline-15ms/cf.csv", "valueColumn": "value" }
+    }
   ],
   "overlays": {
     "streamlines": [{ "id": "roofline-feed", "color": "#7fc7da", "count": 36 }],
     "hotspots": [{ "id": "front-wing-mainplane", "label": "Front wing stagnation zone", "field": "cp", "value": 0.84 }]
+  },
+  "summary": {
+    "cd": 0.94,
+    "cl": -3.1,
+    "downforceBalancePct": 45.5
   }
 }
 ```

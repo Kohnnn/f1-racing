@@ -1,7 +1,11 @@
-import { getWindOverlaySchemaExample, getWindScenarioCatalog } from "@/lib/data";
+import { getOpenFoamStarterCase, getWindOverlaySchemaExample, getWindScenarioCatalog } from "@/lib/data";
 
 export default async function WindSimPage() {
-  const [wind, overlaySchema] = await Promise.all([getWindScenarioCatalog(), getWindOverlaySchemaExample()]);
+  const [wind, overlaySchema, starterCase] = await Promise.all([
+    getWindScenarioCatalog(),
+    getWindOverlaySchemaExample(),
+    getOpenFoamStarterCase(),
+  ]);
 
   return (
     <div className="page-stack">
@@ -12,6 +16,49 @@ export default async function WindSimPage() {
           The recommended app pattern is to treat CFD as precomputed data. Load a matching car mesh, then attach
           pressure, friction, or streamline packs on top of it. The browser should visualize the result, not solve it.
         </p>
+      </section>
+
+      <section className="panel">
+        <div className="section-header">
+          <div>
+            <p className="eyebrow">Local starter case</p>
+            <h2>{starterCase.label}</h2>
+          </div>
+        </div>
+        <p>
+          Status: <strong>{starterCase.status}</strong>. Run the CFD case from <code>{starterCase.casePath}</code>, then build the
+          browser pack from <code>{starterCase.overlayConfigExamplePath}</code>.
+        </p>
+        <div className="panel-grid panel-grid--two">
+          <article className="panel panel--nested">
+            <p className="eyebrow">Defaults</p>
+            <h3>{starterCase.solver}</h3>
+            <p>
+              {starterCase.defaults.speedMps} m/s · yaw {starterCase.defaults.yawDeg} deg · ride height {starterCase.defaults.rideHeightMm} mm.
+            </p>
+            <p>
+              Ground: {starterCase.defaults.groundMode}. Wheels: {starterCase.defaults.wheelMode}.
+            </p>
+          </article>
+          <article className="panel panel--nested">
+            <p className="eyebrow">Outputs</p>
+            <h3>First publishable artifacts</h3>
+            <ul className="summary-list overlay-summary-list">
+              {starterCase.outputs.map((output) => (
+                <li key={output}>
+                  <span>{output}</span>
+                </li>
+              ))}
+            </ul>
+          </article>
+        </div>
+        <ol className="ordered-list">
+          {starterCase.requiredUserInputs.map((item) => (
+            <li key={item.id}>
+              <strong>{item.label}</strong> - {item.description}
+            </li>
+          ))}
+        </ol>
       </section>
 
       <section className="panel">
@@ -60,7 +107,7 @@ export default async function WindSimPage() {
         <div className="panel-grid panel-grid--two">
           <article className="panel panel--nested">
             <p className="eyebrow">Binding</p>
-            <h3>{overlaySchema.modelId}</h3>
+            <h3>{overlaySchema.displayName ?? overlaySchema.modelId}</h3>
             <p>
               Scenario <code>{overlaySchema.scenarioId}</code> binds CFD results to render mesh <code>{overlaySchema.meshBinding.renderMeshId}</code>
               using <strong>{overlaySchema.meshBinding.mappingMode}</strong> with {overlaySchema.meshBinding.triangleCount.toLocaleString()} triangles.
@@ -72,6 +119,11 @@ export default async function WindSimPage() {
             <p>
               Start with surface pressure and friction, then layer streamlines and hotspot probes on top of the same car mesh.
             </p>
+            {overlaySchema.inputs ? (
+              <p>
+                Example inputs: {overlaySchema.inputs.speedMps} m/s, yaw {overlaySchema.inputs.yawDeg} deg, ride height {overlaySchema.inputs.rideHeightMm} mm.
+              </p>
+            ) : null}
           </article>
         </div>
         <ul className="summary-list">
@@ -80,6 +132,7 @@ export default async function WindSimPage() {
               <strong>{field.name}</strong>
               <span>
                 Domain: {field.domain} · min {field.stats.min} · max {field.stats.max} · mean {field.stats.mean}
+                {field.storage ? ` · ${field.storage.format.toUpperCase()} ready` : ""}
               </span>
             </li>
           ))}

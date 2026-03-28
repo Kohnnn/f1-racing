@@ -11,7 +11,7 @@
       "poster": "/posters/2025/mclaren/mcl39.svg",
       "sizeLabel": "~116 MB",
       "surfaceReady": true,
-      "notes": "Local GLB provided in the workspace. A first baked CFD overlay schema now targets this model, but production delivery still needs an optimized build."
+      "notes": "Local GLB provided in the workspace. A first OpenFOAM starter case and baked overlay pack scaffold now target this model, but real CFD output still depends on your cleaned STL and solved case."
     },
     {
       "id": "apx-gp-2025-apx01",

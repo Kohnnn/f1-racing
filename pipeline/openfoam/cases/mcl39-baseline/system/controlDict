@@ -1,0 +1,89 @@
+FoamFile
+{
+  version 2.0;
+  format ascii;
+  class dictionary;
+  object controlDict;
+}
+
+application simpleFoam;
+
+startFrom startTime;
+startTime 0;
+
+stopAt endTime;
+endTime 1200;
+
+deltaT 1;
+
+writeControl timeStep;
+writeInterval 200;
+
+purgeWrite 4;
+
+writeFormat ascii;
+writePrecision 8;
+writeCompression off;
+
+timeFormat general;
+timePrecision 6;
+
+runTimeModifiable true;
+
+functions
+{
+  carForces
+  {
+    type forces;
+    libs ("libforces.so");
+    patches (car);
+    rho rhoInf;
+    rhoInf 1.225;
+    CofR (0 0 0);
+    writeControl writeTime;
+  }
+
+  carForceCoeffs
+  {
+    type forceCoeffs;
+    libs ("libforces.so");
+    patches (car);
+    rho rhoInf;
+    rhoInf 1.225;
+    CofR (0 0 0);
+    liftDir (0 0 1);
+    dragDir (1 0 0);
+    pitchAxis (0 1 0);
+    magUInf 15;
+    lRef 5.2;
+    Aref 1.5;
+    writeControl writeTime;
+  }
+
+  wallShearStress
+  {
+    type wallShearStress;
+    libs ("libfieldFunctionObjects.so");
+    patches (car);
+    writeControl writeTime;
+  }
+
+  carSurface
+  {
+    type surfaces;
+    libs ("libsampling.so");
+    writeControl writeTime;
+    surfaceFormat vtk;
+    interpolationScheme cellPoint;
+    fields (p U wallShearStress);
+    surfaces
+    (
+      carPatch
+      {
+        type patch;
+        patches (car);
+        triangulate true;
+      }
+    );
+  }
+}

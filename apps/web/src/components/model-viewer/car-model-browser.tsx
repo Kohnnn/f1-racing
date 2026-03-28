@@ -383,6 +383,34 @@ export function CarModelBrowser({ catalog, overlaySchema }: CarModelBrowserProps
               </div>
             </article>
           </div>
+          {matchedOverlay.source || matchedOverlay.inputs || matchedOverlay.summary ? (
+            <ul className="summary-list overlay-summary-list">
+              {matchedOverlay.source ? (
+                <li>
+                  <strong>{matchedOverlay.source.solver}</strong>
+                  <span>
+                    {matchedOverlay.source.turbulenceModel} · case {matchedOverlay.source.caseId}
+                  </span>
+                </li>
+              ) : null}
+              {matchedOverlay.inputs ? (
+                <li>
+                  <strong>Scenario inputs</strong>
+                  <span>
+                    {matchedOverlay.inputs.speedMps} m/s · yaw {matchedOverlay.inputs.yawDeg} deg · ride height {matchedOverlay.inputs.rideHeightMm} mm · wheels {matchedOverlay.inputs.wheelMode}
+                  </span>
+                </li>
+              ) : null}
+              {matchedOverlay.summary ? (
+                <li>
+                  <strong>Quick metrics</strong>
+                  <span>
+                    Cd {matchedOverlay.summary.cd ?? "-"} · Cl {matchedOverlay.summary.cl ?? "-"} · aero balance {matchedOverlay.summary.downforceBalancePct ?? "-"}%
+                  </span>
+                </li>
+              ) : null}
+            </ul>
+          ) : null}
           <ul className="summary-list overlay-summary-list">
             {matchedOverlay.overlays.hotspots.map((hotspot) => (
               <li key={hotspot.id}>

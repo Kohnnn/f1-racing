@@ -20,6 +20,7 @@ Implemented now:
 - one real OpenF1 session-pack export for 2025 Australian GP qualifying
 - `model-viewer` car surface with local 2025 McLaren and APX GP GLBs
 - wind-sim reference route with a baked CFD schema example
+- starter OpenFOAM case and website pack builder for the McLaren baseline run
 - corner-level compare annotations layered on top of telemetry traces
 - stint story route backed by static stint packs
 - split learn modules for `/learn/car`, `/learn/aero`, `/learn/tyres`, `/learn/braking`, `/learn/setup`, and `/learn/strategy`
@@ -97,6 +98,36 @@ npm run build:openf1:session -- --grandPrixSlug australian-grand-prix --sessionS
 npm run build
 ```
 
+### Build one OpenFOAM overlay pack from exported CFD CSV
+
+```bash
+npm run build:openfoam:overlay -- --config pipeline/openfoam/config/mcl39-baseline-15ms.example.json
+```
+
+### Apply your local CFD inputs to a local overlay config
+
+```bash
+npm run apply:openfoam:inputs
+```
+
+### Create the ignored local CFD input file
+
+```bash
+npm run init:openfoam:local
+```
+
+### Check what is still missing for the OpenFOAM pipeline
+
+```bash
+npm run check:openfoam:ready
+```
+
+### Inspect the McLaren GLB triangle summary
+
+```bash
+npm run inspect:glb:mcl39
+```
+
 ### Optional Cloudflare Worker validation
 
 ```bash
@@ -122,6 +153,11 @@ Instead:
 - `docs/data-schema.md` - pack shapes and derived data contracts
 - `docs/deployment.md` - hosting, CDN, caching, and deployment workflow
 - `docs/openfoam-overlays.md` - OpenFOAM feasibility and baked CFD overlay workflow
+- `docs/openfoam-mcl39-pipeline.md` - step-by-step McLaren starter workflow from STL to website pack
+- `docs/openfoam-blender-cleanup.md` - Blender cleanup checklist for the McLaren CFD mesh
+- `docs/openfoam-local-inputs.md` - field-by-field guide for `mcl39-user-inputs.local.json`
+- `docs/openfoam-paraview-export.md` - ParaView export steps for the surface CSV
+- `docs/openfoam-windows-setup.md` - Windows and WSL2 setup guidance for the starter case
 - `docs/roadmap.md` - phased build plan and progress tracking
 
 Optional Worker scaffold:

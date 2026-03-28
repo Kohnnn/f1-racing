@@ -1,14 +1,18 @@
 import { copyFile, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
+  CarModelCatalogSchema,
+  CfdOverlaySchemaExampleSchema,
   ComparePackSchema,
   DriverSummarySchema,
   LatestManifestSchema,
   LapRecordSchema,
+  OpenFoamStarterCaseSchema,
   SeasonIndexSchema,
   SessionManifestSchema,
   SessionSummarySchema,
   StintPackSchema,
+  WindOverlayPackSchema,
 } from "../../../packages/schemas/src/index.js";
 
 const root = path.resolve(process.cwd());
@@ -444,7 +448,20 @@ async function check() {
   const filePath = path.join(dataRoot, "manifests", "latest.json");
   const content = JSON.parse(await readFile(filePath, "utf-8"));
   LatestManifestSchema.parse(content);
-  process.stdout.write("Sample data manifests validated.\n");
+
+  const staticValidations = [
+    [path.join("packs", "cars", "catalog.json"), CarModelCatalogSchema],
+    [path.join("packs", "sims", "fs-cfd-database-source.json"), WindOverlayPackSchema],
+    [path.join("packs", "sims", "f1-cfd-overlay.schema.example.json"), CfdOverlaySchemaExampleSchema],
+    [path.join("packs", "sims", "openfoam-starter-case.json"), OpenFoamStarterCaseSchema],
+  ];
+
+  for (const [relativePath, schema] of staticValidations) {
+    const payload = JSON.parse(await readFile(path.join(dataRoot, relativePath), "utf-8"));
+    schema.parse(payload);
+  }
+
+  process.stdout.write("Sample data manifests and sim packs validated.\n");
 }
 
 async function main() {

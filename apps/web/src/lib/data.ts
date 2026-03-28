@@ -255,10 +255,34 @@ export interface WindScenarioCatalog {
 
 export interface WindOverlaySchemaExample {
   schemaVersion: number;
+  generatedAt?: string;
   modelId: string;
   scenarioId: string;
+  displayName?: string;
   metric: string;
   units: string;
+  source?: {
+    kind: string;
+    caseId: string;
+    solver: string;
+    turbulenceModel: string;
+    referencePath: string;
+    notes?: string[];
+  };
+  inputs?: {
+    speedMps: number;
+    yawDeg: number;
+    rideHeightMm: number;
+    drsOpen?: boolean;
+    groundMode: string;
+    wheelMode: string;
+  };
+  reference?: {
+    airDensityKgM3: number;
+    areaM2: number;
+    lengthM: number;
+    pressureReferencePa?: number;
+  };
   meshBinding: {
     renderMeshId: string;
     mappingMode: string;
@@ -272,10 +296,17 @@ export interface WindOverlaySchemaExample {
   scalarFields: Array<{
     name: string;
     domain: string;
+    sourceField?: string;
+    transform?: string;
     stats: {
       min: number;
       max: number;
       mean: number;
+    };
+    storage?: {
+      format: string;
+      path: string;
+      valueColumn: string;
     };
   }>;
   overlays: {
@@ -291,6 +322,43 @@ export interface WindOverlaySchemaExample {
       value: number;
     }>;
   };
+  artifacts?: {
+    streamlineGuidePath?: string;
+    forceCoeffsPath?: string;
+  };
+  summary?: {
+    cd?: number;
+    cl?: number;
+    downforceBalancePct?: number;
+  };
+}
+
+export interface OpenFoamStarterCase {
+  generatedAt: string;
+  caseId: string;
+  label: string;
+  status: string;
+  modelId: string;
+  glbSourcePath: string;
+  casePath: string;
+  overlayConfigExamplePath: string;
+  recommendedCommand: string;
+  solver: string;
+  turbulenceModel: string;
+  defaults: {
+    speedMps: number;
+    yawDeg: number;
+    rideHeightMm: number;
+    groundMode: string;
+    wheelMode: string;
+  };
+  requiredUserInputs: Array<{
+    id: string;
+    label: string;
+    description: string;
+  }>;
+  outputs: string[];
+  notes: string[];
 }
 
 const dataRoot = path.join(process.cwd(), "public", "data");
@@ -355,4 +423,8 @@ export async function getWindScenarioCatalog() {
 
 export async function getWindOverlaySchemaExample() {
   return readJson<WindOverlaySchemaExample>(path.join("packs", "sims", "f1-cfd-overlay.schema.example.json"));
+}
+
+export async function getOpenFoamStarterCase() {
+  return readJson<OpenFoamStarterCase>(path.join("packs", "sims", "openfoam-starter-case.json"));
 }
