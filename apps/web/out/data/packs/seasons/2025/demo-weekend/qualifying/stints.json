@@ -1,0 +1,99 @@
+{
+  "trackId": "studio-ring",
+  "sessionKey": 9000,
+  "drivers": [
+    {
+      "driverCode": "VER",
+      "team": "Red Bull Racing",
+      "stints": [
+        {
+          "stintNumber": 1,
+          "compound": "MEDIUM",
+          "lapStart": 1,
+          "lapEnd": 11,
+          "tyreAgeAtStart": 2,
+          "averageLapTime": 78.712,
+          "trendPerLap": 0.081,
+          "lapTimes": [
+            78.48,
+            78.55,
+            78.6,
+            78.66,
+            78.71,
+            78.78,
+            78.84,
+            78.89,
+            78.97,
+            79.02,
+            79.11
+          ]
+        },
+        {
+          "stintNumber": 2,
+          "compound": "SOFT",
+          "lapStart": 12,
+          "lapEnd": 18,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 78.43,
+          "trendPerLap": 0.056,
+          "lapTimes": [
+            78.41,
+            78.39,
+            78.412,
+            78.46,
+            78.5,
+            78.56,
+            78.58
+          ]
+        }
+      ]
+    },
+    {
+      "driverCode": "NOR",
+      "team": "McLaren",
+      "stints": [
+        {
+          "stintNumber": 1,
+          "compound": "MEDIUM",
+          "lapStart": 1,
+          "lapEnd": 12,
+          "tyreAgeAtStart": 2,
+          "averageLapTime": 78.781,
+          "trendPerLap": 0.074,
+          "lapTimes": [
+            78.57,
+            78.61,
+            78.63,
+            78.69,
+            78.74,
+            78.78,
+            78.82,
+            78.89,
+            78.94,
+            79,
+            79.05,
+            79.11
+          ]
+        },
+        {
+          "stintNumber": 2,
+          "compound": "SOFT",
+          "lapStart": 13,
+          "lapEnd": 19,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 78.49,
+          "trendPerLap": 0.043,
+          "lapTimes": [
+            78.47,
+            78.45,
+            78.44,
+            78.503,
+            78.51,
+            78.56,
+            78.57
+          ]
+        }
+      ]
+    }
+  ]
+}

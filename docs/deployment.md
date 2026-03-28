@@ -2,6 +2,10 @@
 
 ## Recommended production choices
 
+If you want the fastest practical first deploy, read:
+
+- `docs/cloudflare-first-deploy.md`
+
 Use this stack unless a later constraint forces a change:
 
 - frontend: `Cloudflare Pages`

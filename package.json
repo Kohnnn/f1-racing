@@ -17,10 +17,12 @@
     "apply:openfoam:inputs": "node pipeline/openfoam/src/apply-openfoam-user-inputs.mjs",
     "check:openfoam:ready": "node pipeline/openfoam/src/check-openfoam-readiness.mjs",
     "inspect:glb:mcl39": "node pipeline/openfoam/src/inspect-glb-mesh.mjs --file glb_model/f1_2025_mclaren_mcl39.glb",
+    "cloudflare:whoami": "wrangler whoami",
     "ingest:openf1:2025": "node pipeline/ingest/src/ingest-openf1-2025-season.mjs",
     "build:openf1:session": "node pipeline/export/src/build-openf1-session-pack.mjs",
     "worker:dev": "npm run dev -w @f1-racing/metadata-api",
-    "worker:check": "npm run check -w @f1-racing/metadata-api"
+    "worker:check": "npm run check -w @f1-racing/metadata-api",
+    "worker:deploy": "npm run deploy -w @f1-racing/metadata-api"
   },
   "devDependencies": {
     "wrangler": "^4.39.0"

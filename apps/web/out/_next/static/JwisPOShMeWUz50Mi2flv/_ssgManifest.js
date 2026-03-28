@@ -1,0 +1,1 @@
+self.__SSG_MANIFEST=new Set(["\u002Fcompare\u002F[season]\u002F[grandPrix]\u002F[session]\u002F[left]\u002F[right]","\u002Flearn\u002F[slug]","\u002Fsessions\u002F[season]\u002F[grandPrix]\u002F[session]","\u002Fstints\u002F[season]\u002F[grandPrix]\u002F[session]"]);self.__SSG_MANIFEST_CB&&self.__SSG_MANIFEST_CB()

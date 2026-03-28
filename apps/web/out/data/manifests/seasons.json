@@ -1,0 +1,42 @@
+{
+  "generatedAt": "2026-03-27T09:00:00Z",
+  "seasons": [
+    {
+      "season": 2025,
+      "grandsPrix": [
+        {
+          "grandPrixSlug": "demo-weekend",
+          "grandPrixName": "Demo Weekend",
+          "sessions": [
+            {
+              "season": 2025,
+              "grandPrixSlug": "demo-weekend",
+              "sessionSlug": "qualifying",
+              "grandPrixName": "Demo Weekend",
+              "sessionName": "Qualifying",
+              "sessionKey": 9000,
+              "trackId": "studio-ring",
+              "path": "/sessions/2025/demo-weekend/qualifying"
+            }
+          ]
+        },
+        {
+          "grandPrixSlug": "australian-grand-prix",
+          "grandPrixName": "Australian Grand Prix",
+          "sessions": [
+            {
+              "season": 2025,
+              "grandPrixSlug": "australian-grand-prix",
+              "sessionSlug": "qualifying",
+              "grandPrixName": "Australian Grand Prix",
+              "sessionName": "Qualifying",
+              "sessionKey": 9689,
+              "trackId": "melbourne",
+              "path": "/sessions/2025/australian-grand-prix/qualifying"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

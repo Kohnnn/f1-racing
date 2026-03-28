@@ -1,0 +1,66 @@
+{
+  "generatedAt": "2026-03-28T00:00:00Z",
+  "source": {
+    "name": "FS_CFD_database",
+    "repository": "https://github.com/tagdtm/FS_CFD_database",
+    "type": "Formula Student CFD validation dataset",
+    "feasibleForPrototype": true,
+    "directF1OverlayReady": false,
+    "notes": [
+      "Useful as a source reference for static CFD UX, comparison views, and schema planning.",
+      "Not a direct F1 body dataset, so any overlay on McLaren or APX GP meshes requires a geometry-mapping step or a separate matching CFD source."
+    ]
+  },
+  "scenarios": [
+    {
+      "id": "70m-komega-cpt-slice",
+      "label": "70M K-Omega SST CpT slice",
+      "type": "slice",
+      "status": "reference-only",
+      "velocityRangeMps": [10, 15],
+      "meshCells": 70000000,
+      "fields": ["CpT"],
+      "surfaceReady": false
+    },
+    {
+      "id": "70m-komega-surface-cp",
+      "label": "70M K-Omega SST surface Cp",
+      "type": "surface",
+      "status": "reference-only",
+      "meshCells": 70000000,
+      "fields": ["Cp"],
+      "surfaceReady": true
+    },
+    {
+      "id": "70m-komega-surface-cf",
+      "label": "70M K-Omega SST surface Cf",
+      "type": "surface",
+      "status": "reference-only",
+      "meshCells": 70000000,
+      "fields": ["Cf"],
+      "surfaceReady": true
+    },
+    {
+      "id": "mesh-sensitivity-300k-70m",
+      "label": "Mesh sensitivity sweep",
+      "type": "comparison",
+      "status": "reference-only",
+      "meshCells": [300000, 70000000],
+      "fields": ["Cp", "Cf", "drag", "lift"],
+      "surfaceReady": false
+    }
+  ],
+  "integrationPlan": {
+    "recommendedFlow": [
+      "extract surface scalar or vector fields from the CFD source",
+      "normalize them into browser-safe scenario packs",
+      "map the CFD surface data onto the render mesh or hotspot layer",
+      "serve baked pressure, friction, and streamline packs through the CDN"
+    ],
+    "appTargets": [
+      "/learn/aero",
+      "/cars/current-spec",
+      "/sims/wind"
+    ]
+  }
+}

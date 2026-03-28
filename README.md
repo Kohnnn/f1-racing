@@ -134,6 +134,18 @@ npm run inspect:glb:mcl39
 npm run worker:check
 ```
 
+### Check Cloudflare CLI auth
+
+```bash
+npm run cloudflare:whoami
+```
+
+### Optional Cloudflare Worker deploy
+
+```bash
+npm run worker:deploy
+```
+
 ## Product architecture
 
 The core rule is:
@@ -152,6 +164,7 @@ Instead:
 - `docs/architecture.md` - system architecture and product surfaces
 - `docs/data-schema.md` - pack shapes and derived data contracts
 - `docs/deployment.md` - hosting, CDN, caching, and deployment workflow
+- `docs/cloudflare-first-deploy.md` - step-by-step first deploy on Cloudflare Pages and optional Worker setup
 - `docs/openfoam-overlays.md` - OpenFOAM feasibility and baked CFD overlay workflow
 - `docs/openfoam-mcl39-pipeline.md` - step-by-step McLaren starter workflow from STL to website pack
 - `docs/openfoam-blender-cleanup.md` - Blender cleanup checklist for the McLaren CFD mesh

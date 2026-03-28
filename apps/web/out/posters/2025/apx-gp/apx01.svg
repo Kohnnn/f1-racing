@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-label="APX GP APX01 poster">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#fbfaf8"/>
+      <stop offset="100%" stop-color="#ece5dc"/>
+    </linearGradient>
+    <linearGradient id="car" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0%" stop-color="#f4f1e8"/>
+      <stop offset="100%" stop-color="#cfc8bc"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <circle cx="1280" cy="160" r="220" fill="#8d7d6812"/>
+  <circle cx="220" cy="140" r="170" fill="#3d87b711"/>
+  <ellipse cx="780" cy="650" rx="360" ry="54" fill="#1d24301a"/>
+  <g transform="translate(250 430)">
+    <path d="M0 36 L160 0 L420 -12 L870 28 L1040 40 L1090 52 L1090 86 L870 104 L420 116 L160 108 L0 72 Z" fill="url(#car)" stroke="#736a5e" stroke-width="10"/>
+    <rect x="-80" y="26" width="120" height="56" rx="22" fill="#d9b449"/>
+    <rect x="1030" y="-6" width="90" height="126" rx="18" fill="#d9b449"/>
+    <path d="M470 -46 L670 -38 L760 18 L420 24 Z" fill="#201f26" opacity="0.18"/>
+    <ellipse cx="170" cy="-76" rx="86" ry="54" fill="#232831"/>
+    <ellipse cx="170" cy="184" rx="86" ry="54" fill="#232831"/>
+    <ellipse cx="870" cy="-96" rx="102" ry="62" fill="#232831"/>
+    <ellipse cx="870" cy="202" rx="102" ry="62" fill="#232831"/>
+    <ellipse cx="170" cy="-76" rx="34" ry="20" fill="#80858c"/>
+    <ellipse cx="170" cy="184" rx="34" ry="20" fill="#80858c"/>
+    <ellipse cx="870" cy="-96" rx="38" ry="24" fill="#80858c"/>
+    <ellipse cx="870" cy="202" rx="38" ry="24" fill="#80858c"/>
+    <path d="M420 -18 L600 -18 L644 28 L396 28 Z" fill="#6f8fa4" opacity="0.28"/>
+  </g>
+  <text x="120" y="170" fill="#7b6d55" font-size="34" font-family="IBM Plex Mono, monospace" letter-spacing="7">2025 MODEL SURFACE</text>
+  <text x="120" y="250" fill="#1d2430" font-size="92" font-family="Iowan Old Style, Georgia, serif">APX GP APX01</text>
+  <text x="120" y="320" fill="#5a6472" font-size="30" font-family="Aptos, Segoe UI, sans-serif">Prototype viewer with season and constructor switching plus hotspot deep links.</text>
+</svg>
