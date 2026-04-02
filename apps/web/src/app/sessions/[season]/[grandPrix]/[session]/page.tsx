@@ -74,18 +74,23 @@ export default async function SessionPage({ params }: SessionPageProps) {
             <MetricChip label="Air / track" value={`${summary.weatherSummary.airTempC}C / ${summary.weatherSummary.trackTempC}C`} />
             <MetricChip label="Rain risk" value={`${summary.weatherSummary.rainRiskPct}%`} />
           </div>
-          {compare ? (
-            <div className="hero-actions">
-              <a className="button button--secondary" href={`/compare/${season}/${grandPrix}/${session}/${compare.drivers[0]}/${compare.drivers[1]}`}>
-                Open {compare.drivers[0]} vs {compare.drivers[1]} compare
-              </a>
-              {manifest.stints ? (
-                <a className="button button--secondary" href={`/stints/${season}/${grandPrix}/${session}`}>
-                  Open stint story
+          <div className="hero-actions">
+            <a className="button button--secondary" href={`/replay/${season}/${grandPrix}/${session}`}>
+              Open replay
+            </a>
+            {compare ? (
+              <>
+                <a className="button button--secondary" href={`/compare/${season}/${grandPrix}/${session}/${compare.drivers[0]}/${compare.drivers[1]}`}>
+                  Open {compare.drivers[0]} vs {compare.drivers[1]} compare
                 </a>
-              ) : null}
-            </div>
-          ) : null}
+                {manifest.stints ? (
+                  <a className="button button--secondary" href={`/stints/${season}/${grandPrix}/${session}`}>
+                    Open stint story
+                  </a>
+                ) : null}
+              </>
+            ) : null}
+          </div>
         </section>
 
         <section className="panel-grid panel-grid--two">

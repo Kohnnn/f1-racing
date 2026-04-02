@@ -22,7 +22,7 @@ export async function generateStaticParams() {
     for (const grandPrix of season.grandsPrix) {
       for (const session of grandPrix.sessions) {
         const manifest = await getSessionManifest(session.season, session.grandPrixSlug, session.sessionSlug);
-        for (const key of Object.keys(manifest.compare)) {
+        for (const key of Object.keys(manifest.compare ?? {})) {
           const [left, right] = key.split("-");
           params.push({
             season: String(session.season),

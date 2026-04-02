@@ -30,26 +30,23 @@ export default async function LearnModulePage({ params }: LearnModulePageProps) 
       <section className="panel">
         <div className="section-header">
           <div>
-            <p className="eyebrow">Module plan</p>
-            <h2>What this page should explain</h2>
+            <p className="eyebrow">Core concepts</p>
+            <h2>Key points</h2>
           </div>
         </div>
-        <div className="summary-list">
-          {module.body.map((paragraph) => (
-            <div className="summary-list__static" key={paragraph}>
-              <span>{paragraph}</span>
-            </div>
+        <ol className="ordered-list">
+          {module.body.map((paragraph, i) => (
+            <li key={i}>{paragraph}</li>
           ))}
-        </div>
+        </ol>
       </section>
 
       <section className="panel-grid panel-grid--two">
         {module.nextLinks.map((link) => (
           <a className="panel surface-card surface-card__anchor" href={link.href} key={link.href}>
-            <p className="eyebrow">Next link</p>
+            <p className="eyebrow">Continue</p>
             <h3>{link.label}</h3>
-            <p>Use this route when you want to move from explanation into a more specialized product surface.</p>
-            <span className="surface-card__link">Open route -&gt;</span>
+            <span className="surface-card__link">Navigate -&gt;</span>
           </a>
         ))}
       </section>

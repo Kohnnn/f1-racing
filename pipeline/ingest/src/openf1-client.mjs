@@ -93,3 +93,23 @@ export async function fetchWeather({ sessionKey }) {
     session_key: sessionKey,
   });
 }
+
+export async function fetchCarPositions({ sessionKey, driverNumber }) {
+  return openF1Fetch("position", {
+    session_key: sessionKey,
+    driver_number: driverNumber,
+  });
+}
+
+export async function fetchRaceControl({ sessionKey }) {
+  return openF1Fetch("race_control", {
+    session_key: sessionKey,
+  });
+}
+
+export async function fetchPosition({ sessionKey, driverNumber }) {
+  return openF1Fetch("position", {
+    session_key: sessionKey,
+    driver_number: driverNumber,
+  });
+}

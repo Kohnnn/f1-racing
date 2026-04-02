@@ -362,9 +362,15 @@ export interface OpenFoamStarterCase {
 }
 
 const dataRoot = path.join(process.cwd(), "public", "data");
+const workspaceRoot = path.join(process.cwd(), "..", "..");
 
 async function readJson<T>(relativePath: string): Promise<T> {
   const filePath = path.join(dataRoot, relativePath);
+  const content = await readFile(filePath, "utf-8");
+  return JSON.parse(content) as T;
+}
+
+async function readWorkspaceJson<T>(filePath: string): Promise<T> {
   const content = await readFile(filePath, "utf-8");
   return JSON.parse(content) as T;
 }
@@ -421,10 +427,70 @@ export async function getWindScenarioCatalog() {
   return readJson<WindScenarioCatalog>(path.join("packs", "sims", "fs-cfd-database-source.json"));
 }
 
-export async function getWindOverlaySchemaExample() {
-  return readJson<WindOverlaySchemaExample>(path.join("packs", "sims", "f1-cfd-overlay.schema.example.json"));
-}
-
 export async function getOpenFoamStarterCase() {
   return readJson<OpenFoamStarterCase>(path.join("packs", "sims", "openfoam-starter-case.json"));
+}
+
+export interface ReplayFrameDriver {
+  driverCode: string;
+  driverNumber: number;
+  team: string;
+  position: number;
+  x: number | null;
+  y: number | null;
+  speed: number | null;
+  throttle: number | null;
+  brake: number | null;
+  gear: number | null;
+  drs: number | null;
+  lap: number | null;
+  interval: number | null;
+  tyreCompound: string | null;
+  tyreAge: number | null;
+}
+
+export interface SafetyCar {
+  phase: "none" | "deploying" | "on_track" | "returning";
+  x: number | null;
+  y: number | null;
+}
+
+export interface ReplayFrame {
+  t: number;
+  drivers: Record<string, ReplayFrameDriver>;
+  safetyCar: SafetyCar;
+  trackStatus: string;
+}
+
+export interface ReplayDriver {
+  driverCode: string;
+  driverNumber: number;
+  fullName: string;
+  team: string;
+  teamColor: string;
+}
+
+export interface ReplayLap {
+  driverCode: string;
+  lapNumber: number;
+  lapTime: number | null;
+  compound: string | null;
+}
+
+export interface ReplayPack {
+  generatedAt: string;
+  sessionKey: number;
+  season: number;
+  grandPrix: string;
+  session: string;
+  trackId: string;
+  source: "openf1";
+  drivers: ReplayDriver[];
+  trackPath: [number, number][] | null;
+  laps: ReplayLap[];
+  frames: ReplayFrame[];
+}
+
+export async function getReplayPack(season: number | string, grandPrix: string, session: string) {
+  return readJson<ReplayPack>(path.join(sessionBasePath(season, grandPrix, session), "replay.json"));
 }

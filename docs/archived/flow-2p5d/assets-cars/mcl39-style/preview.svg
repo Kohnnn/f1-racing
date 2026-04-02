@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img" aria-label="Projected-flow preview for the McLaren MCL39 style car">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f8eee3"/>
+      <stop offset="50%" stop-color="#f4e0cd"/>
+      <stop offset="100%" stop-color="#ebd2ba"/>
+    </linearGradient>
+    <linearGradient id="flow" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#76c0f4" stop-opacity="0.12"/>
+      <stop offset="55%" stop-color="#76c0f4" stop-opacity="0.65"/>
+      <stop offset="100%" stop-color="#f08b55" stop-opacity="0.16"/>
+    </linearGradient>
+    <linearGradient id="car" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2c3a4a"/>
+      <stop offset="100%" stop-color="#11151c"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="10"/>
+    </filter>
+  </defs>
+  <rect width="1600" height="900" fill="url(#bg)"/>
+  <g opacity="0.8">
+    <path d="M40 258C250 222 430 200 648 210C852 220 1048 266 1560 250" fill="none" stroke="url(#flow)" stroke-width="8" stroke-linecap="round"/>
+    <path d="M40 332C254 300 434 284 656 294C860 302 1054 336 1560 322" fill="none" stroke="url(#flow)" stroke-width="10" stroke-linecap="round"/>
+    <path d="M40 408C256 382 432 374 658 388C868 396 1064 430 1560 416" fill="none" stroke="url(#flow)" stroke-width="12" stroke-linecap="round"/>
+    <path d="M40 492C250 500 430 500 654 508C868 516 1064 548 1560 542" fill="none" stroke="url(#flow)" stroke-width="12" stroke-linecap="round"/>
+    <path d="M40 570C250 608 432 620 652 614C868 606 1064 602 1560 640" fill="none" stroke="url(#flow)" stroke-width="10" stroke-linecap="round"/>
+  </g>
+  <ellipse cx="1048" cy="450" rx="256" ry="210" fill="#f08b55" opacity="0.18" filter="url(#soft)"/>
+  <g transform="translate(242 170) scale(0.92)">
+    <g fill="url(#car)">
+      <rect x="56" y="222" width="116" height="156" rx="26"/>
+      <ellipse cx="286" cy="146" rx="76" ry="88"/>
+      <ellipse cx="286" cy="454" rx="76" ry="88"/>
+      <ellipse cx="858" cy="132" rx="70" ry="102"/>
+      <ellipse cx="858" cy="468" rx="70" ry="102"/>
+      <path d="M172 248C246 220 302 208 370 212H428C498 178 592 166 716 176L790 188C856 182 916 190 982 220V380C916 410 856 418 790 412L716 424C592 434 498 422 428 388H370C302 392 246 380 172 352Z"/>
+      <path d="M914 262L1118 282V318L914 338Z"/>
+      <rect x="1000" y="196" width="154" height="208" rx="28"/>
+      <rect x="478" y="244" width="316" height="112" rx="44" opacity="0.96"/>
+      <rect x="360" y="260" width="154" height="80" rx="32" opacity="0.96"/>
+    </g>
+  </g>
+  <g opacity="0.18" stroke="#ffffff" stroke-width="2">
+    <line x1="160" y1="450" x2="1440" y2="450"/>
+    <line x1="800" y1="110" x2="800" y2="790"/>
+  </g>
+</svg>

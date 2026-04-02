@@ -20,6 +20,7 @@ Implemented now:
 - one real OpenF1 session-pack export for 2025 Australian GP qualifying
 - `model-viewer` car surface with local 2025 McLaren and APX GP GLBs
 - wind-sim reference route with a baked CFD schema example
+- scaffold for a `2.5D` projected-flow pipeline based on GLB display models plus derived top-view masks
 - starter OpenFOAM case and website pack builder for the McLaren baseline run
 - corner-level compare annotations layered on top of telemetry traces
 - stint story route backed by static stint packs
@@ -51,6 +52,7 @@ Implemented now:
 - Upstream data: `OpenF1` primary, `FastF1` optional enrichment
 - 3D viewer: `model-viewer` for car pages only
 - Wind simulation: offline-precomputed assets derived from OpenFOAM or a compatible CFD workflow
+- Blog-friendly aero compare: projected `2.5D` top-view flow built from per-car masks and shared solver settings
 
 ## Commands
 
@@ -171,6 +173,8 @@ Instead:
 - `docs/openfoam-local-inputs.md` - field-by-field guide for `mcl39-user-inputs.local.json`
 - `docs/openfoam-paraview-export.md` - ParaView export steps for the surface CSV
 - `docs/openfoam-windows-setup.md` - Windows and WSL2 setup guidance for the starter case
+- `docs/flow-2p5d/overview.md` - architecture for the GLB plus projected-flow compare system
+- `docs/flow-2p5d/asset-pipeline.md` - source versus derived asset workflow for each car
 - `docs/roadmap.md` - phased build plan and progress tracking
 
 Optional Worker scaffold:
@@ -183,6 +187,7 @@ Optional Worker scaffold:
 - `packages/` - shared UI, schemas, utilities
 - `pipeline/` - ingestion and export scripts
 - `data/` - generated manifests and pack outputs
+- `data/flow/` - projected-flow car registry and compare metadata
 
 ## External assets already wired
 

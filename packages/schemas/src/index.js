@@ -332,3 +332,65 @@ export const SessionManifestSchema = z.object({
   strategy: z.string(),
   stints: z.string().optional(),
 });
+
+export const ReplayFrameDriverSchema = z.object({
+  driverCode: z.string(),
+  driverNumber: z.number().int(),
+  team: z.string(),
+  position: z.number().int(),
+  x: z.number().nullable(),
+  y: z.number().nullable(),
+  speed: z.number().nullable(),
+  throttle: z.number().nullable(),
+  brake: z.number().nullable(),
+  gear: z.number().nullable(),
+  drs: z.number().nullable(),
+  lap: z.number().int().nullable(),
+  interval: z.number().nullable(),
+  tyreCompound: z.string().nullable(),
+  tyreAge: z.number().int().nullable(),
+});
+
+export const SafetyCarSchema = z.object({
+  phase: z.enum(["none", "deploying", "on_track", "returning"]),
+  x: z.number().nullable(),
+  y: z.number().nullable(),
+});
+
+export const ReplayFrameSchema = z.object({
+  t: z.number(),
+  lap: z.number().int().nullable(),
+  drivers: z.record(z.string(), ReplayFrameDriverSchema),
+  safetyCar: SafetyCarSchema,
+  trackStatus: z.string(),
+});
+
+export const ReplayPackSchema = z.object({
+  generatedAt: z.string(),
+  sessionKey: z.number().int(),
+  season: z.number().int(),
+  grandPrix: z.string(),
+  session: z.string(),
+  trackId: z.string(),
+  source: z.literal("openf1"),
+  drivers: z.array(z.object({
+    driverCode: z.string(),
+    driverNumber: z.number().int(),
+    fullName: z.string(),
+    team: z.string(),
+    teamColor: z.string(),
+  })),
+  trackPath: z.array(z.array(z.number()).length(2)).nullable(),
+  laps: z.array(z.object({
+    driverCode: z.string(),
+    lapNumber: z.number().int(),
+    lapTime: z.number().nullable(),
+    compound: z.string().nullable(),
+  })),
+  frames: z.array(ReplayFrameSchema),
+});
+
+export const ReplayManifestSchema = z.object({
+  sessionKey: z.number().int(),
+  replay: z.string(),
+});

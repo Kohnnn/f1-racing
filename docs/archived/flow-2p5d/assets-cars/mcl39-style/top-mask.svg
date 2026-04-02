@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 144" role="img" aria-label="Top-view obstacle mask for McLaren MCL39">
+  <g fill="#0e1520">
+    <path d="M19 58C38 48 58 43 83 41H108C126 26 168 18 210 22L232 26C242 24 250 29 252 38V106C250 115 242 120 232 118L210 122C168 126 126 118 108 103H83C58 101 38 96 19 86Z"/>
+    <rect x="7" y="54" width="18" height="36" rx="4"/>
+    <rect x="238" y="52" width="16" height="40" rx="3"/>
+    <ellipse cx="30" cy="46" rx="10" ry="14"/>
+    <ellipse cx="30" cy="98" rx="10" ry="14"/>
+    <ellipse cx="226" cy="40" rx="13" ry="18"/>
+    <ellipse cx="226" cy="104" rx="13" ry="18"/>
+  </g>
+</svg>

@@ -5,6 +5,9 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "F1 Racing",
   description: "Static-first Formula 1 telemetry and explainer product scaffold.",
+  icons: {
+    icon: "/favicon.svg",
+  },
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

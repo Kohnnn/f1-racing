@@ -12,3 +12,8 @@ export const StintPackSchema: z.ZodObject<any>;
 export const SessionManifestSchema: z.ZodObject<any>;
 export const CarModelCatalogSchema: z.ZodObject<any>;
 export const WindOverlayPackSchema: z.ZodObject<any>;
+export const ReplayFrameDriverSchema: z.ZodObject<any>;
+export const SafetyCarSchema: z.ZodObject<any>;
+export const ReplayFrameSchema: z.ZodObject<any>;
+export const ReplayPackSchema: z.ZodObject<any>;
+export const ReplayManifestSchema: z.ZodObject<any>;

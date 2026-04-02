@@ -1,16 +1,17 @@
 {
   "version": 1,
   "seasons": [
-    2025
+    2025,
+    2026
   ],
   "latest": {
-    "season": 2025,
-    "grandPrixSlug": "australian-grand-prix",
-    "sessionSlug": "qualifying",
-    "grandPrixName": "Australian Grand Prix",
-    "sessionName": "Qualifying",
-    "sessionKey": 9689,
-    "trackId": "melbourne",
-    "path": "/sessions/2025/australian-grand-prix/qualifying"
+    "season": 2026,
+    "grandPrixSlug": "japan-grand-prix",
+    "sessionSlug": "race",
+    "grandPrixName": "Japan Grand Prix",
+    "sessionName": "Race",
+    "sessionKey": 11253,
+    "trackId": "suzuka",
+    "path": "/sessions/2026/japan-grand-prix/race"
   }
 }

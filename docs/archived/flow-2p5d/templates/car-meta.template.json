@@ -1,0 +1,20 @@
+{
+  "id": "car-id",
+  "name": "Display Name",
+  "era": "2020s",
+  "year": 2025,
+  "sourceModelPath": "glb_model/example.glb",
+  "publicModelPath": "/models/example.glb",
+  "topMaskPath": "/assets/cars/car-id/top-mask.png",
+  "previewPath": "/assets/cars/car-id/preview.png",
+  "scaleLengthMeters": 5.5,
+  "notes": [
+    "Short note one",
+    "Short note two"
+  ],
+  "assetStatus": {
+    "glbReady": true,
+    "topMaskReady": false,
+    "previewReady": false
+  }
+}

@@ -12,7 +12,7 @@ export default function LearnPage() {
         </p>
       </section>
 
-      <section className="panel-grid panel-grid--two">
+      <section className="panel-grid panel-grid--three">
         {learnModules.map((module) => (
           <a className="panel surface-card surface-card__anchor" key={module.slug} href={`/learn/${module.slug}`}>
             <p className="eyebrow">/learn/{module.slug}</p>
@@ -21,19 +21,6 @@ export default function LearnPage() {
             <span className="surface-card__link">Open module -&gt;</span>
           </a>
         ))}
-      </section>
-
-      <section className="panel-grid panel-grid--two">
-        <article className="panel surface-card">
-          <p className="eyebrow">/cars/current-spec</p>
-          <h3>Model surface</h3>
-          <p>Use the dedicated 3D page for constructor and season GLB selection rather than embedding heavy model assets into every explain-first route.</p>
-        </article>
-        <article className="panel surface-card">
-          <p className="eyebrow">/sims/wind</p>
-          <h3>Wind surface</h3>
-          <p>Use a baked CFD viewer flow with precomputed scenarios, then connect that output back into the aero learning modules.</p>
-        </article>
       </section>
 
       <section className="panel">

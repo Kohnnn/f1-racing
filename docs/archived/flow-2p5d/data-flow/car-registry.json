@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "description": "Canonical registry for projected-flow car compare assets.",
+  "simulationDefaults": {
+    "view": "top",
+    "grid": {
+      "width": 256,
+      "height": 144
+    },
+    "speedPresetsMps": [20, 40, 60],
+    "metricIds": ["wakeWidth", "wakeLength", "wakeArea", "dragProxy"]
+  },
+  "cars": [
+    {
+      "id": "mcl39-style",
+      "name": "McLaren MCL39",
+      "constructorSlug": "mclaren",
+      "era": "Ground-effect era",
+      "year": 2025,
+      "sourceModelPath": "glb_model/f1_2025_mclaren_mcl39.glb",
+      "publicModelPath": "/models/2025/mclaren/mcl39.glb",
+      "topMaskPath": "/assets/cars/mcl39-style/top-mask.png",
+      "scaleLengthMeters": 5.63,
+      "notes": [
+        "Current 2025 benchmark with a cleaned top-view mask extracted from the GLB.",
+        "Use as the first projected-flow baseline."
+      ],
+      "assetStatus": {
+        "glbReady": true,
+        "topMaskReady": true,
+        "previewReady": false
+      }
+    },
+    {
+      "id": "apx01-style",
+      "name": "APX GP APX01",
+      "constructorSlug": "apx-gp",
+      "era": "Contemporary prototype",
+      "year": 2025,
+      "sourceModelPath": "apps/web/public/models/2025/apx-gp/apx01.glb",
+      "publicModelPath": "/models/2025/apx-gp/apx01.glb",
+      "topMaskPath": "/assets/cars/apx01-style/top-mask.png",
+      "scaleLengthMeters": 5.63,
+      "notes": [
+        "Second flow subject used to validate that the pipeline can switch cars cleanly.",
+        "Mask is extracted from the local APX01 GLB with the same framing rules."
+      ],
+      "assetStatus": {
+        "glbReady": true,
+        "topMaskReady": true,
+        "previewReady": false
+      }
+    }
+  ]
+}

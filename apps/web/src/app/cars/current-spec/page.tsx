@@ -1,24 +1,23 @@
 import { Suspense } from "react";
 import { CarModelBrowser } from "@/components/model-viewer/car-model-browser";
-import { getCarModelCatalog, getWindOverlaySchemaExample } from "@/lib/data";
+import { getCarModelCatalog } from "@/lib/data";
 
 export default async function CarModelPage() {
-  const [catalog, overlaySchema] = await Promise.all([getCarModelCatalog(), getWindOverlaySchemaExample()]);
+  const catalog = await getCarModelCatalog();
 
   return (
     <div className="page-stack">
       <section className="hero hero--compact">
         <p className="eyebrow">Car surface</p>
-        <h1>Use `model-viewer` as the dedicated GLB page, not the whole telemetry app.</h1>
+        <h1>Rotate and explore F1 car models in 3D.</h1>
         <p className="lead">
-          This page is the right place for constructor and season model selection, hotspots, and later CFD-linked
-          overlays. It should stay separate from lap-compare and stint pages so 3D does not become the default load
-          path everywhere else.
+          Select a season and constructor to load the GLB. Camera controls are enabled — drag to orbit,
+          scroll to zoom. More models will be added as lightweight GLBs become available.
         </p>
       </section>
 
-      <Suspense fallback={<div className="panel">Loading car surface...</div>}>
-        <CarModelBrowser catalog={catalog} overlaySchema={overlaySchema} />
+      <Suspense fallback={<div className="panel">Loading model...</div>}>
+        <CarModelBrowser catalog={catalog} />
       </Suspense>
     </div>
   );

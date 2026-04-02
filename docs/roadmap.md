@@ -69,11 +69,11 @@ This file is the progress tracker for the new `f1-racing` product.
 - [ ] Connect sim outputs to learn/aero module
 
 ### Phase 8 - replay-lite
-- [ ] Build top-down replay view
-- [ ] Build position interpolation packs
-- [ ] Add driver focus mode
+- [x] Build top-down replay view
+- [x] Build position interpolation packs
+- [x] Add driver focus mode
 - [ ] Add event markers
-- [ ] Keep replay separate from learning pages
+- [x] Keep replay separate from learning pages
 
 ## Technical tasks
 
