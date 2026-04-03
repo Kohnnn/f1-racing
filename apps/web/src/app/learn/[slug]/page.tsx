@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { SurfaceCard } from "@/components/story/surface-card";
 import { getLearnModule, learnModules } from "../modules";
 
 interface LearnModulePageProps {
@@ -43,11 +44,16 @@ export default async function LearnModulePage({ params }: LearnModulePageProps) 
 
       <section className="panel-grid panel-grid--two">
         {module.nextLinks.map((link) => (
-          <a className="panel surface-card surface-card__anchor" href={link.href} key={link.href}>
-            <p className="eyebrow">Continue</p>
-            <h3>{link.label}</h3>
-            <span className="surface-card__link">Navigate -&gt;</span>
-          </a>
+          <SurfaceCard
+            key={link.href}
+            eyebrow="Continue"
+            title={link.label}
+            href={link.href}
+            ctaLabel="Navigate ->"
+            tone="learn"
+          >
+            Move straight from this module into the next surface without going back through the landing page.
+          </SurfaceCard>
         ))}
       </section>
     </div>

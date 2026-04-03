@@ -143,25 +143,32 @@ export function ReplayView({ replay }: ReplayViewProps) {
 
   return (
     <div className="replay-view">
-      <div className="replay-header">
+      <section className="hero hero--compact replay-hero">
+        <p className="eyebrow">Replay surface</p>
         <h1>{replay.grandPrix} · {replay.session}</h1>
-        <p className="replay-meta">
-          {replay.season} · Session key {replay.sessionKey}
-          {selectedDriver && ` · Viewing: ${selectedDriver}`}
+        <p className="lead">
+          Track playback, leaderboard order, and selected-driver telemetry from a compact exported replay pack.
         </p>
-      </div>
+        <div className="replay-meta-row">
+          <span className="replay-meta-pill">{replay.season} season</span>
+          <span className="replay-meta-pill">Session key {replay.sessionKey}</span>
+          <span className="replay-meta-pill">{selectedDriver ? `Driver focus: ${selectedDriver}` : "Full-field view"}</span>
+        </div>
+      </section>
 
       <div className="replay-content">
         <div className="replay-main">
-          <TrackCanvas
-            trackPath={replay.trackPath}
-            drivers={replay.drivers}
-            currentFrame={currentFrame}
-            width={900}
-            height={600}
-            selectedDriver={selectedDriver}
-            onDriverClick={handleDriverSelect}
-          />
+          <div className="replay-stage">
+            <TrackCanvas
+              trackPath={replay.trackPath}
+              drivers={replay.drivers}
+              currentFrame={currentFrame}
+              width={900}
+              height={600}
+              selectedDriver={selectedDriver}
+              onDriverClick={handleDriverSelect}
+            />
+          </div>
 
           <PlaybackControls
             isPlaying={isPlaying}
@@ -189,7 +196,7 @@ export function ReplayView({ replay }: ReplayViewProps) {
           {selectedDriver && currentFrame?.drivers[selectedDriver] && (
             <div className="driver-telemetry">
               <h3>{selectedDriver}</h3>
-              <div className="telemetry-grid">
+              <div className="replay-telemetry-grid">
                 <div className="telemetry-item">
                   <span className="telemetry-label">Speed</span>
                   <span className="telemetry-value">
@@ -237,91 +244,6 @@ export function ReplayView({ replay }: ReplayViewProps) {
           )}
         </div>
       </div>
-
-      <style>{`
-        .replay-view {
-          padding: 24px;
-          max-width: 1400px;
-          margin: 0 auto;
-        }
-
-        .replay-header {
-          margin-bottom: 24px;
-        }
-
-        .replay-header h1 {
-          font-size: 28px;
-          font-weight: 600;
-          margin: 0 0 8px 0;
-        }
-
-        .replay-meta {
-          color: #888;
-          font-size: 14px;
-          margin: 0;
-        }
-
-        .replay-content {
-          display: grid;
-          grid-template-columns: 1fr 320px;
-          gap: 24px;
-        }
-
-        @media (max-width: 1100px) {
-          .replay-content {
-            grid-template-columns: 1fr;
-          }
-        }
-
-        .replay-main {
-          display: flex;
-          flex-direction: column;
-          gap: 16px;
-        }
-
-        .replay-sidebar {
-          display: flex;
-          flex-direction: column;
-          gap: 16px;
-        }
-
-        .driver-telemetry {
-          background: #16162a;
-          border-radius: 12px;
-          padding: 16px;
-        }
-
-        .driver-telemetry h3 {
-          margin: 0 0 12px 0;
-          font-size: 16px;
-          font-weight: 600;
-        }
-
-        .telemetry-grid {
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: 12px;
-        }
-
-        .telemetry-item {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-        }
-
-        .telemetry-label {
-          font-size: 10px;
-          text-transform: uppercase;
-          color: #888;
-          letter-spacing: 0.5px;
-        }
-
-        .telemetry-value {
-          font-family: monospace;
-          font-size: 14px;
-          font-weight: 600;
-        }
-      `}</style>
     </div>
   );
 }

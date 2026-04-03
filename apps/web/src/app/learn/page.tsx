@@ -1,3 +1,4 @@
+import { SurfaceCard } from "@/components/story/surface-card";
 import { learnModules } from "./modules";
 
 export default function LearnPage() {
@@ -5,21 +6,27 @@ export default function LearnPage() {
     <div className="page-stack">
       <section className="hero hero--compact">
         <p className="eyebrow">Learn surface</p>
-        <h1>Break the current F1 explainer into focused learning modules.</h1>
+        <h1>Break the car into focused engineering reads.</h1>
         <p className="lead">
-          The existing longform explainer remains the concept source, but this product should ship smaller,
-          clearer pages that explain one engineering story at a time.
+          These modules keep the longform explainer ideas, but split them into shorter stories that can branch
+          directly from Modelview and Replay.
         </p>
       </section>
 
       <section className="panel-grid panel-grid--three">
         {learnModules.map((module) => (
-          <a className="panel surface-card surface-card__anchor" key={module.slug} href={`/learn/${module.slug}`}>
-            <p className="eyebrow">/learn/{module.slug}</p>
-            <h3>{module.title}</h3>
-            <p>{module.description}</p>
-            <span className="surface-card__link">Open module -&gt;</span>
-          </a>
+          <SurfaceCard
+            key={module.slug}
+            eyebrow={`/learn/${module.slug}`}
+            title={module.title}
+            href={`/learn/${module.slug}`}
+            ctaLabel="Open module ->"
+            meta={`${module.nextLinks.length} next links`}
+            tone="learn"
+            items={module.nextLinks.map((link) => link.label)}
+          >
+            {module.description}
+          </SurfaceCard>
         ))}
       </section>
 
@@ -31,8 +38,8 @@ export default function LearnPage() {
           </div>
         </div>
         <p>
-          The current concept source lives at <code>interactive-explanation/formula-1-racing/</code>. This new
-          app should reuse its ideas, but not keep everything inside one monolithic page.
+          The concept source still lives at <code>interactive-explanation/formula-1-racing/</code>, but this product
+          treats each subsystem as its own chapter so users can move from the model to the explanation without losing context.
         </p>
       </section>
     </div>

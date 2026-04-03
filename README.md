@@ -166,6 +166,7 @@ Instead:
 - `docs/architecture.md` - system architecture and product surfaces
 - `docs/data-schema.md` - pack shapes and derived data contracts
 - `docs/deployment.md` - hosting, CDN, caching, and deployment workflow
+- `docs/deploy-guide.md` - concrete build and manual deployment commands, including the working Netlify CLI flow
 - `docs/cloudflare-first-deploy.md` - step-by-step first deploy on Cloudflare Pages and optional Worker setup
 - `docs/openfoam-overlays.md` - OpenFOAM feasibility and baked CFD overlay workflow
 - `docs/openfoam-mcl39-pipeline.md` - step-by-step McLaren starter workflow from STL to website pack

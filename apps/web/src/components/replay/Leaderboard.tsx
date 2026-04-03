@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import type { ReplayDriver, ReplayFrame } from "@/lib/data";
 
 interface LeaderboardProps {
@@ -73,7 +74,7 @@ export function Leaderboard({
             key={driver.driverCode}
             className={`leaderboard-row ${isSelected ? "leaderboard-row--selected" : ""}`}
             onClick={() => onDriverSelect(isSelected ? null : driver.driverCode)}
-            style={{ borderLeftColor: teamColor }}
+            style={{ "--team-color": teamColor } as CSSProperties}
           >
             <span className="position">{driver.position}</span>
             <span className="driver">
@@ -91,7 +92,7 @@ export function Leaderboard({
               {driver.tyreCompound && (
                 <span
                   className="tyre-dot"
-                  style={{ backgroundColor: getTyreColor(driver.tyreCompound) }}
+                  style={{ "--tyre-color": getTyreColor(driver.tyreCompound) } as CSSProperties}
                   title={driver.tyreCompound}
                 />
               )}
@@ -100,102 +101,6 @@ export function Leaderboard({
           </div>
         );
       })}
-
-      <style>{`
-        .leaderboard {
-          background: #16162a;
-          border-radius: 12px;
-          overflow: hidden;
-          min-width: 280px;
-        }
-
-        .leaderboard-header {
-          display: grid;
-          grid-template-columns: 40px 1fr 80px 70px;
-          padding: 12px 16px;
-          background: #1e1e3a;
-          font-size: 11px;
-          font-weight: 600;
-          color: #888;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          border-bottom: 1px solid #2a2a4a;
-        }
-
-        .leaderboard-empty {
-          padding: 40px;
-          text-align: center;
-          color: #666;
-        }
-
-        .leaderboard-row {
-          display: grid;
-          grid-template-columns: 40px 1fr 80px 70px;
-          padding: 10px 16px;
-          align-items: center;
-          border-bottom: 1px solid #222244;
-          border-left: 3px solid transparent;
-          cursor: pointer;
-          transition: background 0.1s;
-        }
-
-        .leaderboard-row:hover {
-          background: #1e1e3a;
-        }
-
-        .leaderboard-row--selected {
-          background: #2a2a4a;
-        }
-
-        .leaderboard-row:last-child {
-          border-bottom: none;
-        }
-
-        .position {
-          font-weight: 700;
-          font-size: 14px;
-        }
-
-        .driver {
-          display: flex;
-          flex-direction: column;
-          gap: 2px;
-        }
-
-        .driver-code {
-          font-weight: 600;
-          font-size: 13px;
-        }
-
-        .driver-team {
-          font-size: 10px;
-          color: #888;
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .interval {
-          font-family: monospace;
-          font-size: 12px;
-          color: #aaa;
-        }
-
-        .tyre {
-          display: flex;
-          align-items: center;
-          gap: 4px;
-          font-size: 11px;
-          color: #888;
-        }
-
-        .tyre-dot {
-          width: 8px;
-          height: 8px;
-          border-radius: 50%;
-          border: 1px solid #444;
-        }
-      `}</style>
     </div>
   );
 }

@@ -1,58 +1,69 @@
-import Link from "next/link";
-import { getSeasonIndex } from "@/lib/data";
+import { getLatestManifest, getSeasonIndex } from "@/lib/data";
 
 export default async function ReplayIndexPage() {
-  const index = await getSeasonIndex();
+  const [latestManifest, index] = await Promise.all([
+    getLatestManifest(),
+    getSeasonIndex(),
+  ]);
+
+  const latestReplayHref = latestManifest.latest.path.replace(/^\/sessions\//, "/replay/");
 
   return (
-    <div className="page-stack" style={{ padding: "24px", maxWidth: "1200px", margin: "0 auto" }}>
-      <section className="hero hero--compact">
-        <p className="eyebrow">Replay</p>
-        <h1>Race Replay</h1>
+    <div className="page-stack">
+      <section className="hero hero--compact replay-hero">
+        <p className="eyebrow">Replay surface</p>
+        <h1>Track playback for exported F1 sessions.</h1>
         <p className="lead">
-          Watch F1 sessions with real-time car positions, leaderboard, and telemetry.
-          Select a session below to start the replay.
+          Start from a full session pack, keep the field in view, and drill into one selected driver when the
+          lap story becomes interesting.
         </p>
+        <div className="hero-actions">
+          <a className="button" href={latestReplayHref}>Open latest replay</a>
+          <a className="button button--secondary" href="/sessions">Browse all sessions</a>
+        </div>
+        <div className="replay-meta-row">
+          <span className="replay-meta-pill">{latestManifest.latest.season} season pack</span>
+          <span className="replay-meta-pill">
+            {latestManifest.latest.grandPrixName} · {latestManifest.latest.sessionName}
+          </span>
+        </div>
       </section>
 
-      {index.seasons.map((season) => (
-        <section key={season.season} style={{ marginBottom: "48px" }}>
-          <h2 style={{ fontSize: "24px", marginBottom: "16px" }}>{season.season} Season</h2>
-
-          {season.grandsPrix.map((gp) => (
-            <div key={gp.grandPrixSlug} style={{ marginBottom: "24px" }}>
-              <h3 style={{ fontSize: "18px", color: "#888", marginBottom: "12px" }}>
-                {gp.grandPrixName}
-              </h3>
-
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "8px" }}>
-                {gp.sessions.map((s) => (
-                  <Link
-                    key={s.sessionSlug}
-                    href={`/replay/${s.season}/${s.grandPrixSlug}/${s.sessionSlug}`}
-                    className="card-link"
-                    style={{
-                      display: "block",
-                      padding: "12px 16px",
-                      background: "#1a1a2e",
-                      borderRadius: "8px",
-                      textDecoration: "none",
-                      color: "inherit",
-                      border: "1px solid #2a2a4a",
-                      transition: "border-color 0.15s",
-                    }}
-                  >
-                    <div style={{ fontWeight: "600", marginBottom: "4px" }}>{s.sessionName}</div>
-                    <div style={{ fontSize: "12px", color: "#888" }}>
-                      Session key: {s.sessionKey}
-                    </div>
-                  </Link>
-                ))}
+      <div className="replay-index-grid">
+        {index.seasons.map((season) => (
+          <section className="panel" key={season.season}>
+            <div className="section-header">
+              <div>
+                <p className="eyebrow">Season</p>
+                <h2>{season.season}</h2>
               </div>
             </div>
-          ))}
-        </section>
-      ))}
+
+            <div className="replay-session-grid">
+              {season.grandsPrix.map((grandPrix) => (
+                <article className="panel panel--nested replay-session-cluster" key={grandPrix.grandPrixSlug}>
+                  <div>
+                    <p className="eyebrow">Grand Prix</p>
+                    <h3>{grandPrix.grandPrixName}</h3>
+                  </div>
+                  <div className="replay-session-links">
+                    {grandPrix.sessions.map((session) => (
+                      <a
+                        className="replay-session-link"
+                        key={session.sessionSlug}
+                        href={`/replay/${session.season}/${session.grandPrixSlug}/${session.sessionSlug}`}
+                      >
+                        <strong>{session.sessionName}</strong>
+                        <span>Session key {session.sessionKey}</span>
+                      </a>
+                    ))}
+                  </div>
+                </article>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
     </div>
   );
 }

@@ -171,6 +171,8 @@ rsync -avz --exclude='node_modules' --exclude='.git' \
 
 ```bash
 # Full build (generates static export)
+npm install
+npm run check:data
 npm run build
 
 # The output lands in:
@@ -236,7 +238,7 @@ https://<your-project>.pages.dev/
 
 ### Option B: Netlify
 
-Your app can be deployed to Netlify:
+Your app can be deployed to Netlify as a static export from `apps/web/out`.
 
 1. Go to [app.netlify.com](https://app.netlify.com)
 2. New site from Git → Connect to GitHub
@@ -248,21 +250,70 @@ Your app can be deployed to Netlify:
 | Build command | `npm install && npm run build` |
 | Publish directory | `apps/web/out` |
 
-5. Add environment variables in Netlify dashboard → Site settings → Environment variables:
+5. Add environment variables in Netlify dashboard only if the app actually uses them.
 
 ```
-NEXT_PUBLIC_APPWRITE_ENDPOINT = https://sgp.cloud.appwrite.io/v1
-NEXT_PUBLIC_APPWRITE_PROJECT_ID = <your_project_id>
-NEXT_PUBLIC_APPWRITE_DATABASE_ID = <your_database_id>
+NODE_VERSION = 20
 ```
 
-To deploy manually with the Netlify CLI:
+At the time of writing, the current frontend does not read the Appwrite variables in runtime code, so they are not required for the static deploy itself.
+
+#### Manual Netlify CLI deploy used in production
+
+This is the flow that successfully deployed the app on 2026-04-02.
+
+Build first:
 
 ```bash
-npm install -g netlify-cli
-netlify login
-netlify deploy --dir=apps/web/out --prod --site <your-site-id>
+npm install
+npm run check:data
+npm run build
 ```
+
+Then deploy with the token from the repo root `.env`:
+
+```powershell
+$env:NETLIFY_AUTH_TOKEN = "<your token>"
+npx netlify sites:create --name "f1-racing" --account-slug "kohnnn" --disable-linking --filter "@f1-racing/web" --json
+npx netlify deploy --prod --no-build --dir "C:\absolute\path\to\f1-racing\apps\web\out" --site "<site-id>" --filter "@f1-racing/web" --message "Deploy f1-racing static export" --json
+```
+
+Successful production deploy from this repo:
+
+- site name: `f1-racing-622`
+- production URL: `https://f1-racing-622.netlify.app`
+- deploy permalink: `https://69ce773e819bc90ef83703ba--f1-racing-622.netlify.app`
+
+#### Why this command shape matters
+
+- Use `apps/web/out`, not `.next`.
+- Use `--no-build` because the static export is already built locally.
+- Use `--filter "@f1-racing/web"` because this is a monorepo and the Netlify CLI otherwise prompts for workspace selection.
+- Use an explicit `--site <site-id>` because stale local linking or stale `.env` site IDs can cause `404` errors against dead Netlify sites.
+- Use an absolute `--dir` path to avoid the CLI resolving `out` against the workspace root.
+
+#### Known issues we hit and how to avoid them
+
+- Root `.env` had a stale `NETLIFY_SITE_ID` that no longer resolved in the current Netlify account.
+- `apps/web/.netlify/state.json` also pointed at a stale site.
+- Running Netlify commands from the monorepo root without `--filter` caused an interactive workspace prompt and CLI failure.
+- Passing `out` as a relative path from `apps/web` still resolved incorrectly; an absolute path was reliable.
+
+#### Verify the deployment
+
+After deploy, verify these routes:
+
+```text
+/
+/sessions/
+/cars/current-spec/
+/replay/
+/compare/2025/demo-weekend/qualifying/VER/NOR/
+/data/manifests/latest.json
+/data/manifests/seasons.json
+```
+
+The successful 2026-04-02 deploy returned `200` for all of those routes.
 
 ---
 

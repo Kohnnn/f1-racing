@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getReplayPack, getSeasonIndex, getSessionManifest } from "@/lib/data";
+import { getReplayPack, getSeasonIndex } from "@/lib/data";
 import { ReplayView } from "@/components/replay/ReplayView";
 
 interface ReplayPageProps {
@@ -28,11 +28,7 @@ export default async function ReplayPage({ params }: ReplayPageProps) {
   const { season, grandPrix, session } = await params;
 
   try {
-    const [manifest, replay] = await Promise.all([
-      getSessionManifest(season, grandPrix, session),
-      getReplayPack(season, grandPrix, session),
-    ]);
-
+    const replay = await getReplayPack(season, grandPrix, session);
     return <ReplayView replay={replay} />;
   } catch {
     notFound();

@@ -53,7 +53,7 @@ export function PlaybackControls({
   }
 
   return (
-    <div className="playback-controls">
+    <div className="replay-controls">
       <div className="playback-status">
         <span className="track-status" style={{ color: getTrackStatusColor(trackStatus) }}>
           {trackStatus === "GREEN" ? "●" : "⚠"} {trackStatus}
@@ -79,6 +79,7 @@ export function PlaybackControls({
 
       <div className="playback-buttons">
         <button
+          type="button"
           onClick={() => onSkipLap(-1)}
           className="control-button"
           title="Previous lap"
@@ -87,6 +88,7 @@ export function PlaybackControls({
         </button>
 
         <button
+          type="button"
           onClick={() => isPlaying ? onPause() : onPlay()}
           className="control-button control-button--primary"
           title={isPlaying ? "Pause" : "Play"}
@@ -95,6 +97,7 @@ export function PlaybackControls({
         </button>
 
         <button
+          type="button"
           onClick={() => onSkipLap(1)}
           className="control-button"
           title="Next lap"
@@ -103,6 +106,7 @@ export function PlaybackControls({
         </button>
 
         <button
+          type="button"
           onClick={cycleSpeed}
           className="control-button control-button--speed"
           title="Playback speed"
@@ -110,120 +114,6 @@ export function PlaybackControls({
           {playbackSpeed}x
         </button>
       </div>
-
-      <style>{`
-        .playback-controls {
-          background: #16162a;
-          border-radius: 12px;
-          padding: 16px 20px;
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-
-        .playback-status {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          font-size: 14px;
-        }
-
-        .track-status {
-          font-weight: 600;
-          font-family: monospace;
-        }
-
-        .current-lap {
-          color: #888;
-          font-family: monospace;
-        }
-
-        .playback-progress {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-
-        .time-display {
-          font-family: monospace;
-          font-size: 13px;
-          color: #aaa;
-          min-width: 60px;
-        }
-
-        .time-display:last-child {
-          text-align: right;
-        }
-
-        .progress-slider {
-          flex: 1;
-          height: 6px;
-          appearance: none;
-          background: #333;
-          border-radius: 3px;
-          cursor: pointer;
-        }
-
-        .progress-slider::-webkit-slider-thumb {
-          appearance: none;
-          width: 14px;
-          height: 14px;
-          background: #fff;
-          border-radius: 50%;
-          cursor: pointer;
-        }
-
-        .progress-slider::-moz-range-thumb {
-          width: 14px;
-          height: 14px;
-          background: #fff;
-          border-radius: 50%;
-          cursor: pointer;
-          border: none;
-        }
-
-        .playback-buttons {
-          display: flex;
-          justify-content: center;
-          gap: 8px;
-        }
-
-        .control-button {
-          background: #2a2a4a;
-          border: none;
-          color: #fff;
-          padding: 10px 16px;
-          border-radius: 8px;
-          cursor: pointer;
-          font-size: 16px;
-          transition: background 0.15s;
-          min-width: 44px;
-        }
-
-        .control-button:hover {
-          background: #3a3a5a;
-        }
-
-        .control-button:active {
-          background: #4a4a6a;
-        }
-
-        .control-button--primary {
-          background: #3671C6;
-          min-width: 56px;
-          font-size: 20px;
-        }
-
-        .control-button--primary:hover {
-          background: #4681d6;
-        }
-
-        .control-button--speed {
-          font-family: monospace;
-          font-weight: 600;
-          min-width: 50px;
-        }
-      `}</style>
     </div>
   );
 }
