@@ -14,7 +14,7 @@ export const focusPoints = [
     orbit: "6deg 81deg 1.78m",
     target: "0m 0.24m 0m",
     flowOverlay: "front",
-    hotspotPosition: "0m 0.28m 2.2m",
+    hotspotPosition: "-0.35m 0.2m 2.15m",
     hotspotNormal: "0 0 1",
   },
   {
@@ -30,7 +30,7 @@ export const focusPoints = [
     orbit: "0deg 18deg 2.18m",
     target: "0m 0.18m 0m",
     flowOverlay: "floor",
-    hotspotPosition: "0m 0.1m 0.35m",
+    hotspotPosition: "0.05m 0.02m 0.55m",
     hotspotNormal: "0 1 0",
   },
   {
@@ -46,8 +46,8 @@ export const focusPoints = [
     orbit: "186deg 78deg 1.82m",
     target: "0m 0.26m 0m",
     flowOverlay: "rear",
-    hotspotPosition: "0m 0.62m -2.1m",
-    hotspotNormal: "0 0 -1",
+    hotspotPosition: "0.18m 0.58m -1.9m",
+    hotspotNormal: "0 0.5 0.5",
   },
   {
     id: "brakes",
@@ -62,8 +62,8 @@ export const focusPoints = [
     orbit: "104deg 83deg 1.74m",
     target: "0m 0.22m 0m",
     flowOverlay: "off",
-    hotspotPosition: "0.82m 0.28m 1.35m",
-    hotspotNormal: "1 0 0",
+    hotspotPosition: "-0.55m 0.18m 1.5m",
+    hotspotNormal: "-0.4 0 0.8",
   },
   {
     id: "tyres",
@@ -78,8 +78,8 @@ export const focusPoints = [
     orbit: "96deg 84deg 1.6m",
     target: "0m 0.2m 0m",
     flowOverlay: "off",
-    hotspotPosition: "0.96m 0.12m 1.18m",
-    hotspotNormal: "1 0 0",
+    hotspotPosition: "0.92m 0.14m -0.95m",
+    hotspotNormal: "0.6 0 0.4",
   },
 ] as const;
 

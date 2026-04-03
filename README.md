@@ -2,37 +2,52 @@
 
 Static-first Formula 1 telemetry and explainer product.
 
-This workspace combines two product surfaces:
+This workspace currently combines three connected product surfaces:
 
-- `Learn`: explanation-first modules for the car, aero, tyres, braking, setup, weather, and strategy
-- `Data`: telemetry-first tools for session browsing, lap compare, stint stories, replay, and analysis
+- `Modelview`: 3D car browsing with local GLB assets
+- `Replay`: race playback backed by exported static packs
+- `Learn`: short engineering modules for core F1 subsystems
 
-The current Formula 1 explainer at `interactive-explanation/formula-1-racing/` is the concept source for the learning modules, but this workspace is designed as a separate production-grade app with a static data pipeline, CDN-backed race packs, and a thin API layer.
+The current Formula 1 explainer at `interactive-explanation/formula-1-racing/` is the concept source for the learning modules, but this workspace is now its own app with a static export frontend, generated data packs, local 3D models, and an optional thin Worker API.
+
+## Live deployment
+
+- Production URL: `https://f1-racing-622.netlify.app`
+- Current production deploy flow: `docs/deploy-guide.md`
+- Static output directory: `apps/web/out`
 
 ## Current status
 
 Implemented now:
 
-- Next.js app scaffold in `apps/web`
-- static session explorer
-- static compare route
-- real OpenF1 2025 season metadata ingest
-- one real OpenF1 session-pack export for 2025 Australian GP qualifying
-- `model-viewer` car surface with local 2025 McLaren and APX GP GLBs
-- wind-sim reference route with a baked CFD schema example
-- scaffold for a `2.5D` projected-flow pipeline based on GLB display models plus derived top-view masks
-- starter OpenFOAM case and website pack builder for the McLaren baseline run
-- corner-level compare annotations layered on top of telemetry traces
+- Next.js 15 static-export app in `apps/web`
+- landing page that links Modelview, Replay, and Learn as one product loop
+- sessions index and session detail pages backed by generated manifests
+- compare route with telemetry traces and corner-level annotations
+- replay index and replay session pages backed by exported replay packs
 - stint story route backed by static stint packs
-- split learn modules for `/learn/car`, `/learn/aero`, `/learn/tyres`, `/learn/braking`, `/learn/setup`, and `/learn/strategy`
+- `model-viewer` car surface with local 2025 McLaren and APX GP GLBs
+- six learn modules: `/learn/car`, `/learn/aero`, `/learn/tyres`, `/learn/braking`, `/learn/setup`, and `/learn/strategy`
+- real OpenF1 metadata and exported packs in the generated data flow
+- starter OpenFOAM pipeline docs and scripts for future baked CFD overlays
+
+Not active in the current app:
+
+- the old `/sims/wind` route
+- the old active `flow-2p5d` app surface
+
+Those materials are now archived under `docs/archived/flow-2p5d/`.
 
 ## Main routes
 
 - `/` - product overview
+- `/cars/current-spec` - `model-viewer` car surface
+- `/replay` - replay index
+- `/replay/2026/japan-grand-prix/race` - latest replay route from the current manifest
 - `/sessions` - static session explorer
-- `/sessions/2025/australian-grand-prix/qualifying` - real exported 2025 session pack
-- `/compare/2025/australian-grand-prix/qualifying/NOR/PIA` - real compare route with telemetry traces
-- `/stints/2025/australian-grand-prix/qualifying` - static stint story route
+- `/sessions/2026/japan-grand-prix/race` - latest session route from the current manifest
+- `/compare/2025/demo-weekend/qualifying/VER/NOR` - compare route with telemetry traces
+- `/stints/2025/demo-weekend/qualifying` - static stint story route
 - `/learn` - learn surface overview
 - `/learn/car`
 - `/learn/aero`
@@ -40,19 +55,19 @@ Implemented now:
 - `/learn/braking`
 - `/learn/setup`
 - `/learn/strategy`
-- `/cars/current-spec` - `model-viewer` car surface
-- `/sims/wind` - baked CFD / wind-sim reference surface
 
-## Recommended stack
+## Runtime shape
 
 - Frontend: `Next.js`
-- Hosting: `Cloudflare Pages`
-- Storage: `Cloudflare R2`
-- Thin API: `Cloudflare Workers`
+- Current live hosting: `Netlify`
+- Static deploy artifact: `apps/web/out`
+- Static data delivery: bundled public assets and generated manifests
+- Optional thin API: `Cloudflare Workers` in `workers/metadata-api`
 - Upstream data: `OpenF1` primary, `FastF1` optional enrichment
 - 3D viewer: `model-viewer` for car pages only
-- Wind simulation: offline-precomputed assets derived from OpenFOAM or a compatible CFD workflow
-- Blog-friendly aero compare: projected `2.5D` top-view flow built from per-car masks and shared solver settings
+- CFD workflow: offline-precomputed assets derived from OpenFOAM or a compatible workflow
+
+Cloudflare Pages and R2 remain documented options for the longer-term static-first architecture in `docs/deployment.md` and `docs/cloudflare-first-deploy.md`.
 
 ## Commands
 
@@ -97,8 +112,13 @@ npm run build:openf1:session -- --grandPrixSlug australian-grand-prix --sessionS
 ### Production build
 
 ```bash
+npm run check:data
 npm run build
 ```
+
+### Manual Netlify production deploy
+
+See `docs/deploy-guide.md` for the exact working commands and known monorepo caveats.
 
 ### Build one OpenFOAM overlay pack from exported CFD CSV
 
@@ -161,6 +181,8 @@ Instead:
 3. upload versioned files to object storage
 4. let the frontend fetch only the pack needed for the current route
 
+For the current live deploy, the exported packs and manifests are served directly from the static build.
+
 ## Docs
 
 - `docs/architecture.md` - system architecture and product surfaces
@@ -168,14 +190,14 @@ Instead:
 - `docs/deployment.md` - hosting, CDN, caching, and deployment workflow
 - `docs/deploy-guide.md` - concrete build and manual deployment commands, including the working Netlify CLI flow
 - `docs/cloudflare-first-deploy.md` - step-by-step first deploy on Cloudflare Pages and optional Worker setup
+- `docs/dev-journal-2026-04-01.md` - development notes and previous deployment history
 - `docs/openfoam-overlays.md` - OpenFOAM feasibility and baked CFD overlay workflow
 - `docs/openfoam-mcl39-pipeline.md` - step-by-step McLaren starter workflow from STL to website pack
 - `docs/openfoam-blender-cleanup.md` - Blender cleanup checklist for the McLaren CFD mesh
 - `docs/openfoam-local-inputs.md` - field-by-field guide for `mcl39-user-inputs.local.json`
 - `docs/openfoam-paraview-export.md` - ParaView export steps for the surface CSV
 - `docs/openfoam-windows-setup.md` - Windows and WSL2 setup guidance for the starter case
-- `docs/flow-2p5d/overview.md` - architecture for the GLB plus projected-flow compare system
-- `docs/flow-2p5d/asset-pipeline.md` - source versus derived asset workflow for each car
+- `docs/archived/flow-2p5d/` - archived projected-flow documents and reference materials
 - `docs/roadmap.md` - phased build plan and progress tracking
 
 Optional Worker scaffold:
@@ -188,7 +210,8 @@ Optional Worker scaffold:
 - `packages/` - shared UI, schemas, utilities
 - `pipeline/` - ingestion and export scripts
 - `data/` - generated manifests and pack outputs
-- `data/flow/` - projected-flow car registry and compare metadata
+- `workers/metadata-api/` - optional Cloudflare Worker for tiny metadata endpoints
+- `docs/archived/flow-2p5d/` - archived projected-flow exploration
 
 ## External assets already wired
 
@@ -202,9 +225,17 @@ Public model paths:
 - `/models/2025/mclaren/mcl39.glb`
 - `/models/2025/apx-gp/apx01.glb`
 
+## Environment notes
+
+- Root `.env` is local-only and gitignored.
+- `NETLIFY_AUTH_TOKEN` is used for CLI deploys.
+- `NETLIFY_SITE_ID` may be stale if the target Netlify site has been recreated.
+- The current frontend does not consume Appwrite runtime variables in app source.
+- `OCI_SSH_CONNECT` is only relevant for separate backend or infra work.
+
 ## Recommended next steps
 
 1. add RPM/gear overlays to compare traces
 2. connect one real OpenFOAM-derived or mapped CFD overlay pack to the car surface
-3. link wind-sim outputs directly back into `/learn/aero`
-4. add replay-lite routes on top of the real 2025 data flow
+3. optimize the large GLB assets with Draco or Meshopt before a more public release
+4. add Git-backed auto-deploy or dashboard-managed deploy settings for the Netlify site
