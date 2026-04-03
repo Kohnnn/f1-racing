@@ -17,17 +17,18 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <div className="shell">
           <header className="site-header">
             <a className="brand" href="/">
-              <span className="brand__eyebrow">Replay · Modelview · Learn</span>
+              <span className="brand__eyebrow">Replay-first F1 viewer</span>
               <strong>F1 Racing</strong>
             </a>
-            <nav className="site-nav">
-              <a href="/cars/current-spec">Modelview</a>
-              <a href="/replay">Replay</a>
-              <a href="/learn">Learn</a>
-              <a href="/sessions">Sessions</a>
-              <a href="/compare/2025/australian-grand-prix/qualifying/NOR/PIA">Compare</a>
-              <a href="/stints/2025/australian-grand-prix/qualifying">Stints</a>
-            </nav>
+            <div className="site-header__navs">
+              <nav className="site-nav site-nav--primary">
+                <a href="/replay">Replay</a>
+              </nav>
+              <nav className="site-nav site-nav--secondary">
+                <a href="/cars/current-spec">Modelview</a>
+                <a href="/learn">Learn</a>
+              </nav>
+            </div>
           </header>
           <main>{children}</main>
         </div>

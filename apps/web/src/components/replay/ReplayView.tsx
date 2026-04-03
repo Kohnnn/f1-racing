@@ -4,11 +4,21 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { TrackCanvas } from "./TrackCanvas";
 import { PlaybackControls } from "./PlaybackControls";
 import { Leaderboard } from "./Leaderboard";
-import type { ReplayPack, ReplayFrame } from "@/lib/data";
+import { ReplayComparePanel, ReplayStintPanel } from "./replay-insights";
+import type { ComparePack, ReplayPack, ReplayFrame, SessionManifest, SessionSummary, StintPack } from "@/lib/data";
 import { getFocusPoint } from "@/components/model-viewer/focus-points";
 
 interface ReplayViewProps {
   replay: ReplayPack;
+  manifest: SessionManifest;
+  summary: SessionSummary;
+  compare: ComparePack | null;
+  route: {
+    season: string;
+    grandPrix: string;
+    session: string;
+  };
+  stintPack: StintPack | null;
 }
 
 type ReplayMetricId = "speed" | "gear" | "throttle" | "brake" | "drs" | "lap";
@@ -32,7 +42,7 @@ function formatLapTime(seconds: number | null) {
   return `${minutes}:${remainder.toFixed(3).padStart(6, "0")}`;
 }
 
-export function ReplayView({ replay }: ReplayViewProps) {
+export function ReplayView({ replay, manifest, summary, compare, route, stintPack }: ReplayViewProps) {
   const [focusId, setFocusId] = useState<string | null>(null);
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -55,6 +65,82 @@ export function ReplayView({ replay }: ReplayViewProps) {
   const currentFrame = replay.frames[currentFrameIndex] || null;
   const currentTime = currentFrame?.t || 0;
   const replayFocus = getFocusPoint(focusId);
+
+  const currentLap = currentFrame
+    ? Math.max(...Object.values(currentFrame.drivers)
+        .map((d) => d.lap)
+        .filter((l): l is number => l !== null), 0) || null
+    : null;
+
+  const trackStatus = currentFrame?.trackStatus || "GREEN";
+
+  const findFrameIndexForTime = useCallback((time: number): number => {
+    let left = 0;
+    let right = replay.frames.length - 1;
+    let result = 0;
+
+    while (left <= right) {
+      const mid = Math.floor((left + right) / 2);
+      if (replay.frames[mid].t <= time) {
+        result = mid;
+        left = mid + 1;
+      } else {
+        right = mid - 1;
+      }
+    }
+
+    return result;
+  }, [replay.frames]);
+
+  const handlePlay = useCallback(() => {
+    if (currentFrameIndex >= replay.frames.length - 1) {
+      setCurrentFrameIndex(0);
+    }
+    setIsPlaying(true);
+  }, [currentFrameIndex, replay.frames.length]);
+
+  const handlePause = useCallback(() => {
+    setIsPlaying(false);
+  }, []);
+
+  const handleSeek = useCallback((time: number) => {
+    const index = findFrameIndexForTime(time);
+    setCurrentFrameIndex(index);
+    setIsPlaying(false);
+  }, [findFrameIndexForTime]);
+
+  const handleSpeedChange = useCallback((speed: number) => {
+    setPlaybackSpeed(speed);
+  }, []);
+
+  const handleSkipLap = useCallback((delta: number) => {
+    if (!currentFrame) return;
+
+    const targetLap = (currentLap || 0) + delta;
+    if (targetLap < 1) return;
+
+    let targetFrame = 0;
+    for (let i = 0; i < replay.frames.length; i++) {
+      const frame = replay.frames[i];
+      const frameLap = Math.max(...Object.values(frame.drivers)
+        .map((d) => d.lap)
+        .filter((l): l is number => l !== null), 0);
+
+      if (frameLap >= targetLap) {
+        targetFrame = i;
+        break;
+      }
+      targetFrame = i;
+    }
+
+    setCurrentFrameIndex(targetFrame);
+    setIsPlaying(false);
+  }, [currentFrame, currentLap, replay.frames]);
+
+  const handleDriverSelect = useCallback((driverCode: string | null) => {
+    setSelectedDriver(driverCode);
+  }, []);
+
   const suggestedDriver = useMemo(() => {
     const fastestLap = replay.laps
       .filter((lap) => lap.lapTime !== null)
@@ -124,32 +210,28 @@ export function ReplayView({ replay }: ReplayViewProps) {
         },
       ]
     : [];
-
-  const currentLap = currentFrame
-    ? Math.max(...Object.values(currentFrame.drivers)
-        .map((d) => d.lap)
-        .filter((l): l is number => l !== null), 0) || null
+  const featuredCompareKey = Object.keys(manifest.compare ?? {})[0] ?? null;
+  const featuredCompareHref = featuredCompareKey
+    ? `/compare/${route.season}/${route.grandPrix}/${route.session}/${featuredCompareKey.split("-")[0]}/${featuredCompareKey.split("-")[1]}`
     : null;
-
-  const trackStatus = currentFrame?.trackStatus || "GREEN";
-
-  const findFrameIndexForTime = useCallback((time: number): number => {
-    let left = 0;
-    let right = replay.frames.length - 1;
-    let result = 0;
-
-    while (left <= right) {
-      const mid = Math.floor((left + right) / 2);
-      if (replay.frames[mid].t <= time) {
-        result = mid;
-        left = mid + 1;
-      } else {
-        right = mid - 1;
-      }
+  const featuredStintHref = manifest.stints ? `/stints/${route.season}/${route.grandPrix}/${route.session}` : null;
+  const activeRaceControlMessages = useMemo(() => {
+    if (!replay.raceControlMessages?.length) {
+      return [];
     }
 
-    return result;
-  }, [replay.frames]);
+    return replay.raceControlMessages
+      .filter((message) => message.t <= currentTime)
+      .slice(-3)
+      .reverse();
+  }, [currentTime, replay.raceControlMessages]);
+
+  const handleSkipTime = useCallback((delta: number) => {
+    const nextTime = Math.max(0, Math.min(totalTime, currentTime + delta));
+    const index = findFrameIndexForTime(nextTime);
+    setCurrentFrameIndex(index);
+    setIsPlaying(false);
+  }, [currentTime, findFrameIndexForTime, totalTime]);
 
   const animate = useCallback((timestamp: number) => {
     if (!lastTimeRef.current) {
@@ -176,7 +258,7 @@ export function ReplayView({ replay }: ReplayViewProps) {
     if (isPlaying) {
       animationRef.current = requestAnimationFrame(animate);
     }
-  }, [isPlaying, playbackSpeed, replay.frames, totalTime, findFrameIndexForTime]);
+  }, [findFrameIndexForTime, isPlaying, playbackSpeed, replay.frames, totalTime]);
 
   useEffect(() => {
     if (isPlaying) {
@@ -194,54 +276,73 @@ export function ReplayView({ replay }: ReplayViewProps) {
     };
   }, [isPlaying, animate]);
 
-  const handlePlay = useCallback(() => {
-    if (currentFrameIndex >= replay.frames.length - 1) {
-      setCurrentFrameIndex(0);
-    }
-    setIsPlaying(true);
-  }, [currentFrameIndex, replay.frames.length]);
-
-  const handlePause = useCallback(() => {
-    setIsPlaying(false);
-  }, []);
-
-  const handleSeek = useCallback((time: number) => {
-    const index = findFrameIndexForTime(time);
-    setCurrentFrameIndex(index);
-    setIsPlaying(false);
-  }, [findFrameIndexForTime]);
-
-  const handleSpeedChange = useCallback((speed: number) => {
-    setPlaybackSpeed(speed);
-  }, []);
-
-  const handleSkipLap = useCallback((delta: number) => {
-    if (!currentFrame) return;
-
-    const targetLap = (currentLap || 0) + delta;
-    if (targetLap < 1) return;
-
-    let targetFrame = 0;
-    for (let i = 0; i < replay.frames.length; i++) {
-      const frame = replay.frames[i];
-      const frameLap = Math.max(...Object.values(frame.drivers)
-        .map((d) => d.lap)
-        .filter((l): l is number => l !== null), 0);
-
-      if (frameLap >= targetLap) {
-        targetFrame = i;
-        break;
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      const tagName = target?.tagName ?? "";
+      if (target?.isContentEditable || ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(tagName)) {
+        return;
       }
-      targetFrame = i;
+
+      if (event.code === "Space") {
+        event.preventDefault();
+        if (isPlaying) {
+          handlePause();
+        } else {
+          handlePlay();
+        }
+        return;
+      }
+
+      if (event.code === "ArrowLeft") {
+        event.preventDefault();
+        handleSkipTime(event.shiftKey ? -30 : -5);
+        return;
+      }
+
+      if (event.code === "ArrowRight") {
+        event.preventDefault();
+        handleSkipTime(event.shiftKey ? 30 : 5);
+        return;
+      }
+
+      if (event.code === "BracketLeft") {
+        event.preventDefault();
+        handleSkipLap(-1);
+        return;
+      }
+
+      if (event.code === "BracketRight") {
+        event.preventDefault();
+        handleSkipLap(1);
+        return;
+      }
+
+      if (event.code === "Digit1") {
+        handleSpeedChange(0.5);
+      }
+
+      if (event.code === "Digit2") {
+        handleSpeedChange(1);
+      }
+
+      if (event.code === "Digit3") {
+        handleSpeedChange(2);
+      }
+
+      if (event.code === "Digit4") {
+        handleSpeedChange(4);
+      }
+
+      if (event.code === "KeyR") {
+        event.preventDefault();
+        handleSeek(0);
+      }
     }
 
-    setCurrentFrameIndex(targetFrame);
-    setIsPlaying(false);
-  }, [currentFrame, currentLap, replay.frames]);
-
-  const handleDriverSelect = useCallback((driverCode: string | null) => {
-    setSelectedDriver(driverCode);
-  }, []);
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [handlePause, handlePlay, handleSeek, handleSkipLap, handleSkipTime, isPlaying, handleSpeedChange]);
 
   return (
     <div className="replay-view">
@@ -255,6 +356,8 @@ export function ReplayView({ replay }: ReplayViewProps) {
           <span className="replay-meta-pill">{replay.season} season</span>
           <span className="replay-meta-pill">Session key {replay.sessionKey}</span>
           <span className="replay-meta-pill">{selectedDriver ? `Driver focus: ${selectedDriver}` : "Full-field view"}</span>
+          <span className="replay-meta-pill">{summary.weatherSummary.airTempC}C / {summary.weatherSummary.trackTempC}C</span>
+          <span className="replay-meta-pill">Rain risk {summary.weatherSummary.rainRiskPct}%</span>
         </div>
       </section>
 
@@ -321,10 +424,50 @@ export function ReplayView({ replay }: ReplayViewProps) {
             onSpeedChange={handleSpeedChange}
             onSeek={handleSeek}
             onSkipLap={handleSkipLap}
+            onSkipTime={handleSkipTime}
           />
+
+          {compare ? <ReplayComparePanel compare={compare} legacyHref={featuredCompareHref} /> : null}
+          {stintPack ? <ReplayStintPanel stintPack={stintPack} legacyHref={featuredStintHref} /> : null}
         </div>
 
         <div className="replay-sidebar">
+          <section className="driver-telemetry replay-observer-panel">
+            <p className="eyebrow">Replay workflow</p>
+            <h3>Keep the main surface focused.</h3>
+            <p className="driver-telemetry__focus-note">
+              Replay is the core product. Compare and stint reads now live inside this workspace, while Modelview and Learn stay available as secondary routes for deeper context.
+            </p>
+            <div className="replay-metric-tags">
+              <span className="replay-metric-tag">Space play/pause</span>
+              <span className="replay-metric-tag">Arrows skip time</span>
+              <span className="replay-metric-tag">[ ] jump laps</span>
+              <span className="replay-metric-tag">1-4 speed</span>
+            </div>
+            <div className="replay-secondary-links">
+              <a href={`/sessions/${route.season}/${route.grandPrix}/${route.session}`}>Session summary</a>
+              <a href="/cars/current-spec">Modelview</a>
+              <a href="/learn">Learn</a>
+            </div>
+          </section>
+
+          {activeRaceControlMessages.length ? (
+            <section className="driver-telemetry replay-observer-panel">
+              <p className="eyebrow">Race control</p>
+              <h3>Latest messages</h3>
+              <ul className="summary-list summary-list--compact">
+                {activeRaceControlMessages.map((message) => (
+                  <li key={`${message.t}-${message.message}`}>
+                    <strong>{message.flag || message.category}</strong>
+                    <span>
+                      T+{Math.floor(message.t)}s{message.lapNumber ? ` · Lap ${message.lapNumber}` : ""} · {message.message}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
           <Leaderboard
             drivers={replay.drivers}
             currentFrame={currentFrame}

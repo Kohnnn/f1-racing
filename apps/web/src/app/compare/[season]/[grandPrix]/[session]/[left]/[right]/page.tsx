@@ -60,9 +60,11 @@ export default async function ComparePage({ params }: ComparePageProps) {
             {left} vs {right}
           </h1>
           <p className="lead">
-            This is the first compare surface driven by static packs. The route is intentionally compact and
-            focuses on delta sections plus derived notes rather than shipping raw telemetry everywhere.
+            This legacy compare route still works, but compare insight now lives directly inside replay so lap context stays in the same workspace.
           </p>
+          <div className="hero-actions">
+            <a className="button" href={`/replay/${season}/${grandPrix}/${session}`}>Back to replay</a>
+          </div>
           <div className="metric-grid">
             <div className="metric-chip">
               <span>{left} lap</span>

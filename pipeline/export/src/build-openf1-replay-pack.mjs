@@ -7,6 +7,8 @@ import {
   fetchPosition,
   fetchRaceControl,
   fetchSessions,
+  fetchStints,
+  fetchWeather,
 } from "../../ingest/src/openf1-client.mjs";
 import { slugify } from "../../normalize/src/normalize-session.mjs";
 
@@ -63,6 +65,269 @@ async function writeJson(relativePath, payload) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isoToMs(value) {
+  return value ? new Date(value).getTime() : 0;
+}
+
+function summarizeWeather(samples) {
+  if (!samples.length) {
+    return {
+      airTempC: 0,
+      trackTempC: 0,
+      rainRiskPct: 0,
+    };
+  }
+
+  const airTempC = samples.reduce((sum, item) => sum + Number(item.air_temperature || 0), 0) / samples.length;
+  const trackTempC = samples.reduce((sum, item) => sum + Number(item.track_temperature || 0), 0) / samples.length;
+  const rainRiskPct = Math.max(...samples.map((item) => Number(item.rainfall || 0)), 0) * 100;
+
+  return {
+    airTempC: Math.round(airTempC),
+    trackTempC: Math.round(trackTempC),
+    rainRiskPct: Math.round(rainRiskPct),
+  };
+}
+
+function findLatestIndex(entries, target, getTime = (entry) => entry.t) {
+  let left = 0;
+  let right = entries.length - 1;
+  let result = -1;
+
+  while (left <= right) {
+    const mid = Math.floor((left + right) / 2);
+    if (getTime(entries[mid]) <= target) {
+      result = mid;
+      left = mid + 1;
+    } else {
+      right = mid - 1;
+    }
+  }
+
+  return result;
+}
+
+function buildReplayLaps(lapsRaw, drivers) {
+  const driverCodeByNumber = new Map(drivers.map((driver) => [driver.driverNumber, driver.driverCode]));
+
+  return lapsRaw
+    .filter((lap) => Number.isFinite(lap.lap_duration))
+    .map((lap) => ({
+      driverCode: driverCodeByNumber.get(Number(lap.driver_number)) || String(lap.driver_number),
+      lapNumber: Number(lap.lap_number),
+      lapTime: Number(lap.lap_duration),
+      compound: lap.compound ?? null,
+    }))
+    .sort((left, right) => {
+      if (left.lapNumber !== right.lapNumber) {
+        return left.lapNumber - right.lapNumber;
+      }
+      return left.driverCode.localeCompare(right.driverCode);
+    });
+}
+
+function buildLapTimelines(lapsRaw) {
+  const byDriver = new Map();
+
+  for (const lap of lapsRaw) {
+    const driverNumber = Number(lap.driver_number);
+    const startMs = isoToMs(lap.date_start);
+    const durationS = Number(lap.lap_duration ?? 0);
+    const durationMs = Number.isFinite(durationS) && durationS > 0 ? durationS * 1000 : 90000;
+
+    if (!byDriver.has(driverNumber)) {
+      byDriver.set(driverNumber, []);
+    }
+
+    byDriver.get(driverNumber).push({
+      lapNumber: Number(lap.lap_number ?? 0),
+      startMs,
+      endMs: startMs + durationMs,
+      durationS: durationMs / 1000,
+      compound: lap.compound ?? null,
+      stintNumber: lap.stint_number == null ? null : Number(lap.stint_number),
+    });
+  }
+
+  for (const entries of byDriver.values()) {
+    entries.sort((left, right) => left.startMs - right.startMs);
+  }
+
+  return byDriver;
+}
+
+function buildStintTimelines(stintsRaw) {
+  const byDriver = new Map();
+
+  for (const stint of stintsRaw) {
+    const driverNumber = Number(stint.driver_number);
+    if (!byDriver.has(driverNumber)) {
+      byDriver.set(driverNumber, []);
+    }
+
+    byDriver.get(driverNumber).push({
+      stintNumber: Number(stint.stint_number ?? 0),
+      lapStart: Number(stint.lap_start ?? 0),
+      lapEnd: Number(stint.lap_end ?? 0),
+      compound: stint.compound ?? null,
+      tyreAgeAtStart: Number(stint.tyre_age_at_start ?? 0),
+    });
+  }
+
+  for (const entries of byDriver.values()) {
+    entries.sort((left, right) => left.lapStart - right.lapStart);
+  }
+
+  return byDriver;
+}
+
+function buildRaceControlTimeline(messages, sessionStartTime) {
+  return messages
+    .map((message) => ({
+      t: isoToMs(message.date) - sessionStartTime,
+      lapNumber: message.lap_number == null ? null : Number(message.lap_number),
+      category: message.category || "Other",
+      flag: message.flag ?? null,
+      scope: message.scope ?? null,
+      sector: message.sector == null ? null : Number(message.sector),
+      message: message.message || "",
+    }))
+    .filter((message) => message.t >= 0)
+    .sort((left, right) => left.t - right.t);
+}
+
+function getLapState(lapTimeline, frameTimeMs) {
+  if (!lapTimeline?.length) {
+    return {
+      lapNumber: 1,
+      lapProgress: 0,
+      lapDurationS: 95,
+      compound: null,
+    };
+  }
+
+  const index = findLatestIndex(lapTimeline, frameTimeMs, (entry) => entry.startMs);
+  const activeLap = index === -1 ? lapTimeline[0] : lapTimeline[Math.min(index, lapTimeline.length - 1)];
+  const lapDurationMs = Math.max(1000, (activeLap.durationS || 95) * 1000);
+  const lapProgress = Math.max(0, Math.min(0.999, (frameTimeMs - activeLap.startMs) / lapDurationMs));
+
+  return {
+    lapNumber: activeLap.lapNumber || 1,
+    lapProgress,
+    lapDurationS: activeLap.durationS || 95,
+    compound: activeLap.compound,
+  };
+}
+
+function getTyreState(stintTimeline, lapNumber, fallbackCompound) {
+  if (!stintTimeline?.length) {
+    return {
+      tyreCompound: fallbackCompound ?? null,
+      tyreAge: null,
+    };
+  }
+
+  const activeStint = stintTimeline.find((stint) => lapNumber >= stint.lapStart && lapNumber <= stint.lapEnd)
+    || stintTimeline.at(-1);
+
+  if (!activeStint) {
+    return {
+      tyreCompound: fallbackCompound ?? null,
+      tyreAge: null,
+    };
+  }
+
+  return {
+    tyreCompound: activeStint.compound ?? fallbackCompound ?? null,
+    tyreAge: Math.max(0, activeStint.tyreAgeAtStart + Math.max(0, lapNumber - activeStint.lapStart)),
+  };
+}
+
+function determineTrackStatus(raceControlTimeline, frameTimeMs) {
+  let status = "GREEN";
+
+  for (const message of raceControlTimeline) {
+    if (message.t > frameTimeMs) {
+      break;
+    }
+
+    if (message.category === "SafetyCar") {
+      if (/VIRTUAL SAFETY CAR/i.test(message.message)) {
+        status = /ENDING|ENDED/i.test(message.message) ? "GREEN" : "VSC";
+        continue;
+      }
+
+      if (/SAFETY CAR/i.test(message.message)) {
+        status = "SC";
+        continue;
+      }
+    }
+
+    if (message.category === "Flag" && message.scope !== "Driver") {
+      switch (message.flag) {
+        case "GREEN":
+        case "CLEAR":
+          status = "GREEN";
+          break;
+        case "YELLOW":
+        case "DOUBLE YELLOW":
+          status = message.flag;
+          break;
+        case "RED":
+          status = "RED";
+          break;
+        case "CHEQUERED":
+          status = "CHEQUERED";
+          break;
+        default:
+          break;
+      }
+    }
+  }
+
+  return status;
+}
+
+function determineSafetyCarState(raceControlTimeline, frameTimeMs) {
+  let deployTime = null;
+  let inThisLapTime = null;
+  let clearTime = null;
+
+  for (const message of raceControlTimeline) {
+    if (message.t > frameTimeMs) {
+      break;
+    }
+
+    if (message.category === "SafetyCar" && /SAFETY CAR DEPLOYED/i.test(message.message)) {
+      deployTime = message.t;
+      inThisLapTime = null;
+      clearTime = null;
+    }
+
+    if (message.category === "SafetyCar" && /SAFETY CAR IN THIS LAP/i.test(message.message)) {
+      inThisLapTime = message.t;
+    }
+
+    if (message.category === "Flag" && message.scope === "Track" && (message.flag === "CLEAR" || message.flag === "GREEN")) {
+      clearTime = message.t;
+    }
+  }
+
+  if (deployTime == null || (clearTime != null && clearTime >= deployTime && clearTime <= frameTimeMs)) {
+    return "none";
+  }
+
+  if (inThisLapTime != null && inThisLapTime <= frameTimeMs) {
+    return "returning";
+  }
+
+  if (frameTimeMs - deployTime < 4000) {
+    return "deploying";
+  }
+
+  return "on_track";
 }
 
 function normalizeSessionRef(session, args = {}) {
@@ -625,6 +890,13 @@ async function buildReplayPack(sessionKey, drivers, ref) {
 
   process.stdout.write(`Fetched telemetry for ${carDataByDriver.size} drivers.\n`);
 
+  process.stdout.write(`Fetching lap, weather, and stint data...\n`);
+  const [lapsRaw, weatherRaw, stintsRaw] = await Promise.all([
+    fetchLaps({ sessionKey }),
+    fetchWeather({ sessionKey }).catch(() => []),
+    fetchStints({ sessionKey }).catch(() => []),
+  ]);
+
   process.stdout.write(`Fetching race control data...\n`);
   let raceControlMessages = [];
   try {
@@ -638,40 +910,64 @@ async function buildReplayPack(sessionKey, drivers, ref) {
   const trackPath = generateTrackPath(ref.trackId);
 
   const sessionStartTime = new Date(ref.startDate).getTime();
-  const sessionEndTime = new Date(ref.endDate).getTime();
-  const sessionDurationS = (sessionEndTime - sessionStartTime) / 1000;
+  const lapTimelines = buildLapTimelines(lapsRaw);
+  const stintTimelines = buildStintTimelines(stintsRaw);
+  const raceControlTimeline = buildRaceControlTimeline(raceControlMessages, sessionStartTime);
+  const weatherSummary = summarizeWeather(weatherRaw);
+  const replayLaps = buildReplayLaps(lapsRaw, drivers);
 
-  const frameInterval = 2;
-  const totalFrames = Math.min(Math.floor(sessionDurationS / frameInterval), 300);
+  const telemetryByDriver = new Map();
+  carDataByDriver.forEach((data, driverNumber) => {
+    const samples = data
+      .map((point) => ({
+        t: isoToMs(point.date) - sessionStartTime,
+        speed: point.speed == null ? null : Number(point.speed),
+        throttle: point.throttle == null ? null : Number(point.throttle),
+        brake: point.brake == null ? null : Number(point.brake),
+        gear: point.n_gear == null ? null : Number(point.n_gear),
+        drs: point.drs == null ? null : Number(point.drs),
+      }))
+      .filter((point) => point.t >= 0)
+      .sort((left, right) => left.t - right.t);
+    telemetryByDriver.set(driverNumber, samples);
+  });
+
+  const positionByDriverTime = new Map();
+  for (const data of allPositionData) {
+    const sorted = data.positions
+      .map((position) => ({
+        t: isoToMs(position.date) - sessionStartTime,
+        position: Number(position.position),
+      }))
+      .filter((position) => position.t >= 0 && Number.isFinite(position.position))
+      .sort((left, right) => left.t - right.t);
+    positionByDriverTime.set(data.driverCode, sorted);
+  }
+
+  const sessionEndCandidates = [isoToMs(ref.endDate) - sessionStartTime];
+  for (const lapTimeline of lapTimelines.values()) {
+    if (lapTimeline.length) {
+      sessionEndCandidates.push(lapTimeline[lapTimeline.length - 1].endMs - sessionStartTime);
+    }
+  }
+  for (const samples of telemetryByDriver.values()) {
+    if (samples.length) {
+      sessionEndCandidates.push(samples[samples.length - 1].t);
+    }
+  }
+  if (raceControlTimeline.length) {
+    sessionEndCandidates.push(raceControlTimeline[raceControlTimeline.length - 1].t);
+  }
+
+  const sessionDurationS = Math.max(...sessionEndCandidates, 0) / 1000;
+  const frameInterval = Math.max(2, Math.ceil(sessionDurationS / 900));
+  const totalFrames = Math.max(1, Math.floor(sessionDurationS / frameInterval) + 1);
 
   if (totalFrames <= 0) {
     throw new Error("Session duration too short or invalid.");
   }
 
   process.stdout.write(`Building ${totalFrames} frames...\n`);
-
-  const positionByDriverTime = new Map();
-  for (const data of allPositionData) {
-    const sorted = data.positions
-      .map((p) => ({ t: new Date(p.date).getTime() - sessionStartTime, position: p.position }))
-      .filter((p) => p.t >= 0)
-      .sort((a, b) => a.t - b.t);
-    positionByDriverTime.set(data.driverCode, sorted);
-  }
-
-  const speedByDriverTime = new Map();
-  carDataByDriver.forEach((data, driverNumber) => {
-    if (data && data.length > 0) {
-      const speedMap = new Map();
-      data.forEach((d) => {
-        const t = new Date(d.date).getTime() - sessionStartTime;
-        if (t >= 0) {
-          speedMap.set(t, d.speed || 0);
-        }
-      });
-      speedByDriverTime.set(driverNumber, speedMap);
-    }
-  });
 
   const frames = [];
 
@@ -680,91 +976,86 @@ async function buildReplayPack(sessionKey, drivers, ref) {
     const frameTime = frameIndex * frameInterval;
 
     const frameDrivers = {};
+    const driverStates = [];
 
     for (const driver of drivers) {
       const positionHistory = positionByDriverTime.get(driver.driverCode) || [];
-      const currentPosIdx = positionHistory.findIndex((p) => p.t > t);
-      const racePosition = currentPosIdx > 0
-        ? positionHistory[currentPosIdx - 1].position
-        : positionHistory.length > 0
-          ? positionHistory[positionHistory.length - 1].position
-          : drivers.indexOf(driver) + 1;
+      const positionIndex = positionHistory.length ? findLatestIndex(positionHistory, t, (entry) => entry.t) : -1;
+      const racePosition = positionIndex >= 0
+        ? positionHistory[positionIndex].position
+        : drivers.indexOf(driver) + 1;
 
-      const speedMap = speedByDriverTime.get(driver.driverNumber);
-      let speed = 180;
-      if (speedMap && speedMap.size > 0) {
-        let closestT = 0;
-        let closestSpeed = 180;
-        speedMap.forEach((s, time) => {
-          if (time <= t && time > closestT) {
-            closestT = time;
-            closestSpeed = s;
-          }
-        });
-        speed = closestSpeed;
-      }
-
-      const carData = carDataByDriver.get(driver.driverNumber);
-      let throttle = 60, brake = 0, gear = 7, drs = 0;
-      if (carData && carData.length > 0) {
-        const closestSample = carData.reduce((prev, curr) => {
-          const currT = new Date(curr.date).getTime() - sessionStartTime;
-          const prevT = new Date(prev.date).getTime() - sessionStartTime;
-          return Math.abs(currT - t) < Math.abs(prevT - t) ? curr : prev;
-        });
-
-        throttle = closestSample.throttle || 60;
-        brake = closestSample.brake || 0;
-        gear = closestSample.n_gear || 7;
-        drs = closestSample.drs || 0;
-      }
-
-      const positionRatio = Math.max(0, Math.min(1, (racePosition - 1) / Math.max(1, drivers.length - 1)));
-      const lapOffset = ((t / 1000) / 90) % 1;
-      const trackRatio = (1 - positionRatio) * 0.95 + lapOffset * 0.05;
-
-      const jitter = speed > 0 ? (Math.random() - 0.5) * 1.5 : 0;
+      const telemetrySamples = telemetryByDriver.get(driver.driverNumber) || [];
+      const telemetryIndex = telemetrySamples.length ? findLatestIndex(telemetrySamples, t, (entry) => entry.t) : -1;
+      const telemetry = telemetryIndex >= 0 ? telemetrySamples[telemetryIndex] : null;
+      const lapState = getLapState(lapTimelines.get(driver.driverNumber), sessionStartTime + t);
+      const tyreState = getTyreState(stintTimelines.get(driver.driverNumber), lapState.lapNumber, lapState.compound);
+      const trackRatio = lapState.lapProgress;
       const [baseX, baseY] = interpolatePosition(trackPath, trackRatio);
-      const x = baseX + jitter;
-      const y = baseY + jitter;
+      const laneOffset = ((driver.driverNumber % 5) - 2) * 1.8;
+      const x = baseX + laneOffset;
+      const y = baseY - laneOffset;
 
-      const currentLap = Math.floor(frameTime / 90) + 1;
-
-      frameDrivers[driver.driverCode] = {
+      const frameDriver = {
         driverCode: driver.driverCode,
         driverNumber: driver.driverNumber,
         team: driver.team,
         position: racePosition,
         x,
         y,
-        speed,
-        throttle,
-        brake,
-        gear,
-        drs,
-        lap: currentLap,
-        interval: racePosition === 1 ? 0 : (racePosition - 1) * 2.0 + Math.random() * 0.3,
-        tyreCompound: "MEDIUM",
-        tyreAge: Math.floor(currentLap / 12),
+        speed: telemetry?.speed ?? null,
+        throttle: telemetry?.throttle ?? null,
+        brake: telemetry?.brake ?? null,
+        gear: telemetry?.gear ?? null,
+        drs: telemetry?.drs ?? null,
+        lap: lapState.lapNumber,
+        interval: null,
+        tyreCompound: tyreState.tyreCompound,
+        tyreAge: tyreState.tyreAge,
       };
+
+      frameDrivers[driver.driverCode] = frameDriver;
+      driverStates.push({
+        driverCode: driver.driverCode,
+        racePosition,
+        raceProgress: Math.max(0, lapState.lapNumber - 1) + trackRatio,
+        lapDurationS: lapState.lapDurationS,
+        trackRatio,
+      });
     }
 
-    const sortedDrivers = Object.values(frameDrivers).sort((a, b) => a.position - b.position);
-    sortedDrivers.forEach((driver, idx) => {
-      driver.position = idx + 1;
+    driverStates.sort((left, right) => {
+      if (left.racePosition !== right.racePosition) {
+        return left.racePosition - right.racePosition;
+      }
+      return right.raceProgress - left.raceProgress;
     });
 
-    const scPhase = determineSafetyCarPhase(raceControlMessages, t);
+    const leader = driverStates[0] ?? null;
+    const referenceLapTime = leader?.lapDurationS || 95;
+    driverStates.forEach((state, index) => {
+      const frameDriver = frameDrivers[state.driverCode];
+      frameDriver.position = index + 1;
+      frameDriver.interval = index === 0 || !leader
+        ? 0
+        : Number(Math.max(0, (leader.raceProgress - state.raceProgress) * referenceLapTime).toFixed(3));
+    });
+
+    const scPhase = determineSafetyCarState(raceControlTimeline, t);
+    const trackStatus = determineTrackStatus(raceControlTimeline, t);
+    const scAnchorRatio = leader ? (leader.trackRatio + 0.03) % 1 : 0;
+    const [scX, scY] = interpolatePosition(trackPath, scAnchorRatio);
 
     frames.push({
       t: frameTime,
+      lap: leader ? frameDrivers[leader.driverCode]?.lap ?? null : null,
       drivers: frameDrivers,
       safetyCar: {
         phase: scPhase,
-        x: scPhase !== "none" ? trackPath[0][0] : null,
-        y: scPhase !== "none" ? trackPath[0][1] : null,
+        x: scPhase !== "none" ? scX : null,
+        y: scPhase !== "none" ? scY : null,
       },
-      trackStatus: scPhase === "none" ? "GREEN" : "SC",
+      trackStatus,
     });
 
     if (frameIndex % 50 === 0) {
@@ -773,6 +1064,9 @@ async function buildReplayPack(sessionKey, drivers, ref) {
   }
 
   return {
+    replayLaps,
+    weatherSummary,
+    raceControlTimeline,
     frames,
     trackPath,
   };
@@ -793,7 +1087,13 @@ async function main() {
 
   process.stdout.write(`Found ${drivers.length} drivers.\n`);
 
-  const { frames, trackPath } = await buildReplayPack(ref.sessionKey, drivers, ref);
+  const {
+    frames,
+    raceControlTimeline,
+    replayLaps,
+    trackPath,
+    weatherSummary,
+  } = await buildReplayPack(ref.sessionKey, drivers, ref);
 
   if (frames.length === 0) {
     throw new Error("Failed to build any frames.");
@@ -809,7 +1109,8 @@ async function main() {
     session: ref.sessionName,
     trackId: ref.trackId,
     source: "openf1",
-    note: "Position data derived from OpenF1 race_position. For true X/Y GPS coordinates, use FastF1 Python pipeline.",
+    note: "Replay timing derived from OpenF1 lap, stint, weather, race control, and car telemetry data. Track coordinates remain synthetic until a GPS-backed builder is used.",
+    weatherSummary,
     drivers: drivers.map((d) => ({
       driverCode: d.driverCode,
       driverNumber: d.driverNumber,
@@ -818,7 +1119,8 @@ async function main() {
       teamColor: d.teamColor,
     })),
     trackPath,
-    laps: [],
+    laps: replayLaps,
+    raceControlMessages: raceControlTimeline,
     frames,
   };
 
@@ -843,11 +1145,7 @@ async function main() {
     generatedAt: new Date().toISOString(),
     source: "openf1",
     drivers: drivers.map((d) => d.driverCode),
-    weatherSummary: {
-      airTempC: 25,
-      trackTempC: 35,
-      rainRiskPct: 0,
-    },
+    weatherSummary,
   };
   await writeJson(path.join(base, "summary.json"), summary);
 

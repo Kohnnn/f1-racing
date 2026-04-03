@@ -8,6 +8,7 @@ import {
   LatestManifestSchema,
   LapRecordSchema,
   OpenFoamStarterCaseSchema,
+  ReplayPackSchema,
   SeasonIndexSchema,
   SessionManifestSchema,
   SessionSummarySchema,
@@ -264,6 +265,125 @@ const sample = {
       }
     ]
   },
+  replay: {
+    generatedAt: "2026-03-27T09:00:00Z",
+    sessionKey: 9000,
+    season: 2025,
+    grandPrix: "Demo Weekend",
+    session: "Qualifying",
+    trackId: "studio-ring",
+    source: "openf1",
+    note: "Sample replay pack with inline compare and stint signals for the replay-first UI.",
+    weatherSummary: {
+      airTempC: 24,
+      trackTempC: 32,
+      rainRiskPct: 18,
+    },
+    drivers: [
+      { driverCode: "VER", driverNumber: 1, fullName: "Max Verstappen", team: "Red Bull Racing", teamColor: "#3671C6" },
+      { driverCode: "NOR", driverNumber: 4, fullName: "Lando Norris", team: "McLaren", teamColor: "#FF8000" },
+      { driverCode: "LEC", driverNumber: 16, fullName: "Charles Leclerc", team: "Ferrari", teamColor: "#E8002D" },
+      { driverCode: "PIA", driverNumber: 81, fullName: "Oscar Piastri", team: "McLaren", teamColor: "#FF8000" },
+    ],
+    trackPath: [
+      [0, -260],
+      [220, -240],
+      [360, -120],
+      [380, 80],
+      [220, 220],
+      [0, 250],
+      [-240, 200],
+      [-360, 60],
+      [-320, -120],
+      [-160, -230],
+      [0, -260],
+    ],
+    laps: [
+      { driverCode: "VER", lapNumber: 14, lapTime: 78.412, compound: "SOFT" },
+      { driverCode: "NOR", lapNumber: 16, lapTime: 78.503, compound: "SOFT" },
+      { driverCode: "LEC", lapNumber: 15, lapTime: 78.588, compound: "SOFT" },
+      { driverCode: "PIA", lapNumber: 17, lapTime: 78.64, compound: "SOFT" },
+    ],
+    raceControlMessages: [
+      { t: 0, lapNumber: 13, category: "Flag", flag: "GREEN", scope: "Track", sector: null, message: "GREEN LIGHT - PIT EXIT OPEN" },
+      { t: 44, lapNumber: 14, category: "Flag", flag: "YELLOW", scope: "Sector", sector: 2, message: "YELLOW IN TRACK SECTOR 2" },
+      { t: 58, lapNumber: 14, category: "Flag", flag: "CLEAR", scope: "Sector", sector: 2, message: "CLEAR IN TRACK SECTOR 2" },
+    ],
+    frames: [
+      {
+        t: 0,
+        lap: 13,
+        trackStatus: "GREEN",
+        safetyCar: { phase: "none", x: null, y: null },
+        drivers: {
+          VER: { driverCode: "VER", driverNumber: 1, team: "Red Bull Racing", position: 1, x: -320, y: -120, speed: 286, throttle: 100, brake: 0, gear: 8, drs: 12, lap: 13, interval: 0, tyreCompound: "SOFT", tyreAge: 2 },
+          NOR: { driverCode: "NOR", driverNumber: 4, team: "McLaren", position: 2, x: -250, y: -170, speed: 281, throttle: 100, brake: 0, gear: 8, drs: 12, lap: 13, interval: 0.412, tyreCompound: "SOFT", tyreAge: 1 },
+          LEC: { driverCode: "LEC", driverNumber: 16, team: "Ferrari", position: 3, x: -210, y: -195, speed: 276, throttle: 100, brake: 0, gear: 8, drs: 10, lap: 13, interval: 0.866, tyreCompound: "SOFT", tyreAge: 1 },
+          PIA: { driverCode: "PIA", driverNumber: 81, team: "McLaren", position: 4, x: -160, y: -225, speed: 274, throttle: 98, brake: 0, gear: 8, drs: 10, lap: 13, interval: 1.124, tyreCompound: "SOFT", tyreAge: 0 },
+        },
+      },
+      {
+        t: 12,
+        lap: 14,
+        trackStatus: "GREEN",
+        safetyCar: { phase: "none", x: null, y: null },
+        drivers: {
+          VER: { driverCode: "VER", driverNumber: 1, team: "Red Bull Racing", position: 1, x: -40, y: -248, speed: 192, throttle: 76, brake: 0, gear: 5, drs: 0, lap: 14, interval: 0, tyreCompound: "SOFT", tyreAge: 3 },
+          NOR: { driverCode: "NOR", driverNumber: 4, team: "McLaren", position: 2, x: -92, y: -242, speed: 188, throttle: 72, brake: 0, gear: 5, drs: 0, lap: 14, interval: 0.367, tyreCompound: "SOFT", tyreAge: 2 },
+          LEC: { driverCode: "LEC", driverNumber: 16, team: "Ferrari", position: 3, x: -138, y: -234, speed: 182, throttle: 68, brake: 0, gear: 5, drs: 0, lap: 14, interval: 0.812, tyreCompound: "SOFT", tyreAge: 2 },
+          PIA: { driverCode: "PIA", driverNumber: 81, team: "McLaren", position: 4, x: -178, y: -224, speed: 180, throttle: 66, brake: 0, gear: 5, drs: 0, lap: 14, interval: 1.093, tyreCompound: "SOFT", tyreAge: 1 },
+        },
+      },
+      {
+        t: 28,
+        lap: 14,
+        trackStatus: "YELLOW",
+        safetyCar: { phase: "none", x: null, y: null },
+        drivers: {
+          VER: { driverCode: "VER", driverNumber: 1, team: "Red Bull Racing", position: 1, x: 220, y: -240, speed: 142, throttle: 38, brake: 52, gear: 4, drs: 0, lap: 14, interval: 0, tyreCompound: "SOFT", tyreAge: 3 },
+          NOR: { driverCode: "NOR", driverNumber: 4, team: "McLaren", position: 2, x: 176, y: -230, speed: 147, throttle: 44, brake: 48, gear: 4, drs: 0, lap: 14, interval: 0.284, tyreCompound: "SOFT", tyreAge: 2 },
+          LEC: { driverCode: "LEC", driverNumber: 16, team: "Ferrari", position: 3, x: 128, y: -215, speed: 138, throttle: 34, brake: 58, gear: 4, drs: 0, lap: 14, interval: 0.676, tyreCompound: "SOFT", tyreAge: 2 },
+          PIA: { driverCode: "PIA", driverNumber: 81, team: "McLaren", position: 4, x: 94, y: -204, speed: 136, throttle: 32, brake: 62, gear: 4, drs: 0, lap: 14, interval: 0.904, tyreCompound: "SOFT", tyreAge: 1 },
+        },
+      },
+      {
+        t: 44,
+        lap: 14,
+        trackStatus: "GREEN",
+        safetyCar: { phase: "none", x: null, y: null },
+        drivers: {
+          VER: { driverCode: "VER", driverNumber: 1, team: "Red Bull Racing", position: 1, x: 350, y: 30, speed: 228, throttle: 84, brake: 0, gear: 6, drs: 0, lap: 14, interval: 0, tyreCompound: "SOFT", tyreAge: 3 },
+          NOR: { driverCode: "NOR", driverNumber: 4, team: "McLaren", position: 2, x: 320, y: 6, speed: 232, throttle: 90, brake: 0, gear: 6, drs: 0, lap: 14, interval: 0.198, tyreCompound: "SOFT", tyreAge: 2 },
+          LEC: { driverCode: "LEC", driverNumber: 16, team: "Ferrari", position: 3, x: 286, y: -16, speed: 221, throttle: 80, brake: 0, gear: 6, drs: 0, lap: 14, interval: 0.612, tyreCompound: "SOFT", tyreAge: 2 },
+          PIA: { driverCode: "PIA", driverNumber: 81, team: "McLaren", position: 4, x: 254, y: -34, speed: 218, throttle: 78, brake: 0, gear: 6, drs: 0, lap: 14, interval: 0.883, tyreCompound: "SOFT", tyreAge: 1 },
+        },
+      },
+      {
+        t: 62,
+        lap: 15,
+        trackStatus: "GREEN",
+        safetyCar: { phase: "none", x: null, y: null },
+        drivers: {
+          VER: { driverCode: "VER", driverNumber: 1, team: "Red Bull Racing", position: 1, x: 150, y: 228, speed: 264, throttle: 100, brake: 0, gear: 7, drs: 8, lap: 15, interval: 0, tyreCompound: "SOFT", tyreAge: 4 },
+          NOR: { driverCode: "NOR", driverNumber: 4, team: "McLaren", position: 2, x: 110, y: 234, speed: 266, throttle: 100, brake: 0, gear: 7, drs: 8, lap: 15, interval: 0.154, tyreCompound: "SOFT", tyreAge: 3 },
+          LEC: { driverCode: "LEC", driverNumber: 16, team: "Ferrari", position: 3, x: 68, y: 242, speed: 258, throttle: 98, brake: 0, gear: 7, drs: 8, lap: 15, interval: 0.498, tyreCompound: "SOFT", tyreAge: 3 },
+          PIA: { driverCode: "PIA", driverNumber: 81, team: "McLaren", position: 4, x: 32, y: 246, speed: 254, throttle: 96, brake: 0, gear: 7, drs: 8, lap: 15, interval: 0.744, tyreCompound: "SOFT", tyreAge: 2 },
+        },
+      },
+      {
+        t: 78,
+        lap: 16,
+        trackStatus: "CHEQUERED",
+        safetyCar: { phase: "none", x: null, y: null },
+        drivers: {
+          VER: { driverCode: "VER", driverNumber: 1, team: "Red Bull Racing", position: 1, x: -84, y: 234, speed: 248, throttle: 100, brake: 0, gear: 7, drs: 0, lap: 16, interval: 0, tyreCompound: "SOFT", tyreAge: 5 },
+          NOR: { driverCode: "NOR", driverNumber: 4, team: "McLaren", position: 2, x: -122, y: 224, speed: 246, throttle: 100, brake: 0, gear: 7, drs: 0, lap: 16, interval: 0.091, tyreCompound: "SOFT", tyreAge: 4 },
+          LEC: { driverCode: "LEC", driverNumber: 16, team: "Ferrari", position: 3, x: -162, y: 210, speed: 242, throttle: 98, brake: 0, gear: 7, drs: 0, lap: 16, interval: 0.411, tyreCompound: "SOFT", tyreAge: 4 },
+          PIA: { driverCode: "PIA", driverNumber: 81, team: "McLaren", position: 4, x: -204, y: 194, speed: 239, throttle: 96, brake: 0, gear: 7, drs: 0, lap: 16, interval: 0.638, tyreCompound: "SOFT", tyreAge: 3 },
+        },
+      },
+    ],
+  },
 };
 
 function ensureValid() {
@@ -292,11 +412,13 @@ function ensureValid() {
   sample.laps.forEach((lap) => LapRecordSchema.parse(lap));
   ComparePackSchema.parse(sample.compare);
   StintPackSchema.parse(sample.stints);
+  ReplayPackSchema.parse(sample.replay);
   SessionManifestSchema.parse({
     sessionKey: sample.ref.sessionKey,
     summary: "summary.json",
     drivers: "drivers.json",
     laps: "laps.json",
+    replay: "replay.json",
     compare: {
       "VER-NOR": "compare/ver-nor.json",
     },
@@ -398,6 +520,7 @@ async function generate() {
     summary: "summary.json",
     drivers: "drivers.json",
     laps: "laps.json",
+    replay: "replay.json",
     compare: {
       "VER-NOR": "compare/ver-nor.json",
     },
@@ -410,6 +533,7 @@ async function generate() {
   await writeMirrored(path.join(base, "summary.json"), sample.summary);
   await writeMirrored(path.join(base, "drivers.json"), sample.drivers);
   await writeMirrored(path.join(base, "laps.json"), sample.laps);
+  await writeMirrored(path.join(base, "replay.json"), sample.replay);
   await writeMirrored(path.join(base, "compare", "ver-nor.json"), sample.compare);
   await writeMirrored(path.join(base, "strategy.json"), sample.strategy);
   await writeMirrored(path.join(base, "stints.json"), sample.stints);

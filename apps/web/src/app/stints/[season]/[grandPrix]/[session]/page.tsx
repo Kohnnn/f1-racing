@@ -49,9 +49,11 @@ export default async function StintsPage({ params }: StintsPageProps) {
             {summary.grandPrix} · {summary.session}
           </h1>
           <p className="lead">
-            This route turns static stint packs into a compact degradation and tyre-window story. It is the bridge
-            between the raw telemetry compare view and the broader strategy product surface.
+            This legacy stint route still works, but tyre-window and degradation reads now belong inside replay so the strategy story stays attached to the lap playback.
           </p>
+          <div className="hero-actions">
+            <a className="button" href={`/replay/${season}/${grandPrix}/${session}`}>Back to replay</a>
+          </div>
         </section>
 
         <StintStory stintPack={stintPack} />

@@ -12,6 +12,7 @@ interface PlaybackControlsProps {
   onSpeedChange: (speed: number) => void;
   onSeek: (time: number) => void;
   onSkipLap: (delta: number) => void;
+  onSkipTime: (delta: number) => void;
 }
 
 const SPEEDS = [0.5, 1, 2, 4];
@@ -28,6 +29,7 @@ export function PlaybackControls({
   onSpeedChange,
   onSeek,
   onSkipLap,
+  onSkipTime,
 }: PlaybackControlsProps) {
   function formatTime(seconds: number): string {
     const mins = Math.floor(seconds / 60);
@@ -40,8 +42,11 @@ export function PlaybackControls({
     switch (status) {
       case "GREEN": return "#00ff00";
       case "YELLOW": return "#ffff00";
+      case "DOUBLE YELLOW": return "#ffcc00";
       case "SC": return "#ff8800";
+      case "VSC": return "#ff9f43";
       case "RED": return "#ff0000";
+      case "CHEQUERED": return "#ffffff";
       default: return "#888888";
     }
   }
@@ -56,7 +61,7 @@ export function PlaybackControls({
     <div className="replay-controls">
       <div className="playback-status">
         <span className="track-status" style={{ color: getTrackStatusColor(trackStatus) }}>
-          {trackStatus === "GREEN" ? "●" : "⚠"} {trackStatus}
+          {trackStatus === "GREEN" ? "●" : trackStatus === "CHEQUERED" ? "🏁" : "⚠"} {trackStatus}
         </span>
         <span className="current-lap">
           {currentLap ? `Lap ${currentLap}` : "-"}
@@ -78,6 +83,24 @@ export function PlaybackControls({
       </div>
 
       <div className="playback-buttons">
+        <button
+          type="button"
+          onClick={() => onSkipTime(-30)}
+          className="control-button control-button--timing"
+          title="Back 30 seconds"
+        >
+          -30s
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onSkipTime(-5)}
+          className="control-button control-button--timing"
+          title="Back 5 seconds"
+        >
+          -5s
+        </button>
+
         <button
           type="button"
           onClick={() => onSkipLap(-1)}
@@ -107,12 +130,38 @@ export function PlaybackControls({
 
         <button
           type="button"
+          onClick={() => onSkipTime(5)}
+          className="control-button control-button--timing"
+          title="Forward 5 seconds"
+        >
+          +5s
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onSkipTime(30)}
+          className="control-button control-button--timing"
+          title="Forward 30 seconds"
+        >
+          +30s
+        </button>
+
+        <button
+          type="button"
           onClick={cycleSpeed}
           className="control-button control-button--speed"
           title="Playback speed"
         >
           {playbackSpeed}x
         </button>
+      </div>
+
+      <div className="playback-hints">
+        <span>Space play/pause</span>
+        <span>Arrows skip 5s</span>
+        <span>Shift + arrows skip 30s</span>
+        <span>[ ] jump lap</span>
+        <span>1-4 speed</span>
       </div>
     </div>
   );

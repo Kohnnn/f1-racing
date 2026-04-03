@@ -177,6 +177,7 @@ export interface SessionManifest {
   summary: string;
   drivers: string;
   laps: string;
+  replay?: string;
   compare: Record<string, string>;
   strategy: string;
   stints?: string;
@@ -457,9 +458,20 @@ export interface SafetyCar {
 
 export interface ReplayFrame {
   t: number;
+  lap: number | null;
   drivers: Record<string, ReplayFrameDriver>;
   safetyCar: SafetyCar;
   trackStatus: string;
+}
+
+export interface ReplayRaceControlMessage {
+  t: number;
+  lapNumber: number | null;
+  category: string;
+  flag: string | null;
+  scope: string | null;
+  sector: number | null;
+  message: string;
 }
 
 export interface ReplayDriver {
@@ -485,9 +497,16 @@ export interface ReplayPack {
   session: string;
   trackId: string;
   source: "openf1";
+  note?: string;
+  weatherSummary?: {
+    airTempC: number;
+    trackTempC: number;
+    rainRiskPct: number;
+  };
   drivers: ReplayDriver[];
   trackPath: [number, number][] | null;
   laps: ReplayLap[];
+  raceControlMessages?: ReplayRaceControlMessage[];
   frames: ReplayFrame[];
 }
 

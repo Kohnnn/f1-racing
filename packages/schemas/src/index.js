@@ -328,6 +328,7 @@ export const SessionManifestSchema = z.object({
   summary: z.string(),
   drivers: z.string(),
   laps: z.string(),
+  replay: z.string().optional(),
   compare: z.record(z.string()),
   strategy: z.string(),
   stints: z.string().optional(),
@@ -373,6 +374,12 @@ export const ReplayPackSchema = z.object({
   session: z.string(),
   trackId: z.string(),
   source: z.literal("openf1"),
+  note: z.string().optional(),
+  weatherSummary: z.object({
+    airTempC: z.number(),
+    trackTempC: z.number(),
+    rainRiskPct: z.number(),
+  }).optional(),
   drivers: z.array(z.object({
     driverCode: z.string(),
     driverNumber: z.number().int(),
@@ -387,6 +394,15 @@ export const ReplayPackSchema = z.object({
     lapTime: z.number().nullable(),
     compound: z.string().nullable(),
   })),
+  raceControlMessages: z.array(z.object({
+    t: z.number(),
+    lapNumber: z.number().int().nullable(),
+    category: z.string(),
+    flag: z.string().nullable(),
+    scope: z.string().nullable(),
+    sector: z.number().int().nullable(),
+    message: z.string(),
+  })).optional(),
   frames: z.array(ReplayFrameSchema),
 });
 

@@ -8,7 +8,7 @@ export default function NotFound() {
           The app is scaffolded for static session packs. Add or generate a pack first, then revisit this route.
         </p>
         <div className="hero-actions">
-          <a className="button" href="/sessions">Back to sessions</a>
+          <a className="button" href="/replay">Back to replay library</a>
         </div>
       </section>
     </div>

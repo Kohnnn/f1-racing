@@ -50,7 +50,7 @@ export function LandingStage({
         })}
 
         <div className="landing-stage-v2__panel landing-stage-v2__panel--status">
-          <span>Modelview active</span>
+          <span>Car reference</span>
           <strong>{modelTitle}</strong>
           <p>{sizeLabel}</p>
         </div>

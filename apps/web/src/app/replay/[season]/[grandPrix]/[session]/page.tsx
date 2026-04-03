@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getReplayPack, getSeasonIndex } from "@/lib/data";
+import { getComparePack, getReplayPack, getSeasonIndex, getSessionManifest, getSessionSummary, getStintPack } from "@/lib/data";
 import { ReplayView } from "@/components/replay/ReplayView";
 
 interface ReplayPageProps {
@@ -28,8 +28,28 @@ export default async function ReplayPage({ params }: ReplayPageProps) {
   const { season, grandPrix, session } = await params;
 
   try {
-    const replay = await getReplayPack(season, grandPrix, session);
-    return <ReplayView replay={replay} />;
+    const [replay, manifest, summary] = await Promise.all([
+      getReplayPack(season, grandPrix, session),
+      getSessionManifest(season, grandPrix, session),
+      getSessionSummary(season, grandPrix, session),
+    ]);
+
+    const compareKey = Object.values(manifest.compare ?? {})[0]?.replace(/^compare\//, "").replace(/\.json$/, "") ?? null;
+    const [compare, stintPack] = await Promise.all([
+      compareKey ? getComparePack(season, grandPrix, session, compareKey).catch(() => null) : Promise.resolve(null),
+      manifest.stints ? getStintPack(season, grandPrix, session).catch(() => null) : Promise.resolve(null),
+    ]);
+
+    return (
+      <ReplayView
+        replay={replay}
+        manifest={manifest}
+        summary={summary}
+        compare={compare}
+        route={{ season, grandPrix, session }}
+        stintPack={stintPack}
+      />
+    );
   } catch {
     notFound();
   }

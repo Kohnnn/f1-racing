@@ -92,8 +92,21 @@ a {
 .site-nav {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 24px;
+  align-items: center;
+}
+
+.site-header__navs {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+}
+
+.site-nav--primary {
+  gap: 18px;
+}
+
+.site-nav--secondary {
+  gap: 18px;
 }
 
 .site-nav a {
@@ -111,6 +124,14 @@ a {
 .site-nav a:focus-visible {
   border-color: rgba(255, 122, 26, 0.9);
   color: var(--shell-ink);
+}
+
+.site-nav--primary a {
+  color: var(--shell-ink);
+}
+
+.site-nav--secondary a {
+  color: rgba(231, 237, 247, 0.66);
 }
 
 .page-stack {
@@ -346,17 +367,17 @@ a {
   letter-spacing: 0.16em;
 }
 
-.landing-mode-grid {
+.landing-support-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
 }
 
-.landing-mode-card {
+.landing-support-card {
   display: grid;
   align-content: start;
   gap: 10px;
-  min-height: 156px;
+  min-height: 148px;
   padding: 18px;
   border: 1px solid rgba(167, 189, 219, 0.12);
   border-radius: 22px;
@@ -365,19 +386,14 @@ a {
   transition: border-color 0.18s ease, background 0.18s ease, transform 0.18s ease;
 }
 
-.landing-mode-card:hover,
-.landing-mode-card:focus-visible {
+.landing-support-card:hover,
+.landing-support-card:focus-visible {
   transform: translateY(-2px);
   border-color: rgba(255, 122, 26, 0.24);
   background: rgba(255, 255, 255, 0.06);
 }
 
-.landing-mode-card--active {
-  background: rgba(255, 122, 26, 0.08);
-  border-color: rgba(255, 122, 26, 0.22);
-}
-
-.landing-mode-card span,
+.landing-support-card span,
 .landing-stage-v2__panel span,
 .landing-briefing__stack span {
   color: rgba(255, 193, 162, 0.82);
@@ -387,7 +403,7 @@ a {
   text-transform: uppercase;
 }
 
-.landing-mode-card strong,
+.landing-support-card strong,
 .landing-stage-v2__panel strong,
 .landing-briefing__stack strong {
   margin: 0;
@@ -396,7 +412,7 @@ a {
   line-height: 1.2;
 }
 
-.landing-mode-card p {
+.landing-support-card p {
   margin: 0;
   color: rgba(231, 237, 247, 0.74);
   line-height: 1.65;
@@ -539,6 +555,10 @@ a {
   border: 1px solid rgba(167, 189, 219, 0.12);
   border-radius: 20px;
   background: rgba(255, 255, 255, 0.04);
+}
+
+.landing-briefing--replay-first .hero-actions {
+  margin-top: 22px;
 }
 
 .surface-card h3,
@@ -1496,6 +1516,54 @@ code {
   margin-top: 18px;
 }
 
+.replay-insight-panel__lead {
+  margin: 0;
+  color: var(--ink-soft);
+  line-height: 1.65;
+}
+
+.replay-insight-grid,
+.replay-stint-grid {
+  display: grid;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+.replay-insight-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.replay-stint-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.replay-stint-card__copy {
+  margin: 14px 0 0;
+  color: var(--ink-soft);
+  line-height: 1.6;
+}
+
+.replay-secondary-links {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.replay-secondary-links a {
+  padding: 12px 14px;
+  border: 1px solid rgba(167, 189, 219, 0.12);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(231, 237, 247, 0.82);
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+
+.replay-secondary-links a:hover,
+.replay-secondary-links a:focus-visible {
+  border-color: rgba(255, 122, 26, 0.22);
+  background: rgba(255, 122, 26, 0.08);
+}
+
 .replay-focus-panel .inline-link {
   display: inline-block;
   margin-top: 14px;
@@ -1504,6 +1572,10 @@ code {
 
 .replay-observer-panel__button {
   width: 100%;
+}
+
+.summary-list--compact li {
+  padding-block: 10px;
 }
 
 .replay-metric-tags {
@@ -1619,8 +1691,18 @@ code {
 
 .playback-buttons {
   display: flex;
+  flex-wrap: wrap;
   justify-content: center;
   gap: 8px;
+}
+
+.playback-hints {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  color: rgba(231, 237, 247, 0.62);
+  font-size: 0.74rem;
 }
 
 .control-button {
@@ -1651,6 +1733,12 @@ code {
 .control-button--primary:hover,
 .control-button--primary:focus-visible {
   background: #ff8934;
+}
+
+.control-button--timing {
+  min-width: 58px;
+  font-size: 0.84rem;
+  font-weight: 700;
 }
 
 .leaderboard {
@@ -1814,14 +1902,29 @@ code {
     justify-content: flex-start;
   }
 
+  .site-header__navs {
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .site-nav--primary,
+  .site-nav--secondary {
+    width: 100%;
+    gap: 16px;
+  }
+
   .panel-grid--two {
     grid-template-columns: 1fr;
   }
 
   .panel-grid--three,
-  .landing-mode-grid,
+  .landing-support-grid,
   .landing-briefing,
   .car-viewer-layout,
+  .replay-insight-grid,
+  .replay-stint-grid,
   .replay-content,
   .replay-telemetry-grid {
     grid-template-columns: 1fr;
@@ -1858,6 +1961,11 @@ code {
   .landing-start,
   .landing-briefing__stack {
     width: 100%;
+  }
+
+  .landing-stage-v2__panel--telemetry,
+  .landing-stage-v2__panel--status {
+    margin: 12px;
   }
 
   .camera-preset-row {

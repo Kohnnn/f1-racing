@@ -17,37 +17,32 @@ export default async function HomePage() {
       <section className="landing-cinematic">
         <div className="landing-cinematic__copy">
           <div>
-            <p className="landing-kicker">Kinetic precision engineering</p>
+            <p className="landing-kicker">Replay-first race viewer</p>
             <h1>
-              <span>See the car.</span>
-              <span>Chase the lap.</span>
+              <span>Replay</span>
+              <span>the race.</span>
             </h1>
             <p className="landing-cinematic__lead">
-              Open the real GLB model first, step into the engineering note behind the part, then carry the same story
-              into replay with session telemetry and full-field context.
+              Start from the session replay, keep the track map, leaderboard, and driver telemetry in one workspace,
+              then branch into Modelview or Learn only when you need more engineering context.
             </p>
           </div>
 
-          <a className="landing-start" href="/cars/current-spec">
-            <strong>Initialize Modelview</strong>
-            <span>[START]</span>
+          <a className="landing-start" href={replayHref}>
+            <strong>Open latest replay</strong>
+            <span>[LIVE PACK]</span>
           </a>
 
-          <div className="landing-mode-grid" aria-label="Primary product surfaces">
-            <a className="landing-mode-card landing-mode-card--active" href="/cars/current-spec">
-              <span>Modelview</span>
-              <strong>{leadModel?.displayName || "Current spec car"}</strong>
-              <p>Orbit the real chassis, switch constructors, and keep the machine in view.</p>
+          <div className="landing-support-grid" aria-label="Secondary product routes">
+            <a className="landing-support-card" href="/cars/current-spec">
+              <span>Secondary route</span>
+              <strong>Modelview</strong>
+              <p>Inspect the current car in 3D when replay points you to a part or aero surface.</p>
             </a>
-            <a className="landing-mode-card" href={replayHref}>
-              <span>Replay</span>
-              <strong>{manifest.latest.grandPrixName}</strong>
-              <p>Open the latest exported race pack and follow one engineering story through the lap.</p>
-            </a>
-            <a className="landing-mode-card" href={`/learn/${featuredLearn.slug}`}>
-              <span>Technical Learn</span>
-              <strong>{featuredLearn.title}</strong>
-              <p>Read the subsystem note that explains the model and replay behavior in one place.</p>
+            <a className="landing-support-card" href={`/learn/${featuredLearn.slug}`}>
+              <span>Secondary route</span>
+              <strong>Learn</strong>
+              <p>Read the engineering note behind the exact subsystem or setup tradeoff you just saw on track.</p>
             </a>
           </div>
         </div>
@@ -64,28 +59,33 @@ export default async function HomePage() {
         ) : null}
       </section>
 
-      <section className="landing-briefing">
+      <section className="landing-briefing landing-briefing--replay-first">
         <div className="landing-briefing__copy">
-          <p className="eyebrow">System loop</p>
-          <h2>One machine, three surfaces.</h2>
+          <p className="eyebrow">Core loop</p>
+          <h2>Choose a pack. Watch the replay. Inspect only when needed.</h2>
           <p>
-            Modelview is the anchor. Replay is the proof. Learn is the engineering read between them. The landing now
-            treats those three surfaces as one control loop instead of stacking generic feature cards.
+            The core product is the replay workspace. Modelview and Learn stay in the product, but as supporting
+            routes that deepen the same story instead of competing for top-level attention.
           </p>
+          <div className="hero-actions">
+            <a className="button" href="/replay">Browse replay library</a>
+            <a className="button button--secondary" href="/cars/current-spec">Open modelview</a>
+            <a className="button button--ghost" href="/learn">Open learn</a>
+          </div>
         </div>
 
         <div className="landing-briefing__stack">
           <div>
-            <span>Model library</span>
-            <strong>{catalog.models.length} local GLB cars</strong>
+            <span>Latest pack</span>
+            <strong>{manifest.latest.grandPrixName} · {manifest.latest.sessionName}</strong>
           </div>
           <div>
-            <span>Replay pack</span>
-            <strong>{manifest.latest.season} {manifest.latest.trackId}</strong>
+            <span>Replay library</span>
+            <strong>{manifest.latest.season} season sessions ready to browse</strong>
           </div>
           <div>
-            <span>Learn modules</span>
-            <strong>{learnModules.length} focused engineering reads</strong>
+            <span>Secondary routes</span>
+            <strong>{catalog.models.length} GLB cars · {learnModules.length} learn modules</strong>
           </div>
         </div>
       </section>
