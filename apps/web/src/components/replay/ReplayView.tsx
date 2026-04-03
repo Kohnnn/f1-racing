@@ -1,13 +1,33 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { TrackCanvas } from "./TrackCanvas";
 import { PlaybackControls } from "./PlaybackControls";
 import { Leaderboard } from "./Leaderboard";
 import type { ReplayPack, ReplayFrame } from "@/lib/data";
+import { getFocusPoint } from "@/components/model-viewer/focus-points";
 
 interface ReplayViewProps {
   replay: ReplayPack;
+}
+
+function ReplayFocusHint() {
+  const searchParams = useSearchParams();
+  const replayFocus = getFocusPoint(searchParams.get("focus"));
+
+  if (!replayFocus) {
+    return null;
+  }
+
+  return (
+    <section className="replay-focus-panel">
+      <p className="eyebrow">Engineering lens</p>
+      <h2>{replayFocus.replayTitle}</h2>
+      <p>{replayFocus.replaySummary}</p>
+      <a className="inline-link" href={replayFocus.learnHref}>{replayFocus.learnLabel}</a>
+    </section>
+  );
 }
 
 export function ReplayView({ replay }: ReplayViewProps) {
@@ -158,6 +178,10 @@ export function ReplayView({ replay }: ReplayViewProps) {
 
       <div className="replay-content">
         <div className="replay-main">
+          <Suspense fallback={null}>
+            <ReplayFocusHint />
+          </Suspense>
+
           <div className="replay-stage">
             <TrackCanvas
               trackPath={replay.trackPath}
