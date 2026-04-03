@@ -111,7 +111,7 @@ function AirflowOverlay({ mode }: { mode: FlowOverlayId }) {
   );
 }
 
-function writeSelectionToUrl(season: number, constructorSlug: string) {
+function writeSelectionToUrl(season: number, constructorSlug: string, focusId: string | null = null) {
   if (typeof window === "undefined") {
     return;
   }
@@ -119,6 +119,11 @@ function writeSelectionToUrl(season: number, constructorSlug: string) {
   const url = new URL(window.location.href);
   url.searchParams.set("season", String(season));
   url.searchParams.set("constructor", constructorSlug);
+  if (focusId) {
+    url.searchParams.set("focus", focusId);
+  } else {
+    url.searchParams.delete("focus");
+  }
   window.history.replaceState({}, "", url);
 }
 
@@ -152,8 +157,12 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
     searchParams.get("constructor") || uniqueConstructors[0]?.slug || "",
   );
   const [activeCameraId, setActiveCameraId] = useState<(typeof CAMERA_PRESETS)[number]["id"]>("studio");
-  const [activeFocusId, setActiveFocusId] = useState<(typeof focusPoints)[number]["id"] | null>(null);
-  const [activeFlowId, setActiveFlowId] = useState<FlowOverlayId>("off");
+  const [activeFocusId, setActiveFocusId] = useState<(typeof focusPoints)[number]["id"] | null>(
+    getFocusPoint(searchParams.get("focus"))?.id ?? null,
+  );
+  const [activeFlowId, setActiveFlowId] = useState<FlowOverlayId>(
+    getFocusPoint(searchParams.get("focus"))?.flowOverlay ?? "off",
+  );
 
   useEffect(() => {
     import("@google/model-viewer");
@@ -162,9 +171,9 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
   useEffect(() => {
     if (!uniqueConstructors.some((entry) => entry.slug === constructorSlug) && uniqueConstructors[0]) {
       setConstructorSlug(uniqueConstructors[0].slug);
-      writeSelectionToUrl(season, uniqueConstructors[0].slug);
+      writeSelectionToUrl(season, uniqueConstructors[0].slug, activeFocusId);
     }
-  }, [constructorSlug, season, uniqueConstructors]);
+  }, [activeFocusId, constructorSlug, season, uniqueConstructors]);
 
   const activeCamera = CAMERA_PRESETS.find((preset) => preset.id === activeCameraId) || CAMERA_PRESETS[0];
   const activeFocus = getFocusPoint(activeFocusId);
@@ -177,6 +186,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
     if (!nextFocusId) {
       setActiveFocusId(null);
       setActiveFlowId("off");
+      writeSelectionToUrl(season, constructorSlug, null);
       return;
     }
 
@@ -187,6 +197,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
 
     setActiveFocusId(nextFocus.id);
     setActiveFlowId(nextFocus.flowOverlay);
+    writeSelectionToUrl(season, constructorSlug, nextFocus.id);
   }
 
   useEffect(() => {
@@ -224,7 +235,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
                 setActiveCameraId("studio");
                 handleFocusChange(null);
                 if (nextConstructor) {
-                  writeSelectionToUrl(next, nextConstructor);
+                  writeSelectionToUrl(next, nextConstructor, null);
                 }
               }}
             >
@@ -242,7 +253,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
                 setConstructorSlug(nextConstructor);
                 setActiveCameraId("studio");
                 handleFocusChange(null);
-                writeSelectionToUrl(season, nextConstructor);
+                writeSelectionToUrl(season, nextConstructor, null);
               }}
             >
               {uniqueConstructors.map((c) => (
@@ -260,7 +271,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
               className={`camera-preset${preset.id === activeCameraId ? " camera-preset--active" : ""}`}
               onClick={() => {
                 setActiveCameraId(preset.id);
-                setActiveFocusId(null);
+                handleFocusChange(null);
               }}
             >
               {preset.label}

@@ -1,4 +1,5 @@
 export type FlowOverlayId = "off" | "front" | "floor" | "rear";
+export type FocusMetricId = "speed" | "gear" | "throttle" | "brake" | "drs" | "lap";
 
 export const focusPoints = [
   {
@@ -11,6 +12,12 @@ export const focusPoints = [
     learnLabel: "Open aero module",
     replayTitle: "Replay the front-end load story",
     replaySummary: "Use replay to watch turn-in, front grip, and how quickly the car settles into medium and high-speed direction changes.",
+    watchList: [
+      "Stay on medium and high-speed direction changes instead of only the straights.",
+      "Use speed plus throttle pickup to judge how much front confidence the car gives the driver.",
+      "Watch interval changes through committed corners where the front wing is part of the platform story.",
+    ],
+    watchMetrics: ["speed", "throttle"],
     orbit: "6deg 81deg 1.78m",
     target: "0m 0.24m 0m",
     flowOverlay: "front",
@@ -27,6 +34,12 @@ export const focusPoints = [
     learnLabel: "Read the floor story",
     replayTitle: "Replay the underfloor balance",
     replaySummary: "Stay with the long, fast corners and watch whether the car looks planted under sustained load when the floor is doing most of the work.",
+    watchList: [
+      "Scrub to the long loaded corners where the floor and diffuser are doing the heavy lifting.",
+      "Use speed retention and throttle commitment as the main signs of underfloor stability.",
+      "Compare interval gain or loss across the long-corner phases rather than only at braking points.",
+    ],
+    watchMetrics: ["speed", "throttle"],
     orbit: "0deg 18deg 2.18m",
     target: "0m 0.18m 0m",
     flowOverlay: "floor",
@@ -43,6 +56,12 @@ export const focusPoints = [
     learnLabel: "Follow rear aero",
     replayTitle: "Replay the drag-versus-stability tradeoff",
     replaySummary: "Watch DRS zones, top speed, and exit stability when rear load and drag are the engineering story you care about.",
+    watchList: [
+      "Use DRS and top speed together when the rear wing story is drag versus stability.",
+      "Check throttle application on exit to see whether the rear platform stays calm under power.",
+      "Compare interval changes from corner exit into the following straight, not just the straight alone.",
+    ],
+    watchMetrics: ["speed", "drs", "throttle"],
     orbit: "186deg 78deg 1.82m",
     target: "0m 0.26m 0m",
     flowOverlay: "rear",
@@ -59,6 +78,12 @@ export const focusPoints = [
     learnLabel: "Open braking module",
     replayTitle: "Replay the heavy braking zones",
     replaySummary: "Scrub the lap through the biggest braking events and compare brake percentage, minimum speed, and the release back into rotation.",
+    watchList: [
+      "Jump between the biggest braking events rather than watching the whole lap in one run.",
+      "Use brake percentage and minimum speed together to read entry control.",
+      "Check gear and throttle pickup to understand how cleanly the driver releases the pedal.",
+    ],
+    watchMetrics: ["brake", "speed", "gear"],
     orbit: "104deg 83deg 1.74m",
     target: "0m 0.22m 0m",
     flowOverlay: "off",
@@ -75,6 +100,12 @@ export const focusPoints = [
     learnLabel: "Open tyre module",
     replayTitle: "Replay the tyre story",
     replaySummary: "Watch pace loss, traction on exit, and how the car changes character over a run when the tyre window starts to move.",
+    watchList: [
+      "Stay on corner exits and repeated traction zones where the tyre window shows up first.",
+      "Use throttle plus speed to see whether the driver can pick up the power cleanly.",
+      "Keep lap number in view so tyre behavior is tied to run progression, not just one corner.",
+    ],
+    watchMetrics: ["throttle", "speed", "lap"],
     orbit: "96deg 84deg 1.6m",
     target: "0m 0.2m 0m",
     flowOverlay: "off",

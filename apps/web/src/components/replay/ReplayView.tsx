@@ -1,7 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { TrackCanvas } from "./TrackCanvas";
 import { PlaybackControls } from "./PlaybackControls";
 import { Leaderboard } from "./Leaderboard";
@@ -12,25 +11,29 @@ interface ReplayViewProps {
   replay: ReplayPack;
 }
 
-function ReplayFocusHint() {
-  const searchParams = useSearchParams();
-  const replayFocus = getFocusPoint(searchParams.get("focus"));
+type ReplayMetricId = "speed" | "gear" | "throttle" | "brake" | "drs" | "lap";
 
-  if (!replayFocus) {
+const REPLAY_METRIC_LABELS: Record<ReplayMetricId, string> = {
+  speed: "Speed",
+  gear: "Gear",
+  throttle: "Throttle",
+  brake: "Brake",
+  drs: "DRS",
+  lap: "Lap",
+};
+
+function formatLapTime(seconds: number | null) {
+  if (seconds === null) {
     return null;
   }
 
-  return (
-    <section className="replay-focus-panel">
-      <p className="eyebrow">Engineering lens</p>
-      <h2>{replayFocus.replayTitle}</h2>
-      <p>{replayFocus.replaySummary}</p>
-      <a className="inline-link" href={replayFocus.learnHref}>{replayFocus.learnLabel}</a>
-    </section>
-  );
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds - minutes * 60;
+  return `${minutes}:${remainder.toFixed(3).padStart(6, "0")}`;
 }
 
 export function ReplayView({ replay }: ReplayViewProps) {
+  const [focusId, setFocusId] = useState<string | null>(null);
   const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -38,10 +41,89 @@ export function ReplayView({ replay }: ReplayViewProps) {
   const animationRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(0);
 
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    setFocusId(params.get("focus"));
+  }, []);
+
   const totalFrames = replay.frames.length;
   const totalTime = replay.frames[totalFrames - 1]?.t || 0;
   const currentFrame = replay.frames[currentFrameIndex] || null;
   const currentTime = currentFrame?.t || 0;
+  const replayFocus = getFocusPoint(focusId);
+  const suggestedDriver = useMemo(() => {
+    const fastestLap = replay.laps
+      .filter((lap) => lap.lapTime !== null)
+      .sort((left, right) => (left.lapTime ?? Infinity) - (right.lapTime ?? Infinity))[0];
+
+    if (fastestLap) {
+      const driver = replay.drivers.find((entry) => entry.driverCode === fastestLap.driverCode);
+
+      if (driver) {
+        return {
+          driverCode: driver.driverCode,
+          fullName: driver.fullName,
+          lapNumber: fastestLap.lapNumber,
+          lapTime: fastestLap.lapTime,
+        };
+      }
+    }
+
+    const fallback = replay.drivers[0];
+    return fallback
+      ? {
+          driverCode: fallback.driverCode,
+          fullName: fallback.fullName,
+          lapNumber: null,
+          lapTime: null,
+        }
+      : null;
+  }, [replay.drivers, replay.laps]);
+  const focusMetrics: readonly ReplayMetricId[] = replayFocus?.watchMetrics ?? [];
+  const telemetryItems = selectedDriver && currentFrame?.drivers[selectedDriver]
+    ? [
+        {
+          id: "speed" as ReplayMetricId,
+          label: "Speed",
+          value: currentFrame.drivers[selectedDriver].speed !== null
+            ? `${Math.round(currentFrame.drivers[selectedDriver].speed!)} km/h`
+            : "-",
+        },
+        {
+          id: "gear" as ReplayMetricId,
+          label: "Gear",
+          value: currentFrame.drivers[selectedDriver].gear ?? "-",
+        },
+        {
+          id: "throttle" as ReplayMetricId,
+          label: "Throttle",
+          value: currentFrame.drivers[selectedDriver].throttle !== null
+            ? `${Math.round(currentFrame.drivers[selectedDriver].throttle!)}%`
+            : "-",
+        },
+        {
+          id: "brake" as ReplayMetricId,
+          label: "Brake",
+          value: currentFrame.drivers[selectedDriver].brake !== null
+            ? `${Math.round(currentFrame.drivers[selectedDriver].brake!)}%`
+            : "-",
+        },
+        {
+          id: "drs" as ReplayMetricId,
+          label: "DRS",
+          value: currentFrame.drivers[selectedDriver].drs ?? "-",
+        },
+        {
+          id: "lap" as ReplayMetricId,
+          label: "Lap",
+          value: currentFrame.drivers[selectedDriver].lap ?? "-",
+        },
+      ]
+    : [];
 
   const currentLap = currentFrame
     ? Math.max(...Object.values(currentFrame.drivers)
@@ -178,9 +260,42 @@ export function ReplayView({ replay }: ReplayViewProps) {
 
       <div className="replay-content">
         <div className="replay-main">
-          <Suspense fallback={null}>
-            <ReplayFocusHint />
-          </Suspense>
+          {replayFocus ? (
+            <section className="replay-focus-panel">
+              <p className="eyebrow">Engineering lens</p>
+              <h2>{replayFocus.replayTitle}</h2>
+              <p>{replayFocus.replaySummary}</p>
+
+              <div className="replay-meta-row replay-meta-row--focus">
+                {suggestedDriver ? (
+                  <span className="replay-meta-pill">Suggested driver {suggestedDriver.driverCode}</span>
+                ) : null}
+                {suggestedDriver && suggestedDriver.lapTime !== null ? (
+                  <span className="replay-meta-pill">
+                    Fastest lap {formatLapTime(suggestedDriver.lapTime)} · Lap {suggestedDriver.lapNumber}
+                  </span>
+                ) : null}
+              </div>
+
+              <ul className="replay-focus-list">
+                {replayFocus.watchList.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+
+              <div className="replay-focus-actions">
+                <a className="button button--ghost" href={replayFocus.learnHref}>{replayFocus.learnLabel}</a>
+                <a className="button button--secondary" href={`/cars/current-spec?focus=${replayFocus.id}`}>
+                  Return to modelview
+                </a>
+                {suggestedDriver && selectedDriver !== suggestedDriver.driverCode ? (
+                  <button className="button" type="button" onClick={() => handleDriverSelect(suggestedDriver.driverCode)}>
+                    Inspect {suggestedDriver.driverCode}
+                  </button>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
 
           <div className="replay-stage">
             <TrackCanvas
@@ -217,52 +332,52 @@ export function ReplayView({ replay }: ReplayViewProps) {
             onDriverSelect={handleDriverSelect}
           />
 
+          {replayFocus ? (
+            <section className="driver-telemetry replay-observer-panel">
+              <p className="eyebrow">Telemetry guide</p>
+              <h3>{selectedDriver ? `Watching ${selectedDriver}` : "Choose a driver to inspect"}</h3>
+              <p className="driver-telemetry__focus-note">
+                {selectedDriver
+                  ? `Cards marked Focus are the main telemetry signals for ${replayFocus.shortLabel.toLowerCase()}.`
+                  : suggestedDriver
+                    ? `Start with ${suggestedDriver.driverCode} if you want one representative lap to inspect right away.`
+                    : "Select any driver from the leaderboard to connect the focus story to telemetry."}
+              </p>
+              <div className="replay-metric-tags">
+                {focusMetrics.map((metric) => (
+                  <span className="replay-metric-tag" key={metric}>{REPLAY_METRIC_LABELS[metric]}</span>
+                ))}
+              </div>
+              {suggestedDriver && selectedDriver !== suggestedDriver.driverCode ? (
+                <button className="button button--secondary replay-observer-panel__button" type="button" onClick={() => handleDriverSelect(suggestedDriver.driverCode)}>
+                  Inspect {suggestedDriver.driverCode} telemetry
+                </button>
+              ) : null}
+            </section>
+          ) : null}
+
           {selectedDriver && currentFrame?.drivers[selectedDriver] && (
             <div className="driver-telemetry">
               <h3>{selectedDriver}</h3>
+              {replayFocus ? (
+                <p className="driver-telemetry__focus-note">
+                  Focus on {replayFocus.watchMetrics.map((metric) => REPLAY_METRIC_LABELS[metric]).join(", ")} for the {replayFocus.shortLabel.toLowerCase()} story.
+                </p>
+              ) : null}
               <div className="replay-telemetry-grid">
-                <div className="telemetry-item">
-                  <span className="telemetry-label">Speed</span>
-                  <span className="telemetry-value">
-                    {currentFrame.drivers[selectedDriver].speed !== null
-                      ? `${Math.round(currentFrame.drivers[selectedDriver].speed!)} km/h`
-                      : "-"}
-                  </span>
-                </div>
-                <div className="telemetry-item">
-                  <span className="telemetry-label">Gear</span>
-                  <span className="telemetry-value">
-                    {currentFrame.drivers[selectedDriver].gear ?? "-"}
-                  </span>
-                </div>
-                <div className="telemetry-item">
-                  <span className="telemetry-label">Throttle</span>
-                  <span className="telemetry-value">
-                    {currentFrame.drivers[selectedDriver].throttle !== null
-                      ? `${Math.round(currentFrame.drivers[selectedDriver].throttle!)}%`
-                      : "-"}
-                  </span>
-                </div>
-                <div className="telemetry-item">
-                  <span className="telemetry-label">Brake</span>
-                  <span className="telemetry-value">
-                    {currentFrame.drivers[selectedDriver].brake !== null
-                      ? `${Math.round(currentFrame.drivers[selectedDriver].brake!)}%`
-                      : "-"}
-                  </span>
-                </div>
-                <div className="telemetry-item">
-                  <span className="telemetry-label">DRS</span>
-                  <span className="telemetry-value">
-                    {currentFrame.drivers[selectedDriver].drs ?? "-"}
-                  </span>
-                </div>
-                <div className="telemetry-item">
-                  <span className="telemetry-label">Lap</span>
-                  <span className="telemetry-value">
-                    {currentFrame.drivers[selectedDriver].lap ?? "-"}
-                  </span>
-                </div>
+                {telemetryItems.map((item) => {
+                  const isFocusMetric = focusMetrics.includes(item.id);
+
+                  return (
+                    <div className={`telemetry-item${isFocusMetric ? " telemetry-item--focus" : ""}`} key={item.id}>
+                      <div className="telemetry-label-row">
+                        <span className="telemetry-label">{item.label}</span>
+                        {isFocusMetric ? <span className="telemetry-badge">Focus</span> : null}
+                      </div>
+                      <span className="telemetry-value">{item.value}</span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

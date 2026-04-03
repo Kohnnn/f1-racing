@@ -1437,10 +1437,70 @@ code {
   line-height: 1.7;
 }
 
+.replay-meta-row--focus {
+  margin-top: 16px;
+}
+
+.replay-focus-list {
+  display: grid;
+  gap: 10px;
+  padding: 0;
+  margin: 18px 0 0;
+  list-style: none;
+}
+
+.replay-focus-list li {
+  position: relative;
+  padding-left: 18px;
+  color: rgba(231, 237, 247, 0.8);
+  line-height: 1.65;
+}
+
+.replay-focus-list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.72em;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+
+.replay-focus-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
 .replay-focus-panel .inline-link {
   display: inline-block;
   margin-top: 14px;
   color: var(--cool);
+}
+
+.replay-observer-panel__button {
+  width: 100%;
+}
+
+.replay-metric-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.replay-metric-tag {
+  padding: 7px 10px;
+  border: 1px solid rgba(167, 189, 219, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(231, 237, 247, 0.8);
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .replay-stage,
@@ -1661,6 +1721,12 @@ code {
   font-size: 1.15rem;
 }
 
+.driver-telemetry__focus-note {
+  margin: 0 0 14px;
+  color: rgba(231, 237, 247, 0.72);
+  line-height: 1.6;
+}
+
 .replay-telemetry-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1676,10 +1742,33 @@ code {
   background: rgba(255, 255, 255, 0.04);
 }
 
+.telemetry-item--focus {
+  border-color: rgba(255, 122, 26, 0.3);
+  background: linear-gradient(180deg, rgba(255, 122, 26, 0.12), rgba(255, 255, 255, 0.05));
+}
+
+.telemetry-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .telemetry-label {
   font-size: 0.68rem;
   font-weight: 700;
   letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.telemetry-badge {
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(255, 122, 26, 0.16);
+  color: var(--accent);
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
@@ -1761,6 +1850,10 @@ code {
   }
 
   .car-focus-actions {
+    flex-direction: column;
+  }
+
+  .replay-focus-actions {
     flex-direction: column;
   }
 
