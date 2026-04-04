@@ -345,11 +345,21 @@ export const ReplayFrameDriverSchema = z.object({
   throttle: z.number().nullable(),
   brake: z.number().nullable(),
   gear: z.number().nullable(),
+  rpm: z.number().nullable(),
   drs: z.number().nullable(),
   lap: z.number().int().nullable(),
   interval: z.number().nullable(),
   tyreCompound: z.string().nullable(),
   tyreAge: z.number().int().nullable(),
+});
+
+export const ReplayWeatherSampleSchema = z.object({
+  airTempC: z.number(),
+  trackTempC: z.number(),
+  humidityPct: z.number(),
+  rainfall: z.boolean(),
+  windSpeedMps: z.number(),
+  windDirectionDeg: z.number(),
 });
 
 export const SafetyCarSchema = z.object({
@@ -364,6 +374,7 @@ export const ReplayFrameSchema = z.object({
   drivers: z.record(z.string(), ReplayFrameDriverSchema),
   safetyCar: SafetyCarSchema,
   trackStatus: z.string(),
+  weather: ReplayWeatherSampleSchema.optional(),
 });
 
 export const ReplayPackSchema = z.object({
@@ -373,7 +384,7 @@ export const ReplayPackSchema = z.object({
   grandPrix: z.string(),
   session: z.string(),
   trackId: z.string(),
-  source: z.literal("openf1"),
+  source: z.union([z.literal("openf1"), z.literal("fastf1")]),
   note: z.string().optional(),
   weatherSummary: z.object({
     airTempC: z.number(),

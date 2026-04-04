@@ -1,11 +1,15 @@
 "use client";
 
+const SPEEDS = [0.5, 1, 2, 4];
+const SKIPS = [5, 30, 60, 300];
+
 interface PlaybackControlsProps {
   isPlaying: boolean;
   playbackSpeed: number;
   currentTime: number;
   totalTime: number;
   currentLap: number | null;
+  totalLaps: number;
   trackStatus: string;
   onPlay: () => void;
   onPause: () => void;
@@ -15,7 +19,15 @@ interface PlaybackControlsProps {
   onSkipTime: (delta: number) => void;
 }
 
-const SPEEDS = [0.5, 1, 2, 4];
+function formatTime(seconds: number) {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+  if (hours > 0) {
+    return `${hours}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  }
+  return `${minutes}:${String(secs).padStart(2, "0")}`;
+}
 
 export function PlaybackControls({
   isPlaying,
@@ -23,6 +35,7 @@ export function PlaybackControls({
   currentTime,
   totalTime,
   currentLap,
+  totalLaps,
   trackStatus,
   onPlay,
   onPause,
@@ -31,138 +44,63 @@ export function PlaybackControls({
   onSkipLap,
   onSkipTime,
 }: PlaybackControlsProps) {
-  function formatTime(seconds: number): string {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    const ms = Math.floor((seconds % 1) * 10);
-    return `${mins}:${secs.toString().padStart(2, "0")}.${ms}`;
-  }
-
-  function getTrackStatusColor(status: string): string {
-    switch (status) {
-      case "GREEN": return "#00ff00";
-      case "YELLOW": return "#ffff00";
-      case "DOUBLE YELLOW": return "#ffcc00";
-      case "SC": return "#ff8800";
-      case "VSC": return "#ff9f43";
-      case "RED": return "#ff0000";
-      case "CHEQUERED": return "#ffffff";
-      default: return "#888888";
-    }
-  }
-
-  function cycleSpeed() {
-    const currentIndex = SPEEDS.indexOf(playbackSpeed);
-    const nextIndex = (currentIndex + 1) % SPEEDS.length;
-    onSpeedChange(SPEEDS[nextIndex]);
-  }
+  const progress = totalTime > 0 ? (currentTime / totalTime) * 100 : 0;
 
   return (
-    <div className="replay-controls">
-      <div className="playback-status">
-        <span className="track-status" style={{ color: getTrackStatusColor(trackStatus) }}>
-          {trackStatus === "GREEN" ? "●" : trackStatus === "CHEQUERED" ? "🏁" : "⚠"} {trackStatus}
-        </span>
-        <span className="current-lap">
-          {currentLap ? `Lap ${currentLap}` : "-"}
-        </span>
+    <section className="replay-controls-v2">
+      <div className="replay-controls-v2__progress" onClick={(event) => {
+        const rect = event.currentTarget.getBoundingClientRect();
+        const ratio = (event.clientX - rect.left) / rect.width;
+        onSeek(Math.max(0, Math.min(totalTime, ratio * totalTime)));
+      }}>
+        <div className="replay-controls-v2__progress-fill" style={{ width: `${progress}%` }} />
       </div>
 
-      <div className="playback-progress">
-        <span className="time-display">{formatTime(currentTime)}</span>
-        <input
-          type="range"
-          min={0}
-          max={totalTime}
-          step={0.1}
-          value={currentTime}
-          onChange={(e) => onSeek(Number(e.target.value))}
-          className="progress-slider"
-        />
-        <span className="time-display">{formatTime(totalTime)}</span>
+      <div className="replay-controls-v2__main">
+        <div className="replay-controls-v2__cluster">
+          {[...SKIPS].reverse().map((seconds) => (
+            <button key={`back-${seconds}`} type="button" className="replay-controls-v2__ghost" onClick={() => onSkipTime(-seconds)}>
+              -{seconds >= 60 ? `${seconds / 60}m` : `${seconds}s`}
+            </button>
+          ))}
+        </div>
+
+        <div className="replay-controls-v2__transport">
+          <button type="button" className="replay-controls-v2__ghost" onClick={() => onSkipLap(-1)}>Prev lap</button>
+          <button type="button" className="replay-controls-v2__play" onClick={isPlaying ? onPause : onPlay}>
+            {isPlaying ? "Pause" : "Play"}
+          </button>
+          <button type="button" className="replay-controls-v2__ghost" onClick={() => onSkipLap(1)}>Next lap</button>
+        </div>
+
+        <div className="replay-controls-v2__cluster">
+          {SKIPS.map((seconds) => (
+            <button key={`forward-${seconds}`} type="button" className="replay-controls-v2__ghost" onClick={() => onSkipTime(seconds)}>
+              +{seconds >= 60 ? `${seconds / 60}m` : `${seconds}s`}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="playback-buttons">
-        <button
-          type="button"
-          onClick={() => onSkipTime(-30)}
-          className="control-button control-button--timing"
-          title="Back 30 seconds"
-        >
-          -30s
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onSkipTime(-5)}
-          className="control-button control-button--timing"
-          title="Back 5 seconds"
-        >
-          -5s
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onSkipLap(-1)}
-          className="control-button"
-          title="Previous lap"
-        >
-          ⏮
-        </button>
-
-        <button
-          type="button"
-          onClick={() => isPlaying ? onPause() : onPlay()}
-          className="control-button control-button--primary"
-          title={isPlaying ? "Pause" : "Play"}
-        >
-          {isPlaying ? "⏸" : "▶"}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onSkipLap(1)}
-          className="control-button"
-          title="Next lap"
-        >
-          ⏭
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onSkipTime(5)}
-          className="control-button control-button--timing"
-          title="Forward 5 seconds"
-        >
-          +5s
-        </button>
-
-        <button
-          type="button"
-          onClick={() => onSkipTime(30)}
-          className="control-button control-button--timing"
-          title="Forward 30 seconds"
-        >
-          +30s
-        </button>
-
-        <button
-          type="button"
-          onClick={cycleSpeed}
-          className="control-button control-button--speed"
-          title="Playback speed"
-        >
-          {playbackSpeed}x
-        </button>
+      <div className="replay-controls-v2__footer">
+        <div className="replay-controls-v2__meta">
+          <span>{trackStatus}</span>
+          <span>{formatTime(currentTime)} / {formatTime(totalTime)}</span>
+          <span>{currentLap ? `Lap ${currentLap}` : "Lap -"}{totalLaps ? ` / ${totalLaps}` : ""}</span>
+        </div>
+        <div className="replay-controls-v2__speeds">
+          {SPEEDS.map((speed) => (
+            <button
+              key={speed}
+              type="button"
+              className={`replay-controls-v2__speed${playbackSpeed === speed ? " replay-controls-v2__speed--active" : ""}`}
+              onClick={() => onSpeedChange(speed)}
+            >
+              {speed}x
+            </button>
+          ))}
+        </div>
       </div>
-
-      <div className="playback-hints">
-        <span>Space play/pause</span>
-        <span>Arrows skip 5s</span>
-        <span>Shift + arrows skip 30s</span>
-        <span>[ ] jump lap</span>
-        <span>1-4 speed</span>
-      </div>
-    </div>
+    </section>
   );
 }

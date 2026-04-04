@@ -25,6 +25,7 @@ const TEAM_COLORS = {
   "Alpine": "#FF87BC",
   "Williams": "#64C4FF",
   "RB": "#9BB1FF",
+  "Racing Bulls": "#9BB1FF",
   "Kick Sauber": "#52E252",
   "Haas F1 Team": "#B6BABE",
   "Haas": "#B6BABE",
@@ -198,11 +199,43 @@ function buildRaceControlTimeline(messages, sessionStartTime) {
     .sort((left, right) => left.t - right.t);
 }
 
+function buildWeatherTimeline(samples, sessionStartTime) {
+  return samples
+    .map((sample) => ({
+      t: isoToMs(sample.date) - sessionStartTime,
+      airTempC: Number(sample.air_temperature ?? 0),
+      trackTempC: Number(sample.track_temperature ?? 0),
+      humidityPct: Number(sample.humidity ?? 0),
+      rainfall: Boolean(sample.rainfall),
+      windSpeedMps: Number(sample.wind_speed ?? 0),
+      windDirectionDeg: Number(sample.wind_direction ?? 0),
+    }))
+    .filter((sample) => sample.t >= 0)
+    .sort((left, right) => left.t - right.t);
+}
+
+function getWeatherState(weatherTimeline, frameTimeMs, fallbackWeatherSummary) {
+  if (!weatherTimeline.length) {
+    return {
+      airTempC: fallbackWeatherSummary.airTempC,
+      trackTempC: fallbackWeatherSummary.trackTempC,
+      humidityPct: 0,
+      rainfall: false,
+      windSpeedMps: 0,
+      windDirectionDeg: 0,
+    };
+  }
+
+  const index = findLatestIndex(weatherTimeline, frameTimeMs, (entry) => entry.t);
+  return weatherTimeline[index === -1 ? 0 : index];
+}
+
 function getLapState(lapTimeline, frameTimeMs) {
   if (!lapTimeline?.length) {
     return {
       lapNumber: 1,
       lapProgress: 0,
+      raceProgressRatio: 0,
       lapDurationS: 95,
       compound: null,
     };
@@ -211,11 +244,14 @@ function getLapState(lapTimeline, frameTimeMs) {
   const index = findLatestIndex(lapTimeline, frameTimeMs, (entry) => entry.startMs);
   const activeLap = index === -1 ? lapTimeline[0] : lapTimeline[Math.min(index, lapTimeline.length - 1)];
   const lapDurationMs = Math.max(1000, (activeLap.durationS || 95) * 1000);
-  const lapProgress = Math.max(0, Math.min(0.999, (frameTimeMs - activeLap.startMs) / lapDurationMs));
+  const rawProgress = (frameTimeMs - activeLap.startMs) / lapDurationMs;
+  const lapProgress = Math.max(0, Math.min(0.999, rawProgress));
+  const raceProgressRatio = Math.max(0, Math.min(1.15, rawProgress));
 
   return {
     lapNumber: activeLap.lapNumber || 1,
     lapProgress,
+    raceProgressRatio,
     lapDurationS: activeLap.durationS || 95,
     compound: activeLap.compound,
   };
@@ -914,6 +950,7 @@ async function buildReplayPack(sessionKey, drivers, ref) {
   const stintTimelines = buildStintTimelines(stintsRaw);
   const raceControlTimeline = buildRaceControlTimeline(raceControlMessages, sessionStartTime);
   const weatherSummary = summarizeWeather(weatherRaw);
+  const weatherTimeline = buildWeatherTimeline(weatherRaw, sessionStartTime);
   const replayLaps = buildReplayLaps(lapsRaw, drivers);
 
   const telemetryByDriver = new Map();
@@ -921,10 +958,11 @@ async function buildReplayPack(sessionKey, drivers, ref) {
     const samples = data
       .map((point) => ({
         t: isoToMs(point.date) - sessionStartTime,
-        speed: point.speed == null ? null : Number(point.speed),
-        throttle: point.throttle == null ? null : Number(point.throttle),
-        brake: point.brake == null ? null : Number(point.brake),
+        speed: point.speed == null ? null : Math.max(0, Number(point.speed)),
+        throttle: point.throttle == null ? null : Math.max(0, Math.min(100, Number(point.throttle))),
+        brake: point.brake == null ? null : Math.max(0, Math.min(100, Number(point.brake))),
         gear: point.n_gear == null ? null : Number(point.n_gear),
+        rpm: point.rpm == null ? null : Math.max(0, Number(point.rpm)),
         drs: point.drs == null ? null : Number(point.drs),
       }))
       .filter((point) => point.t >= 0)
@@ -1007,6 +1045,7 @@ async function buildReplayPack(sessionKey, drivers, ref) {
         throttle: telemetry?.throttle ?? null,
         brake: telemetry?.brake ?? null,
         gear: telemetry?.gear ?? null,
+        rpm: telemetry?.rpm ?? null,
         drs: telemetry?.drs ?? null,
         lap: lapState.lapNumber,
         interval: null,
@@ -1018,7 +1057,7 @@ async function buildReplayPack(sessionKey, drivers, ref) {
       driverStates.push({
         driverCode: driver.driverCode,
         racePosition,
-        raceProgress: Math.max(0, lapState.lapNumber - 1) + trackRatio,
+        raceProgress: Math.max(0, lapState.lapNumber - 1) + lapState.raceProgressRatio,
         lapDurationS: lapState.lapDurationS,
         trackRatio,
       });
@@ -1043,6 +1082,7 @@ async function buildReplayPack(sessionKey, drivers, ref) {
 
     const scPhase = determineSafetyCarState(raceControlTimeline, t);
     const trackStatus = determineTrackStatus(raceControlTimeline, t);
+    const weather = getWeatherState(weatherTimeline, t, weatherSummary);
     const scAnchorRatio = leader ? (leader.trackRatio + 0.03) % 1 : 0;
     const [scX, scY] = interpolatePosition(trackPath, scAnchorRatio);
 
@@ -1056,6 +1096,7 @@ async function buildReplayPack(sessionKey, drivers, ref) {
         y: scPhase !== "none" ? scY : null,
       },
       trackStatus,
+      weather,
     });
 
     if (frameIndex % 50 === 0) {
@@ -1128,13 +1169,14 @@ async function main() {
 
   await writeJson(path.join(base, "replay.json"), replayPack);
 
-  const manifestPath = path.join(base, "manifest.json");
+  const manifestRelativePath = path.join(base, "manifest.json");
+  const manifestPath = path.join(dataRoot, manifestRelativePath);
   let manifest = { sessionKey: ref.sessionKey };
   try {
     manifest = await readJson(manifestPath);
   } catch {}
   manifest.replay = "replay.json";
-  await writeJson(manifestPath, manifest);
+  await writeJson(manifestRelativePath, manifest);
 
   const summary = {
     season: ref.season,

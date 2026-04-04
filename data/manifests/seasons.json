@@ -53,6 +53,16 @@
             {
               "season": 2025,
               "grandPrixSlug": "abu-dhabi-grand-prix",
+              "sessionSlug": "qualifying",
+              "grandPrixName": "Abu Dhabi Grand Prix",
+              "sessionName": "Qualifying",
+              "sessionKey": 9835,
+              "trackId": "yas-marina-circuit",
+              "path": "/sessions/2025/abu-dhabi-grand-prix/qualifying"
+            },
+            {
+              "season": 2025,
+              "grandPrixSlug": "abu-dhabi-grand-prix",
               "sessionSlug": "race",
               "grandPrixName": "Abu Dhabi Grand Prix",
               "sessionName": "Race",

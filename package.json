@@ -22,6 +22,7 @@
     "build:openf1:session": "node pipeline/export/src/build-openf1-session-pack.mjs",
     "build:openf1:replay": "node pipeline/export/src/build-openf1-replay-pack.mjs",
     "build:fastf1:replay": "python pipeline/fastf1/build-fastf1-replay-pack.py",
+    "build:fastf1:replay:2025": "node pipeline/fastf1/rebuild-fastf1-season.mjs --year 2025",
     "build:fastf1:replay:local": "pip install -r pipeline/fastf1/requirements.txt && python pipeline/fastf1/build-fastf1-replay-pack.py",
     "worker:dev": "npm run dev -w @f1-racing/metadata-api",
     "worker:check": "npm run check -w @f1-racing/metadata-api",

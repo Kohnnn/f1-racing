@@ -443,11 +443,21 @@ export interface ReplayFrameDriver {
   throttle: number | null;
   brake: number | null;
   gear: number | null;
+  rpm: number | null;
   drs: number | null;
   lap: number | null;
   interval: number | null;
   tyreCompound: string | null;
   tyreAge: number | null;
+}
+
+export interface ReplayWeatherSample {
+  airTempC: number;
+  trackTempC: number;
+  humidityPct: number;
+  rainfall: boolean;
+  windSpeedMps: number;
+  windDirectionDeg: number;
 }
 
 export interface SafetyCar {
@@ -462,6 +472,7 @@ export interface ReplayFrame {
   drivers: Record<string, ReplayFrameDriver>;
   safetyCar: SafetyCar;
   trackStatus: string;
+  weather?: ReplayWeatherSample;
 }
 
 export interface ReplayRaceControlMessage {
@@ -496,7 +507,7 @@ export interface ReplayPack {
   grandPrix: string;
   session: string;
   trackId: string;
-  source: "openf1";
+  source: "openf1" | "fastf1";
   note?: string;
   weatherSummary?: {
     airTempC: number;
