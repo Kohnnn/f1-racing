@@ -1,0 +1,35 @@
+{
+  "season": 2025,
+  "grandPrix": "Spanish Grand Prix",
+  "session": "Race",
+  "sessionKey": 9971,
+  "trackId": "catalunya",
+  "generatedAt": "2026-03-31T17:41:59.995Z",
+  "source": "openf1",
+  "drivers": [
+    "VER",
+    "NOR",
+    "BOR",
+    "HAD",
+    "GAS",
+    "ANT",
+    "ALO",
+    "LEC",
+    "TSU",
+    "ALB",
+    "HUL",
+    "LAW",
+    "OCO",
+    "COL",
+    "HAM",
+    "SAI",
+    "RUS",
+    "PIA",
+    "BEA"
+  ],
+  "weatherSummary": {
+    "airTempC": 25,
+    "trackTempC": 35,
+    "rainRiskPct": 0
+  }
+}

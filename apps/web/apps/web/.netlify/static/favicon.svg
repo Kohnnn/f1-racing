@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="F1 Racing icon">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1d2430"/>
+      <stop offset="100%" stop-color="#3d87b7"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#bg)"/>
+  <path d="M11 38h24l9-6h9l-10 10H11Z" fill="#f7f1ea"/>
+  <path d="M14 24h20l5 4H24Z" fill="#c54f2a"/>
+  <circle cx="18" cy="45" r="5" fill="#f7f1ea"/>
+  <circle cx="42" cy="45" r="5" fill="#f7f1ea"/>
+</svg>

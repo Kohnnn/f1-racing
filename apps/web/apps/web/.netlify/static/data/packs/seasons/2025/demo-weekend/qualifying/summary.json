@@ -1,0 +1,20 @@
+{
+  "season": 2025,
+  "grandPrix": "Demo Weekend",
+  "session": "Qualifying",
+  "sessionKey": 9000,
+  "trackId": "studio-ring",
+  "generatedAt": "2026-03-27T09:00:00Z",
+  "source": "openf1",
+  "drivers": [
+    "VER",
+    "NOR",
+    "LEC",
+    "PIA"
+  ],
+  "weatherSummary": {
+    "airTempC": 24,
+    "trackTempC": 32,
+    "rainRiskPct": 18
+  }
+}

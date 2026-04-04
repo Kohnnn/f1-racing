@@ -1,0 +1,36 @@
+{
+  "season": 2025,
+  "grandPrix": "Singapore Grand Prix",
+  "session": "Qualifying",
+  "sessionKey": 9892,
+  "trackId": "singapore",
+  "generatedAt": "2026-03-31T18:02:42.653Z",
+  "source": "openf1",
+  "drivers": [
+    "VER",
+    "NOR",
+    "BOR",
+    "HAD",
+    "GAS",
+    "ANT",
+    "ALO",
+    "LEC",
+    "STR",
+    "TSU",
+    "ALB",
+    "HUL",
+    "LAW",
+    "OCO",
+    "COL",
+    "HAM",
+    "SAI",
+    "RUS",
+    "PIA",
+    "BEA"
+  ],
+  "weatherSummary": {
+    "airTempC": 25,
+    "trackTempC": 35,
+    "rainRiskPct": 0
+  }
+}

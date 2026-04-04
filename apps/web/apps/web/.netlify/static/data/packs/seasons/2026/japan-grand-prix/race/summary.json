@@ -1,0 +1,15 @@
+{
+  "season": 2026,
+  "grandPrix": "Japan Grand Prix",
+  "session": "Race",
+  "sessionKey": 11253,
+  "trackId": "suzuka",
+  "generatedAt": "2026-03-31T07:25:00.000Z",
+  "source": "openf1",
+  "drivers": ["VER", "NOR", "BOR", "HAD", "DOO", "GAS", "ANT", "ALO", "LEC", "STR", "TSU", "ALB", "HUL", "LAW", "OCO", "HAM", "SAI", "RUS", "PIA", "BEA", "DOO", "HAD"],
+  "weatherSummary": {
+    "airTempC": 18,
+    "trackTempC": 26,
+    "rainRiskPct": 10
+  }
+}

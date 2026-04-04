@@ -1,0 +1,1446 @@
+{
+  "trackId": "yas-marina-circuit",
+  "sessionKey": 9835,
+  "drivers": [
+    {
+      "driverCode": "VER",
+      "team": "Red Bull Racing",
+      "stints": [
+        {
+          "stintNumber": 1,
+          "compound": "SOFT",
+          "lapStart": 1,
+          "lapEnd": 3,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 100.682,
+          "trendPerLap": 34.714,
+          "lapTimes": [
+            83.325,
+            118.039
+          ]
+        },
+        {
+          "stintNumber": 2,
+          "compound": "SOFT",
+          "lapStart": 4,
+          "lapEnd": 6,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 217.071,
+          "trendPerLap": -163.416,
+          "lapTimes": [
+            447.584,
+            82.877,
+            120.751
+          ]
+        },
+        {
+          "stintNumber": 3,
+          "compound": "SOFT",
+          "lapStart": 7,
+          "lapEnd": 9,
+          "tyreAgeAtStart": 3,
+          "averageLapTime": 203.231,
+          "trendPerLap": -170.386,
+          "lapTimes": [
+            433.777,
+            82.912,
+            93.004
+          ]
+        },
+        {
+          "stintNumber": 4,
+          "compound": "SOFT",
+          "lapStart": 10,
+          "lapEnd": 12,
+          "tyreAgeAtStart": 3,
+          "averageLapTime": 102.757,
+          "trendPerLap": -19.555,
+          "lapTimes": [
+            132.315,
+            82.752,
+            93.205
+          ]
+        },
+        {
+          "stintNumber": 5,
+          "compound": "SOFT",
+          "lapStart": 13,
+          "lapEnd": 15,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 365.577,
+          "trendPerLap": -397.123,
+          "lapTimes": [
+            904.341,
+            82.295,
+            110.096
+          ]
+        },
+        {
+          "stintNumber": 6,
+          "compound": "SOFT",
+          "lapStart": 16,
+          "lapEnd": 18,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 193.91,
+          "trendPerLap": -134.011,
+          "lapTimes": [
+            383.773,
+            82.207,
+            115.751
+          ]
+        }
+      ]
+    },
+    {
+      "driverCode": "NOR",
+      "team": "McLaren",
+      "stints": [
+        {
+          "stintNumber": 1,
+          "compound": "SOFT",
+          "lapStart": 1,
+          "lapEnd": 3,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 100.569,
+          "trendPerLap": 34.277,
+          "lapTimes": [
+            83.43,
+            117.707
+          ]
+        },
+        {
+          "stintNumber": 2,
+          "compound": "SOFT",
+          "lapStart": 4,
+          "lapEnd": 6,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 170.634,
+          "trendPerLap": -100.581,
+          "lapTimes": [
+            314.942,
+            83.178,
+            113.781
+          ]
+        },
+        {
+          "stintNumber": 3,
+          "compound": "SOFT",
+          "lapStart": 7,
+          "lapEnd": 9,
+          "tyreAgeAtStart": 3,
+          "averageLapTime": 318.897,
+          "trendPerLap": -333.326,
+          "lapTimes": [
+            770.269,
+            82.804,
+            103.618
+          ]
+        },
+        {
+          "stintNumber": 4,
+          "compound": "SOFT",
+          "lapStart": 10,
+          "lapEnd": 11,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 221.778,
+          "trendPerLap": -219.337,
+          "lapTimes": [
+            331.446,
+            112.109
+          ]
+        },
+        {
+          "stintNumber": 5,
+          "compound": "SOFT",
+          "lapStart": 12,
+          "lapEnd": 14,
+          "tyreAgeAtStart": 2,
+          "averageLapTime": 240.508,
+          "trendPerLap": -217.003,
+          "lapTimes": [
+            536.39,
+            82.751,
+            102.384
+          ]
+        },
+        {
+          "stintNumber": 6,
+          "compound": "SOFT",
+          "lapStart": 15,
+          "lapEnd": 17,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 181.893,
+          "trendPerLap": -117.023,
+          "lapTimes": [
+            348.659,
+            82.408,
+            114.612
+          ]
+        }
+      ]
+    },
+    {
+      "driverCode": "BOR",
+      "team": "Kick Sauber",
+      "stints": [
+        {
+          "stintNumber": 1,
+          "compound": "SOFT",
+          "lapStart": 1,
+          "lapEnd": 3,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 101.558,
+          "trendPerLap": 35.788,
+          "lapTimes": [
+            83.664,
+            119.452
+          ]
+        },
+        {
+          "stintNumber": 2,
+          "compound": "SOFT",
+          "lapStart": 4,
+          "lapEnd": 6,
+          "tyreAgeAtStart": 3,
+          "averageLapTime": 126.763,
+          "trendPerLap": -49.256,
+          "lapTimes": [
+            197.415,
+            83.97,
+            98.903
+          ]
+        },
+        {
+          "stintNumber": 3,
+          "compound": "SOFT",
+          "lapStart": 7,
+          "lapEnd": 9,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 172.56,
+          "trendPerLap": -102.4,
+          "lapTimes": [
+            319.554,
+            83.374,
+            114.753
+          ]
+        },
+        {
+          "stintNumber": 4,
+          "compound": "SOFT",
+          "lapStart": 10,
+          "lapEnd": 12,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 249.987,
+          "trendPerLap": -226.04,
+          "lapTimes": [
+            559.474,
+            83.092,
+            107.395
+          ]
+        },
+        {
+          "stintNumber": 5,
+          "compound": "SOFT",
+          "lapStart": 13,
+          "lapEnd": 15,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 155.375,
+          "trendPerLap": -75.66,
+          "lapTimes": [
+            267.286,
+            82.874,
+            115.966
+          ]
+        },
+        {
+          "stintNumber": 6,
+          "compound": "SOFT",
+          "lapStart": 16,
+          "lapEnd": 18,
+          "tyreAgeAtStart": 3,
+          "averageLapTime": 236.604,
+          "trendPerLap": -203.575,
+          "lapTimes": [
+            516.874,
+            83.214,
+            109.725
+          ]
+        },
+        {
+          "stintNumber": 7,
+          "compound": "SOFT",
+          "lapStart": 19,
+          "lapEnd": 21,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 173.855,
+          "trendPerLap": -100.833,
+          "lapTimes": [
+            320.163,
+            82.904,
+            118.498
+          ]
+        }
+      ]
+    },
+    {
+      "driverCode": "HAD",
+      "team": "Racing Bulls",
+      "stints": [
+        {
+          "stintNumber": 1,
+          "compound": "SOFT",
+          "lapStart": 1,
+          "lapEnd": 3,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 95.965,
+          "trendPerLap": 24.702,
+          "lapTimes": [
+            83.614,
+            108.316
+          ]
+        },
+        {
+          "stintNumber": 2,
+          "compound": "SOFT",
+          "lapStart": 4,
+          "lapEnd": 6,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 197.125,
+          "trendPerLap": -146.852,
+          "lapTimes": [
+            400.854,
+            83.373,
+            107.149
+          ]
+        },
+        {
+          "stintNumber": 3,
+          "compound": "SOFT",
+          "lapStart": 7,
+          "lapEnd": 9,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 281.676,
+          "trendPerLap": -277.892,
+          "lapTimes": [
+            658.75,
+            83.312,
+            102.966
+          ]
+        },
+        {
+          "stintNumber": 4,
+          "compound": "SOFT",
+          "lapStart": 10,
+          "lapEnd": 12,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 181.298,
+          "trendPerLap": -119.251,
+          "lapTimes": [
+            349.699,
+            82.997,
+            111.198
+          ]
+        },
+        {
+          "stintNumber": 5,
+          "compound": "SOFT",
+          "lapStart": 13,
+          "lapEnd": 15,
+          "tyreAgeAtStart": 3,
+          "averageLapTime": 232.911,
+          "trendPerLap": -204.575,
+          "lapTimes": [
+            512.226,
+            83.431,
+            103.076
+          ]
+        },
+        {
+          "stintNumber": 6,
+          "compound": "SOFT",
+          "lapStart": 16,
+          "lapEnd": 18,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 176.805,
+          "trendPerLap": -103.508,
+          "lapTimes": [
+            327.18,
+            83.072,
+            120.163
+          ]
+        }
+      ]
+    },
+    {
+      "driverCode": "GAS",
+      "team": "Alpine",
+      "stints": [
+        {
+          "stintNumber": 1,
+          "compound": "MEDIUM",
+          "lapStart": 1,
+          "lapEnd": 3,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 101.658,
+          "trendPerLap": 33.858,
+          "lapTimes": [
+            84.729,
+            118.587
+          ]
+        },
+        {
+          "stintNumber": 2,
+          "compound": "SOFT",
+          "lapStart": 4,
+          "lapEnd": 6,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 113.465,
+          "trendPerLap": -12.442,
+          "lapTimes": [
+            140.879,
+            83.522,
+            115.995
+          ]
+        },
+        {
+          "stintNumber": 3,
+          "compound": "SOFT",
+          "lapStart": 7,
+          "lapEnd": 9,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 185.055,
+          "trendPerLap": -121.32,
+          "lapTimes": [
+            357.168,
+            83.468,
+            114.528
+          ]
+        }
+      ]
+    },
+    {
+      "driverCode": "ANT",
+      "team": "Mercedes",
+      "stints": [
+        {
+          "stintNumber": 1,
+          "compound": "SOFT",
+          "lapStart": 1,
+          "lapEnd": 3,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 97.559,
+          "trendPerLap": 28.156,
+          "lapTimes": [
+            83.481,
+            111.637
+          ]
+        },
+        {
+          "stintNumber": 2,
+          "compound": "SOFT",
+          "lapStart": 4,
+          "lapEnd": 6,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 175.257,
+          "trendPerLap": -99.221,
+          "lapTimes": [
+            320.66,
+            82.894,
+            122.218
+          ]
+        },
+        {
+          "stintNumber": 3,
+          "compound": "SOFT",
+          "lapStart": 7,
+          "lapEnd": 9,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 269.029,
+          "trendPerLap": -254.732,
+          "lapTimes": [
+            616.589,
+            83.371,
+            107.126
+          ]
+        },
+        {
+          "stintNumber": 4,
+          "compound": "SOFT",
+          "lapStart": 10,
+          "lapEnd": 12,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 174.578,
+          "trendPerLap": -99.62,
+          "lapTimes": [
+            319.946,
+            83.08,
+            120.707
+          ]
+        }
+      ]
+    },
+    {
+      "driverCode": "ALO",
+      "team": "Aston Martin",
+      "stints": [
+        {
+          "stintNumber": 1,
+          "compound": "SOFT",
+          "lapStart": 1,
+          "lapEnd": 3,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 103.866,
+          "trendPerLap": 40.898,
+          "lapTimes": [
+            83.417,
+            124.315
+          ]
+        },
+        {
+          "stintNumber": 2,
+          "compound": "SOFT",
+          "lapStart": 4,
+          "lapEnd": 6,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 216.268,
+          "trendPerLap": -165.646,
+          "lapTimes": [
+            448.512,
+            83.071,
+            117.22
+          ]
+        },
+        {
+          "stintNumber": 3,
+          "compound": "SOFT",
+          "lapStart": 7,
+          "lapEnd": 9,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 260.616,
+          "trendPerLap": -236.769,
+          "lapTimes": [
+            586.175,
+            83.036,
+            112.637
+          ]
+        },
+        {
+          "stintNumber": 4,
+          "compound": "SOFT",
+          "lapStart": 10,
+          "lapEnd": 12,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 177.496,
+          "trendPerLap": -106.975,
+          "lapTimes": [
+            331.788,
+            82.861,
+            117.838
+          ]
+        },
+        {
+          "stintNumber": 5,
+          "compound": "SOFT",
+          "lapStart": 13,
+          "lapEnd": 15,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 229.658,
+          "trendPerLap": -195.088,
+          "lapTimes": [
+            497.936,
+            83.279,
+            107.76
+          ]
+        },
+        {
+          "stintNumber": 6,
+          "compound": "SOFT",
+          "lapStart": 16,
+          "lapEnd": 18,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 167.293,
+          "trendPerLap": -84.574,
+          "lapTimes": [
+            294.062,
+            82.902,
+            124.914
+          ]
+        }
+      ]
+    },
+    {
+      "driverCode": "LEC",
+      "team": "Ferrari",
+      "stints": [
+        {
+          "stintNumber": 1,
+          "compound": "MEDIUM",
+          "lapStart": 1,
+          "lapEnd": 3,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 94.308,
+          "trendPerLap": 20.628,
+          "lapTimes": [
+            83.994,
+            104.622
+          ]
+        },
+        {
+          "stintNumber": 2,
+          "compound": "SOFT",
+          "lapStart": 4,
+          "lapEnd": 6,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 214.245,
+          "trendPerLap": -164.345,
+          "lapTimes": [
+            444.131,
+            83.163,
+            115.441
+          ]
+        },
+        {
+          "stintNumber": 3,
+          "compound": "SOFT",
+          "lapStart": 7,
+          "lapEnd": 9,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 272.189,
+          "trendPerLap": -262.73,
+          "lapTimes": [
+            629.377,
+            83.274,
+            103.917
+          ]
+        },
+        {
+          "stintNumber": 4,
+          "compound": "SOFT",
+          "lapStart": 10,
+          "lapEnd": 12,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 157.27,
+          "trendPerLap": -77.734,
+          "lapTimes": [
+            272.166,
+            82.948,
+            116.697
+          ]
+        },
+        {
+          "stintNumber": 5,
+          "compound": "SOFT",
+          "lapStart": 13,
+          "lapEnd": 15,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 259.179,
+          "trendPerLap": -236.411,
+          "lapTimes": [
+            583.782,
+            82.794,
+            110.96
+          ]
+        },
+        {
+          "stintNumber": 6,
+          "compound": "SOFT",
+          "lapStart": 16,
+          "lapEnd": 18,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 192.607,
+          "trendPerLap": -219.753,
+          "lapTimes": [
+            302.483,
+            82.73
+          ]
+        }
+      ]
+    },
+    {
+      "driverCode": "STR",
+      "team": "Aston Martin",
+      "stints": [
+        {
+          "stintNumber": 1,
+          "compound": "SOFT",
+          "lapStart": 1,
+          "lapEnd": 6,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 105.289,
+          "trendPerLap": 7.038,
+          "lapTimes": [
+            83.772,
+            119.687,
+            127.458,
+            83.603,
+            111.923
+          ]
+        },
+        {
+          "stintNumber": 2,
+          "compound": "SOFT",
+          "lapStart": 7,
+          "lapEnd": 9,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 178.497,
+          "trendPerLap": -115.355,
+          "lapTimes": [
+            341.443,
+            83.316,
+            110.733
+          ]
+        },
+        {
+          "stintNumber": 3,
+          "compound": "SOFT",
+          "lapStart": 10,
+          "lapEnd": 12,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 259.996,
+          "trendPerLap": -238.209,
+          "lapTimes": [
+            586.619,
+            83.168,
+            110.201
+          ]
+        },
+        {
+          "stintNumber": 4,
+          "compound": "SOFT",
+          "lapStart": 13,
+          "lapEnd": 15,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 179.626,
+          "trendPerLap": -117.713,
+          "lapTimes": [
+            345.603,
+            83.097,
+            110.178
+          ]
+        }
+      ]
+    },
+    {
+      "driverCode": "TSU",
+      "team": "Red Bull Racing",
+      "stints": [
+        {
+          "stintNumber": 1,
+          "compound": "SOFT",
+          "lapStart": 1,
+          "lapEnd": 3,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 98.214,
+          "trendPerLap": 29.128,
+          "lapTimes": [
+            83.65,
+            112.778
+          ]
+        },
+        {
+          "stintNumber": 2,
+          "compound": "SOFT",
+          "lapStart": 4,
+          "lapEnd": 6,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 219.742,
+          "trendPerLap": -173.975,
+          "lapTimes": [
+            461.895,
+            83.386,
+            113.944
+          ]
+        },
+        {
+          "stintNumber": 3,
+          "compound": "SOFT",
+          "lapStart": 7,
+          "lapEnd": 9,
+          "tyreAgeAtStart": 1,
+          "averageLapTime": 276.357,
+          "trendPerLap": -266.811,
+          "lapTimes": [
+            639.683,
+            83.328,
+            106.061
+          ]
+        },
+        {
+          "stintNumber": 4,
+          "compound": "SOFT",
+          "lapStart": 10,
+          "lapEnd": 12,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 151.559,
+          "trendPerLap": -75.263,
+          "lapTimes": [
+            261.084,
+            83.034,
+            110.558
+          ]
+        },
+        {
+          "stintNumber": 5,
+          "compound": "SOFT",
+          "lapStart": 13,
+          "lapEnd": 14,
+          "tyreAgeAtStart": 3,
+          "averageLapTime": 310.27,
+          "trendPerLap": -413.759,
+          "lapTimes": [
+            517.15,
+            103.391
+          ]
+        },
+        {
+          "stintNumber": 6,
+          "compound": "SOFT",
+          "lapStart": 15,
+          "lapEnd": 17,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 201.59,
+          "trendPerLap": -148.57,
+          "lapTimes": [
+            409.414,
+            83.083,
+            112.273
+          ]
+        }
+      ]
+    },
+    {
+      "driverCode": "ALB",
+      "team": "Williams",
+      "stints": [
+        {
+          "stintNumber": 1,
+          "compound": "SOFT",
+          "lapStart": 1,
+          "lapEnd": 3,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 96.922,
+          "trendPerLap": 26.309,
+          "lapTimes": [
+            83.768,
+            110.077
+          ]
+        },
+        {
+          "stintNumber": 2,
+          "compound": "SOFT",
+          "lapStart": 4,
+          "lapEnd": 6,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 190.671,
+          "trendPerLap": -116.886,
+          "lapTimes": [
+            361.184,
+            83.416,
+            127.413
+          ]
+        }
+      ]
+    },
+    {
+      "driverCode": "HUL",
+      "team": "Kick Sauber",
+      "stints": [
+        {
+          "stintNumber": 1,
+          "compound": "SOFT",
+          "lapStart": 1,
+          "lapEnd": 3,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 101.334,
+          "trendPerLap": 35.721,
+          "lapTimes": [
+            83.473,
+            119.194
+          ]
+        },
+        {
+          "stintNumber": 2,
+          "compound": "SOFT",
+          "lapStart": 4,
+          "lapEnd": 6,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 123.79,
+          "trendPerLap": -50.736,
+          "lapTimes": [
+            194.591,
+            83.658,
+            93.12
+          ]
+        },
+        {
+          "stintNumber": 3,
+          "compound": "SOFT",
+          "lapStart": 7,
+          "lapEnd": 9,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 178.973,
+          "trendPerLap": -112.654,
+          "lapTimes": [
+            339.389,
+            83.45,
+            114.081
+          ]
+        }
+      ]
+    },
+    {
+      "driverCode": "LAW",
+      "team": "Racing Bulls",
+      "stints": [
+        {
+          "stintNumber": 1,
+          "compound": "SOFT",
+          "lapStart": 1,
+          "lapEnd": 2,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 88.639,
+          "trendPerLap": 0,
+          "lapTimes": [
+            88.639
+          ]
+        },
+        {
+          "stintNumber": 2,
+          "compound": "SOFT",
+          "lapStart": 3,
+          "lapEnd": 5,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 121.632,
+          "trendPerLap": -25.967,
+          "lapTimes": [
+            166.692,
+            83.444,
+            114.759
+          ]
+        },
+        {
+          "stintNumber": 3,
+          "compound": "SOFT",
+          "lapStart": 6,
+          "lapEnd": 8,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 203.788,
+          "trendPerLap": -149.255,
+          "lapTimes": [
+            413.304,
+            83.265,
+            114.794
+          ]
+        },
+        {
+          "stintNumber": 4,
+          "compound": "SOFT",
+          "lapStart": 9,
+          "lapEnd": 11,
+          "tyreAgeAtStart": 2,
+          "averageLapTime": 249.457,
+          "trendPerLap": -219.182,
+          "lapTimes": [
+            551.59,
+            83.553,
+            113.227
+          ]
+        },
+        {
+          "stintNumber": 5,
+          "compound": "SOFT",
+          "lapStart": 12,
+          "lapEnd": 14,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 186.405,
+          "trendPerLap": -121.366,
+          "lapTimes": [
+            359.436,
+            83.077,
+            116.703
+          ]
+        }
+      ]
+    },
+    {
+      "driverCode": "OCO",
+      "team": "Haas F1 Team",
+      "stints": [
+        {
+          "stintNumber": 1,
+          "compound": "SOFT",
+          "lapStart": 1,
+          "lapEnd": 3,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 100.419,
+          "trendPerLap": 33.486,
+          "lapTimes": [
+            83.676,
+            117.162
+          ]
+        },
+        {
+          "stintNumber": 2,
+          "compound": "SOFT",
+          "lapStart": 4,
+          "lapEnd": 6,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 218.636,
+          "trendPerLap": -175.337,
+          "lapTimes": [
+            461.623,
+            83.334,
+            110.95
+          ]
+        },
+        {
+          "stintNumber": 3,
+          "compound": "SOFT",
+          "lapStart": 7,
+          "lapEnd": 9,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 226.26,
+          "trendPerLap": -181.558,
+          "lapTimes": [
+            479.354,
+            83.187,
+            116.239
+          ]
+        },
+        {
+          "stintNumber": 4,
+          "compound": "SOFT",
+          "lapStart": 10,
+          "lapEnd": 12,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 196.209,
+          "trendPerLap": -140.759,
+          "lapTimes": [
+            393.561,
+            83.023,
+            112.043
+          ]
+        },
+        {
+          "stintNumber": 5,
+          "compound": "SOFT",
+          "lapStart": 13,
+          "lapEnd": 15,
+          "tyreAgeAtStart": 3,
+          "averageLapTime": 228.664,
+          "trendPerLap": -193.726,
+          "lapTimes": [
+            494.952,
+            83.538,
+            107.501
+          ]
+        },
+        {
+          "stintNumber": 6,
+          "compound": "SOFT",
+          "lapStart": 16,
+          "lapEnd": 18,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 167.88,
+          "trendPerLap": -94.749,
+          "lapTimes": [
+            305.113,
+            82.913,
+            115.614
+          ]
+        }
+      ]
+    },
+    {
+      "driverCode": "COL",
+      "team": "Alpine",
+      "stints": [
+        {
+          "stintNumber": 1,
+          "compound": "SOFT",
+          "lapStart": 1,
+          "lapEnd": 3,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 97.675,
+          "trendPerLap": 26.414,
+          "lapTimes": [
+            84.468,
+            110.882
+          ]
+        },
+        {
+          "stintNumber": 2,
+          "compound": "SOFT",
+          "lapStart": 4,
+          "lapEnd": 6,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 119.745,
+          "trendPerLap": -33.149,
+          "lapTimes": [
+            170.793,
+            83.947,
+            104.496
+          ]
+        },
+        {
+          "stintNumber": 3,
+          "compound": "SOFT",
+          "lapStart": 7,
+          "lapEnd": 9,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 187.044,
+          "trendPerLap": -124.944,
+          "lapTimes": [
+            363.564,
+            83.89,
+            113.677
+          ]
+        }
+      ]
+    },
+    {
+      "driverCode": "HAM",
+      "team": "Ferrari",
+      "stints": [
+        {
+          "stintNumber": 1,
+          "compound": "MEDIUM",
+          "lapStart": 1,
+          "lapEnd": 3,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 100.716,
+          "trendPerLap": 33.296,
+          "lapTimes": [
+            84.068,
+            117.364
+          ]
+        },
+        {
+          "stintNumber": 2,
+          "compound": "SOFT",
+          "lapStart": 4,
+          "lapEnd": 6,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 110.893,
+          "trendPerLap": -7.19,
+          "lapTimes": [
+            131.832,
+            83.394,
+            117.452
+          ]
+        },
+        {
+          "stintNumber": 3,
+          "compound": "SOFT",
+          "lapStart": 7,
+          "lapEnd": 9,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 195.451,
+          "trendPerLap": -135.667,
+          "lapTimes": [
+            387.125,
+            83.437,
+            115.791
+          ]
+        }
+      ]
+    },
+    {
+      "driverCode": "SAI",
+      "team": "Williams",
+      "stints": [
+        {
+          "stintNumber": 1,
+          "compound": "SOFT",
+          "lapStart": 1,
+          "lapEnd": 3,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 100.644,
+          "trendPerLap": 34.035,
+          "lapTimes": [
+            83.627,
+            117.662
+          ]
+        },
+        {
+          "stintNumber": 2,
+          "compound": "SOFT",
+          "lapStart": 4,
+          "lapEnd": 6,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 196.979,
+          "trendPerLap": -131.108,
+          "lapTimes": [
+            384.983,
+            83.187,
+            122.767
+          ]
+        },
+        {
+          "stintNumber": 3,
+          "compound": "SOFT",
+          "lapStart": 7,
+          "lapEnd": 9,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 269.797,
+          "trendPerLap": -252.256,
+          "lapTimes": [
+            615.366,
+            83.172,
+            110.854
+          ]
+        },
+        {
+          "stintNumber": 4,
+          "compound": "SOFT",
+          "lapStart": 10,
+          "lapEnd": 12,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 177.69,
+          "trendPerLap": -115.241,
+          "lapTimes": [
+            340.255,
+            83.042,
+            109.773
+          ]
+        }
+      ]
+    },
+    {
+      "driverCode": "RUS",
+      "team": "Mercedes",
+      "stints": [
+        {
+          "stintNumber": 1,
+          "compound": "SOFT",
+          "lapStart": 1,
+          "lapEnd": 3,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 98.719,
+          "trendPerLap": 30.944,
+          "lapTimes": [
+            83.247,
+            114.191
+          ]
+        },
+        {
+          "stintNumber": 2,
+          "compound": "SOFT",
+          "lapStart": 4,
+          "lapEnd": 6,
+          "tyreAgeAtStart": 3,
+          "averageLapTime": 172.58,
+          "trendPerLap": -103.221,
+          "lapTimes": [
+            320.464,
+            83.255,
+            114.022
+          ]
+        },
+        {
+          "stintNumber": 3,
+          "compound": "SOFT",
+          "lapStart": 7,
+          "lapEnd": 9,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 276.668,
+          "trendPerLap": -257.684,
+          "lapTimes": [
+            631.321,
+            82.73,
+            115.953
+          ]
+        },
+        {
+          "stintNumber": 4,
+          "compound": "SOFT",
+          "lapStart": 10,
+          "lapEnd": 12,
+          "tyreAgeAtStart": 3,
+          "averageLapTime": 178.577,
+          "trendPerLap": -114.263,
+          "lapTimes": [
+            340.574,
+            83.107,
+            112.049
+          ]
+        },
+        {
+          "stintNumber": 5,
+          "compound": "SOFT",
+          "lapStart": 13,
+          "lapEnd": 15,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 248.944,
+          "trendPerLap": -227.626,
+          "lapTimes": [
+            559.608,
+            82.868,
+            104.355
+          ]
+        },
+        {
+          "stintNumber": 6,
+          "compound": "SOFT",
+          "lapStart": 16,
+          "lapEnd": 18,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 195.055,
+          "trendPerLap": -224.821,
+          "lapTimes": [
+            307.466,
+            82.645
+          ]
+        }
+      ]
+    },
+    {
+      "driverCode": "PIA",
+      "team": "McLaren",
+      "stints": [
+        {
+          "stintNumber": 1,
+          "compound": "SOFT",
+          "lapStart": 1,
+          "lapEnd": 3,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 98.176,
+          "trendPerLap": 29.842,
+          "lapTimes": [
+            83.255,
+            113.097
+          ]
+        },
+        {
+          "stintNumber": 2,
+          "compound": "SOFT",
+          "lapStart": 4,
+          "lapEnd": 6,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 167.023,
+          "trendPerLap": -80.442,
+          "lapTimes": [
+            289.674,
+            82.605,
+            128.79
+          ]
+        },
+        {
+          "stintNumber": 3,
+          "compound": "SOFT",
+          "lapStart": 7,
+          "lapEnd": 9,
+          "tyreAgeAtStart": 3,
+          "averageLapTime": 306.42,
+          "trendPerLap": -309.896,
+          "lapTimes": [
+            728.016,
+            83.021,
+            108.224
+          ]
+        },
+        {
+          "stintNumber": 4,
+          "compound": "SOFT",
+          "lapStart": 10,
+          "lapEnd": 11,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 219.722,
+          "trendPerLap": -224.284,
+          "lapTimes": [
+            331.864,
+            107.58
+          ]
+        },
+        {
+          "stintNumber": 5,
+          "compound": "SOFT",
+          "lapStart": 12,
+          "lapEnd": 14,
+          "tyreAgeAtStart": 2,
+          "averageLapTime": 256.21,
+          "trendPerLap": -236.401,
+          "lapTimes": [
+            579.405,
+            82.622,
+            106.603
+          ]
+        },
+        {
+          "stintNumber": 6,
+          "compound": "SOFT",
+          "lapStart": 15,
+          "lapEnd": 17,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 167.596,
+          "trendPerLap": -95.031,
+          "lapTimes": [
+            305.207,
+            82.437,
+            115.144
+          ]
+        }
+      ]
+    },
+    {
+      "driverCode": "BEA",
+      "team": "Haas F1 Team",
+      "stints": [
+        {
+          "stintNumber": 1,
+          "compound": "SOFT",
+          "lapStart": 1,
+          "lapEnd": 3,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 100.914,
+          "trendPerLap": 35.32,
+          "lapTimes": [
+            83.254,
+            118.574
+          ]
+        },
+        {
+          "stintNumber": 2,
+          "compound": "SOFT",
+          "lapStart": 4,
+          "lapEnd": 5,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 287.986,
+          "trendPerLap": -349.282,
+          "lapTimes": [
+            462.627,
+            113.345
+          ]
+        },
+        {
+          "stintNumber": 3,
+          "compound": "SOFT",
+          "lapStart": 6,
+          "lapEnd": 8,
+          "tyreAgeAtStart": 2,
+          "averageLapTime": 250.208,
+          "trendPerLap": -225.328,
+          "lapTimes": [
+            558.906,
+            83.47,
+            108.249
+          ]
+        },
+        {
+          "stintNumber": 4,
+          "compound": "SOFT",
+          "lapStart": 9,
+          "lapEnd": 11,
+          "tyreAgeAtStart": 0,
+          "averageLapTime": 208.308,
+          "trendPerLap": -151.681,
+          "lapTimes": [
+            422.623,
+            83.041,
+            119.26
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "season": 2025,
+  "grandPrix": "Hungarian Grand Prix",
+  "session": "Qualifying",
+  "sessionKey": 9924,
+  "trackId": "hungaroring",
+  "generatedAt": "2026-03-31T17:58:36.693Z",
+  "source": "openf1",
+  "drivers": [
+    "VER",
+    "NOR",
+    "BOR",
+    "HAD",
+    "GAS",
+    "ANT",
+    "ALO",
+    "LEC",
+    "STR",
+    "TSU",
+    "ALB",
+    "HUL",
+    "LAW",
+    "OCO",
+    "COL",
+    "HAM",
+    "SAI",
+    "RUS",
+    "PIA",
+    "BEA"
+  ],
+  "weatherSummary": {
+    "airTempC": 25,
+    "trackTempC": 35,
+    "rainRiskPct": 0
+  }
+}

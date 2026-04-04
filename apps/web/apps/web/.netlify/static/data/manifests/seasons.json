@@ -1,0 +1,425 @@
+{
+  "generatedAt": "2026-03-27T09:00:00Z",
+  "seasons": [
+    {
+      "season": 2025,
+      "grandsPrix": [
+        {
+          "grandPrixSlug": "australian-grand-prix",
+          "grandPrixName": "Australian Grand Prix",
+          "sessions": [
+            {
+              "season": 2025,
+              "grandPrixSlug": "australian-grand-prix",
+              "sessionSlug": "qualifying",
+              "grandPrixName": "Australian Grand Prix",
+              "sessionName": "Qualifying",
+              "sessionKey": 9689,
+              "trackId": "melbourne",
+              "path": "/sessions/2025/australian-grand-prix/qualifying"
+            },
+            {
+              "season": 2025,
+              "grandPrixSlug": "australian-grand-prix",
+              "sessionSlug": "race",
+              "grandPrixName": "Australian Grand Prix",
+              "sessionName": "Race",
+              "sessionKey": 9693,
+              "trackId": "melbourne",
+              "path": "/sessions/2025/australian-grand-prix/race"
+            }
+          ]
+        },
+        {
+          "grandPrixSlug": "abu-dhabi-grand-prix",
+          "grandPrixName": "Abu Dhabi Grand Prix",
+          "sessions": [
+            {
+              "season": 2025,
+              "grandPrixSlug": "abu-dhabi-grand-prix",
+              "sessionSlug": "qualifying",
+              "grandPrixName": "Abu Dhabi Grand Prix",
+              "sessionName": "Qualifying",
+              "sessionKey": 9835,
+              "trackId": "yas-marina-circuit",
+              "path": "/sessions/2025/abu-dhabi-grand-prix/qualifying"
+            },
+            {
+              "season": 2025,
+              "grandPrixSlug": "abu-dhabi-grand-prix",
+              "sessionSlug": "race",
+              "grandPrixName": "Abu Dhabi Grand Prix",
+              "sessionName": "Race",
+              "sessionKey": 9839,
+              "trackId": "yas-marina-circuit",
+              "path": "/sessions/2025/abu-dhabi-grand-prix/race"
+            }
+          ]
+        },
+        {
+          "grandPrixSlug": "las-vegas-grand-prix",
+          "grandPrixName": "Las Vegas Grand Prix",
+          "sessions": [
+            {
+              "season": 2025,
+              "grandPrixSlug": "las-vegas-grand-prix",
+              "sessionSlug": "race",
+              "grandPrixName": "Las Vegas Grand Prix",
+              "sessionName": "Race",
+              "sessionKey": 9858,
+              "trackId": "las-vegas",
+              "path": "/sessions/2025/las-vegas-grand-prix/race"
+            }
+          ]
+        },
+        {
+          "grandPrixSlug": "s-o-paulo-grand-prix",
+          "grandPrixName": "São Paulo Grand Prix",
+          "sessions": [
+            {
+              "season": 2025,
+              "grandPrixSlug": "s-o-paulo-grand-prix",
+              "sessionSlug": "sprint",
+              "grandPrixName": "São Paulo Grand Prix",
+              "sessionName": "Sprint",
+              "sessionKey": 9864,
+              "trackId": "interlagos",
+              "path": "/sessions/2025/s-o-paulo-grand-prix/sprint"
+            }
+          ]
+        },
+        {
+          "grandPrixSlug": "mexico-city-grand-prix",
+          "grandPrixName": "Mexico City Grand Prix",
+          "sessions": [
+            {
+              "season": 2025,
+              "grandPrixSlug": "mexico-city-grand-prix",
+              "sessionSlug": "race",
+              "grandPrixName": "Mexico City Grand Prix",
+              "sessionName": "Race",
+              "sessionKey": 9877,
+              "trackId": "mexico-city",
+              "path": "/sessions/2025/mexico-city-grand-prix/race"
+            }
+          ]
+        },
+        {
+          "grandPrixSlug": "singapore-grand-prix",
+          "grandPrixName": "Singapore Grand Prix",
+          "sessions": [
+            {
+              "season": 2025,
+              "grandPrixSlug": "singapore-grand-prix",
+              "sessionSlug": "qualifying",
+              "grandPrixName": "Singapore Grand Prix",
+              "sessionName": "Qualifying",
+              "sessionKey": 9892,
+              "trackId": "singapore",
+              "path": "/sessions/2025/singapore-grand-prix/qualifying"
+            },
+            {
+              "season": 2025,
+              "grandPrixSlug": "singapore-grand-prix",
+              "sessionSlug": "race",
+              "grandPrixName": "Singapore Grand Prix",
+              "sessionName": "Race",
+              "sessionKey": 9896,
+              "trackId": "singapore",
+              "path": "/sessions/2025/singapore-grand-prix/race"
+            }
+          ]
+        },
+        {
+          "grandPrixSlug": "azerbaijan-grand-prix",
+          "grandPrixName": "Azerbaijan Grand Prix",
+          "sessions": [
+            {
+              "season": 2025,
+              "grandPrixSlug": "azerbaijan-grand-prix",
+              "sessionSlug": "race",
+              "grandPrixName": "Azerbaijan Grand Prix",
+              "sessionName": "Race",
+              "sessionKey": 9904,
+              "trackId": "baku",
+              "path": "/sessions/2025/azerbaijan-grand-prix/race"
+            }
+          ]
+        },
+        {
+          "grandPrixSlug": "italian-grand-prix",
+          "grandPrixName": "Italian Grand Prix",
+          "sessions": [
+            {
+              "season": 2025,
+              "grandPrixSlug": "italian-grand-prix",
+              "sessionSlug": "qualifying",
+              "grandPrixName": "Italian Grand Prix",
+              "sessionName": "Qualifying",
+              "sessionKey": 9908,
+              "trackId": "monza",
+              "path": "/sessions/2025/italian-grand-prix/qualifying"
+            },
+            {
+              "season": 2025,
+              "grandPrixSlug": "italian-grand-prix",
+              "sessionSlug": "race",
+              "grandPrixName": "Italian Grand Prix",
+              "sessionName": "Race",
+              "sessionKey": 9912,
+              "trackId": "monza",
+              "path": "/sessions/2025/italian-grand-prix/race"
+            }
+          ]
+        },
+        {
+          "grandPrixSlug": "dutch-grand-prix",
+          "grandPrixName": "Dutch Grand Prix",
+          "sessions": [
+            {
+              "season": 2025,
+              "grandPrixSlug": "dutch-grand-prix",
+              "sessionSlug": "race",
+              "grandPrixName": "Dutch Grand Prix",
+              "sessionName": "Race",
+              "sessionKey": 9920,
+              "trackId": "zandvoort",
+              "path": "/sessions/2025/dutch-grand-prix/race"
+            }
+          ]
+        },
+        {
+          "grandPrixSlug": "hungarian-grand-prix",
+          "grandPrixName": "Hungarian Grand Prix",
+          "sessions": [
+            {
+              "season": 2025,
+              "grandPrixSlug": "hungarian-grand-prix",
+              "sessionSlug": "qualifying",
+              "grandPrixName": "Hungarian Grand Prix",
+              "sessionName": "Qualifying",
+              "sessionKey": 9924,
+              "trackId": "hungaroring",
+              "path": "/sessions/2025/hungarian-grand-prix/qualifying"
+            }
+          ]
+        },
+        {
+          "grandPrixSlug": "belgian-grand-prix",
+          "grandPrixName": "Belgian Grand Prix",
+          "sessions": [
+            {
+              "season": 2025,
+              "grandPrixSlug": "belgian-grand-prix",
+              "sessionSlug": "sprint",
+              "grandPrixName": "Belgian Grand Prix",
+              "sessionName": "Sprint",
+              "sessionKey": 9934,
+              "trackId": "spa-francorchamps",
+              "path": "/sessions/2025/belgian-grand-prix/sprint"
+            }
+          ]
+        },
+        {
+          "grandPrixSlug": "british-grand-prix",
+          "grandPrixName": "British Grand Prix",
+          "sessions": [
+            {
+              "season": 2025,
+              "grandPrixSlug": "british-grand-prix",
+              "sessionSlug": "qualifying",
+              "grandPrixName": "British Grand Prix",
+              "sessionName": "Qualifying",
+              "sessionKey": 9943,
+              "trackId": "silverstone",
+              "path": "/sessions/2025/british-grand-prix/qualifying"
+            },
+            {
+              "season": 2025,
+              "grandPrixSlug": "british-grand-prix",
+              "sessionSlug": "race",
+              "grandPrixName": "British Grand Prix",
+              "sessionName": "Race",
+              "sessionKey": 9947,
+              "trackId": "silverstone",
+              "path": "/sessions/2025/british-grand-prix/race"
+            }
+          ]
+        },
+        {
+          "grandPrixSlug": "austrian-grand-prix",
+          "grandPrixName": "Austrian Grand Prix",
+          "sessions": [
+            {
+              "season": 2025,
+              "grandPrixSlug": "austrian-grand-prix",
+              "sessionSlug": "qualifying",
+              "grandPrixName": "Austrian Grand Prix",
+              "sessionName": "Qualifying",
+              "sessionKey": 9951,
+              "trackId": "spielberg",
+              "path": "/sessions/2025/austrian-grand-prix/qualifying"
+            },
+            {
+              "season": 2025,
+              "grandPrixSlug": "austrian-grand-prix",
+              "sessionSlug": "race",
+              "grandPrixName": "Austrian Grand Prix",
+              "sessionName": "Race",
+              "sessionKey": 9955,
+              "trackId": "spielberg",
+              "path": "/sessions/2025/austrian-grand-prix/race"
+            }
+          ]
+        },
+        {
+          "grandPrixSlug": "spanish-grand-prix",
+          "grandPrixName": "Spanish Grand Prix",
+          "sessions": [
+            {
+              "season": 2025,
+              "grandPrixSlug": "spanish-grand-prix",
+              "sessionSlug": "race",
+              "grandPrixName": "Spanish Grand Prix",
+              "sessionName": "Race",
+              "sessionKey": 9971,
+              "trackId": "catalunya",
+              "path": "/sessions/2025/spanish-grand-prix/race"
+            }
+          ]
+        },
+        {
+          "grandPrixSlug": "monaco-grand-prix",
+          "grandPrixName": "Monaco Grand Prix",
+          "sessions": [
+            {
+              "season": 2025,
+              "grandPrixSlug": "monaco-grand-prix",
+              "sessionSlug": "qualifying",
+              "grandPrixName": "Monaco Grand Prix",
+              "sessionName": "Qualifying",
+              "sessionKey": 9975,
+              "trackId": "monte-carlo",
+              "path": "/sessions/2025/monaco-grand-prix/qualifying"
+            },
+            {
+              "season": 2025,
+              "grandPrixSlug": "monaco-grand-prix",
+              "sessionSlug": "race",
+              "grandPrixName": "Monaco Grand Prix",
+              "sessionName": "Race",
+              "sessionKey": 9979,
+              "trackId": "monte-carlo",
+              "path": "/sessions/2025/monaco-grand-prix/race"
+            }
+          ]
+        },
+        {
+          "grandPrixSlug": "chinese-grand-prix",
+          "grandPrixName": "Chinese Grand Prix",
+          "sessions": [
+            {
+              "season": 2025,
+              "grandPrixSlug": "chinese-grand-prix",
+              "sessionSlug": "qualifying",
+              "grandPrixName": "Chinese Grand Prix",
+              "sessionName": "Qualifying",
+              "sessionKey": 9994,
+              "trackId": "shanghai",
+              "path": "/sessions/2025/chinese-grand-prix/qualifying"
+            },
+            {
+              "season": 2025,
+              "grandPrixSlug": "chinese-grand-prix",
+              "sessionSlug": "race",
+              "grandPrixName": "Chinese Grand Prix",
+              "sessionName": "Race",
+              "sessionKey": 9998,
+              "trackId": "shanghai",
+              "path": "/sessions/2025/chinese-grand-prix/race"
+            }
+          ]
+        },
+        {
+          "grandPrixSlug": "japanese-grand-prix",
+          "grandPrixName": "Japanese Grand Prix",
+          "sessions": [
+            {
+              "season": 2025,
+              "grandPrixSlug": "japanese-grand-prix",
+              "sessionSlug": "qualifying",
+              "grandPrixName": "Japanese Grand Prix",
+              "sessionName": "Qualifying",
+              "sessionKey": 10002,
+              "trackId": "suzuka",
+              "path": "/sessions/2025/japanese-grand-prix/qualifying"
+            },
+            {
+              "season": 2025,
+              "grandPrixSlug": "japanese-grand-prix",
+              "sessionSlug": "race",
+              "grandPrixName": "Japanese Grand Prix",
+              "sessionName": "Race",
+              "sessionKey": 10006,
+              "trackId": "suzuka",
+              "path": "/sessions/2025/japanese-grand-prix/race"
+            }
+          ]
+        },
+        {
+          "grandPrixSlug": "bahrain-grand-prix",
+          "grandPrixName": "Bahrain Grand Prix",
+          "sessions": [
+            {
+              "season": 2025,
+              "grandPrixSlug": "bahrain-grand-prix",
+              "sessionSlug": "race",
+              "grandPrixName": "Bahrain Grand Prix",
+              "sessionName": "Race",
+              "sessionKey": 10014,
+              "trackId": "sakhir",
+              "path": "/sessions/2025/bahrain-grand-prix/race"
+            }
+          ]
+        },
+        {
+          "grandPrixSlug": "saudi-arabian-grand-prix",
+          "grandPrixName": "Saudi Arabian Grand Prix",
+          "sessions": [
+            {
+              "season": 2025,
+              "grandPrixSlug": "saudi-arabian-grand-prix",
+              "sessionSlug": "race",
+              "grandPrixName": "Saudi Arabian Grand Prix",
+              "sessionName": "Race",
+              "sessionKey": 10022,
+              "trackId": "jeddah",
+              "path": "/sessions/2025/saudi-arabian-grand-prix/race"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "season": 2026,
+      "grandsPrix": [
+        {
+          "grandPrixSlug": "japan-grand-prix",
+          "grandPrixName": "Japan Grand Prix",
+          "sessions": [
+            {
+              "season": 2026,
+              "grandPrixSlug": "japan-grand-prix",
+              "sessionSlug": "race",
+              "grandPrixName": "Japan Grand Prix",
+              "sessionName": "Race",
+              "sessionKey": 11253,
+              "trackId": "suzuka",
+              "path": "/sessions/2026/japan-grand-prix/race"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

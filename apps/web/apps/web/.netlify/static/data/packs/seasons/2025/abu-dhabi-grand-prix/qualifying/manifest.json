@@ -1,0 +1,12 @@
+{
+  "sessionKey": 9835,
+  "summary": "summary.json",
+  "drivers": "drivers.json",
+  "laps": "laps.json",
+  "compare": {
+    "VER-NOR": "compare/ver-nor.json"
+  },
+  "strategy": "strategy.json",
+  "stints": "stints.json",
+  "replay": "replay.json"
+}

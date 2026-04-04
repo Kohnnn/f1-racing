@@ -1,0 +1,26 @@
+{
+  "trackId": "yas-marina-circuit",
+  "pitLossS": 18.7,
+  "safetyCarPitLossS": 11.4,
+  "recommendedWindows": [
+    {
+      "lapStart": 1,
+      "lapEnd": 3,
+      "reason": "MEDIUM stint with tyre age 0"
+    },
+    {
+      "lapStart": 1,
+      "lapEnd": 3,
+      "reason": "SOFT stint with tyre age 0"
+    },
+    {
+      "lapStart": 1,
+      "lapEnd": 2,
+      "reason": "SOFT stint with tyre age 0"
+    }
+  ],
+  "weatherCrossover": {
+    "toIntermediate": 0.4,
+    "toWet": 0.58
+  }
+}

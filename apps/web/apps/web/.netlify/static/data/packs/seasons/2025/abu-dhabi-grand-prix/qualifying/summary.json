@@ -1,0 +1,36 @@
+{
+  "season": 2025,
+  "grandPrix": "Abu Dhabi Grand Prix",
+  "session": "Qualifying",
+  "sessionKey": 9835,
+  "trackId": "yas-marina-circuit",
+  "generatedAt": "2026-04-04T06:24:20.395Z",
+  "source": "openf1",
+  "drivers": [
+    "VER",
+    "NOR",
+    "BOR",
+    "HAD",
+    "GAS",
+    "ANT",
+    "ALO",
+    "LEC",
+    "STR",
+    "TSU",
+    "ALB",
+    "HUL",
+    "LAW",
+    "OCO",
+    "COL",
+    "HAM",
+    "SAI",
+    "RUS",
+    "PIA",
+    "BEA"
+  ],
+  "weatherSummary": {
+    "airTempC": 25,
+    "trackTempC": 29,
+    "rainRiskPct": 0
+  }
+}

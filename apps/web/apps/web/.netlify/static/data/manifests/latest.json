@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "seasons": [
+    2025,
+    2026
+  ],
+  "latest": {
+    "season": 2025,
+    "grandPrixSlug": "abu-dhabi-grand-prix",
+    "sessionSlug": "race",
+    "grandPrixName": "Abu Dhabi Grand Prix",
+    "sessionName": "Race",
+    "sessionKey": 9839,
+    "trackId": "yas-marina-circuit",
+    "path": "/sessions/2025/abu-dhabi-grand-prix/race"
+  }
+}

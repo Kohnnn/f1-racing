@@ -1,0 +1,26 @@
+{
+  "trackId": "melbourne",
+  "pitLossS": 19.5,
+  "safetyCarPitLossS": 11.8,
+  "recommendedWindows": [
+    {
+      "lapStart": 1,
+      "lapEnd": 4,
+      "reason": "SOFT stint with tyre age 0"
+    },
+    {
+      "lapStart": 1,
+      "lapEnd": 1,
+      "reason": "SOFT stint with tyre age 0"
+    },
+    {
+      "lapStart": 1,
+      "lapEnd": 4,
+      "reason": "MEDIUM stint with tyre age 0"
+    }
+  ],
+  "weatherCrossover": {
+    "toIntermediate": 0.4,
+    "toWet": 0.58
+  }
+}

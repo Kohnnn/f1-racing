@@ -1,0 +1,202 @@
+[
+  {
+    "driverCode": "VER",
+    "driverNumber": 1,
+    "fullName": "Max VERSTAPPEN",
+    "team": "Red Bull Racing",
+    "bestLap": 17,
+    "bestLapTime": 82.207,
+    "tyreCompound": "SOFT",
+    "stintCount": 6
+  },
+  {
+    "driverCode": "NOR",
+    "driverNumber": 4,
+    "fullName": "Lando NORRIS",
+    "team": "McLaren",
+    "bestLap": 16,
+    "bestLapTime": 82.408,
+    "tyreCompound": "SOFT",
+    "stintCount": 6
+  },
+  {
+    "driverCode": "BOR",
+    "driverNumber": 5,
+    "fullName": "Gabriel BORTOLETO",
+    "team": "Kick Sauber",
+    "bestLap": 14,
+    "bestLapTime": 82.874,
+    "tyreCompound": "SOFT",
+    "stintCount": 7
+  },
+  {
+    "driverCode": "HAD",
+    "driverNumber": 6,
+    "fullName": "Isack HADJAR",
+    "team": "Racing Bulls",
+    "bestLap": 11,
+    "bestLapTime": 82.997,
+    "tyreCompound": "SOFT",
+    "stintCount": 6
+  },
+  {
+    "driverCode": "GAS",
+    "driverNumber": 10,
+    "fullName": "Pierre GASLY",
+    "team": "Alpine",
+    "bestLap": 8,
+    "bestLapTime": 83.468,
+    "tyreCompound": "SOFT",
+    "stintCount": 3
+  },
+  {
+    "driverCode": "ANT",
+    "driverNumber": 12,
+    "fullName": "Kimi ANTONELLI",
+    "team": "Mercedes",
+    "bestLap": 5,
+    "bestLapTime": 82.894,
+    "tyreCompound": "SOFT",
+    "stintCount": 4
+  },
+  {
+    "driverCode": "ALO",
+    "driverNumber": 14,
+    "fullName": "Fernando ALONSO",
+    "team": "Aston Martin",
+    "bestLap": 11,
+    "bestLapTime": 82.861,
+    "tyreCompound": "SOFT",
+    "stintCount": 6
+  },
+  {
+    "driverCode": "LEC",
+    "driverNumber": 16,
+    "fullName": "Charles LECLERC",
+    "team": "Ferrari",
+    "bestLap": 17,
+    "bestLapTime": 82.73,
+    "tyreCompound": "SOFT",
+    "stintCount": 6
+  },
+  {
+    "driverCode": "STR",
+    "driverNumber": 18,
+    "fullName": "Lance STROLL",
+    "team": "Aston Martin",
+    "bestLap": 14,
+    "bestLapTime": 83.097,
+    "tyreCompound": "SOFT",
+    "stintCount": 4
+  },
+  {
+    "driverCode": "TSU",
+    "driverNumber": 22,
+    "fullName": "Yuki TSUNODA",
+    "team": "Red Bull Racing",
+    "bestLap": 11,
+    "bestLapTime": 83.034,
+    "tyreCompound": "SOFT",
+    "stintCount": 6
+  },
+  {
+    "driverCode": "ALB",
+    "driverNumber": 23,
+    "fullName": "Alexander ALBON",
+    "team": "Williams",
+    "bestLap": 5,
+    "bestLapTime": 83.416,
+    "tyreCompound": "SOFT",
+    "stintCount": 2
+  },
+  {
+    "driverCode": "HUL",
+    "driverNumber": 27,
+    "fullName": "Nico HULKENBERG",
+    "team": "Kick Sauber",
+    "bestLap": 8,
+    "bestLapTime": 83.45,
+    "tyreCompound": "SOFT",
+    "stintCount": 3
+  },
+  {
+    "driverCode": "LAW",
+    "driverNumber": 30,
+    "fullName": "Liam LAWSON",
+    "team": "Racing Bulls",
+    "bestLap": 13,
+    "bestLapTime": 83.077,
+    "tyreCompound": "SOFT",
+    "stintCount": 5
+  },
+  {
+    "driverCode": "OCO",
+    "driverNumber": 31,
+    "fullName": "Esteban OCON",
+    "team": "Haas F1 Team",
+    "bestLap": 17,
+    "bestLapTime": 82.913,
+    "tyreCompound": "SOFT",
+    "stintCount": 6
+  },
+  {
+    "driverCode": "COL",
+    "driverNumber": 43,
+    "fullName": "Franco COLAPINTO",
+    "team": "Alpine",
+    "bestLap": 8,
+    "bestLapTime": 83.89,
+    "tyreCompound": "SOFT",
+    "stintCount": 3
+  },
+  {
+    "driverCode": "HAM",
+    "driverNumber": 44,
+    "fullName": "Lewis HAMILTON",
+    "team": "Ferrari",
+    "bestLap": 5,
+    "bestLapTime": 83.394,
+    "tyreCompound": "SOFT",
+    "stintCount": 3
+  },
+  {
+    "driverCode": "SAI",
+    "driverNumber": 55,
+    "fullName": "Carlos SAINZ",
+    "team": "Williams",
+    "bestLap": 11,
+    "bestLapTime": 83.042,
+    "tyreCompound": "SOFT",
+    "stintCount": 4
+  },
+  {
+    "driverCode": "RUS",
+    "driverNumber": 63,
+    "fullName": "George RUSSELL",
+    "team": "Mercedes",
+    "bestLap": 17,
+    "bestLapTime": 82.645,
+    "tyreCompound": "SOFT",
+    "stintCount": 6
+  },
+  {
+    "driverCode": "PIA",
+    "driverNumber": 81,
+    "fullName": "Oscar PIASTRI",
+    "team": "McLaren",
+    "bestLap": 16,
+    "bestLapTime": 82.437,
+    "tyreCompound": "SOFT",
+    "stintCount": 6
+  },
+  {
+    "driverCode": "BEA",
+    "driverNumber": 87,
+    "fullName": "Oliver BEARMAN",
+    "team": "Haas F1 Team",
+    "bestLap": 10,
+    "bestLapTime": 83.041,
+    "tyreCompound": "SOFT",
+    "stintCount": 4
+  }
+]
