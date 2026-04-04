@@ -44,7 +44,7 @@ function intervalLabel(interval: number | null) {
 }
 
 export function ReplayView({ replay, manifest, summary, compare, route, stintPack }: ReplayViewProps) {
-  const [currentFrameIndex, setCurrentFrameIndex] = useState(0);
+  const [playheadTime, setPlayheadTime] = useState(replay.frames[0]?.t || 0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [selectedDrivers, setSelectedDrivers] = useState<string[]>([]);
@@ -60,9 +60,29 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
     setFocusId(params.get("focus"));
   }, []);
 
-  const currentFrame = replay.frames[currentFrameIndex] || null;
-  const currentTime = currentFrame?.t || 0;
   const totalTime = replay.frames.at(-1)?.t || 0;
+  const findFrameIndexForTime = useCallback((time: number) => {
+    let left = 0;
+    let right = replay.frames.length - 1;
+    let result = 0;
+
+    while (left <= right) {
+      const mid = Math.floor((left + right) / 2);
+      if (replay.frames[mid].t <= time) {
+        result = mid;
+        left = mid + 1;
+      } else {
+        right = mid - 1;
+      }
+    }
+
+    return result;
+  }, [replay.frames]);
+
+  const currentFrameIndex = useMemo(() => findFrameIndexForTime(playheadTime), [findFrameIndexForTime, playheadTime]);
+  const currentFrame = replay.frames[currentFrameIndex] || null;
+  const nextFrame = replay.frames[currentFrameIndex + 1] || null;
+  const currentTime = playheadTime;
   const trackStatus = currentFrame?.trackStatus || "GREEN";
   const currentLap = currentFrame?.lap || null;
   const totalLaps = Math.max(...replay.laps.map((lap) => lap.lapNumber), 0);
@@ -154,28 +174,10 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
     : null;
   const featuredStintHref = manifest.stints ? `/stints/${route.season}/${route.grandPrix}/${route.session}` : null;
 
-  const findFrameIndexForTime = useCallback((time: number) => {
-    let left = 0;
-    let right = replay.frames.length - 1;
-    let result = 0;
-
-    while (left <= right) {
-      const mid = Math.floor((left + right) / 2);
-      if (replay.frames[mid].t <= time) {
-        result = mid;
-        left = mid + 1;
-      } else {
-        right = mid - 1;
-      }
-    }
-
-    return result;
-  }, [replay.frames]);
-
   const handleSeek = useCallback((time: number) => {
-    setCurrentFrameIndex(findFrameIndexForTime(time));
+    setPlayheadTime(Math.max(0, Math.min(totalTime, time)));
     setIsPlaying(false);
-  }, [findFrameIndexForTime]);
+  }, [totalTime]);
 
   const handleSkipTime = useCallback((delta: number) => {
     const next = Math.max(0, Math.min(totalTime, currentTime + delta));
@@ -185,7 +187,8 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
   const handleSkipLap = useCallback((delta: number) => {
     const targetLap = Math.max(1, (currentLap || 1) + delta);
     const targetFrame = replay.frames.findIndex((frame) => (frame.lap || 0) >= targetLap);
-    setCurrentFrameIndex(targetFrame === -1 ? replay.frames.length - 1 : targetFrame);
+    const frame = replay.frames[targetFrame === -1 ? replay.frames.length - 1 : targetFrame];
+    setPlayheadTime(frame?.t || 0);
     setIsPlaying(false);
   }, [currentLap, replay.frames]);
 
@@ -218,19 +221,17 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
     const deltaMs = timestamp - lastTimeRef.current;
     lastTimeRef.current = timestamp;
 
-    setCurrentFrameIndex((previous) => {
-      const nextTime = (replay.frames[previous]?.t || 0) + (deltaMs / 1000) * playbackSpeed;
+    setPlayheadTime((previous) => {
+      const nextTime = previous + (deltaMs / 1000) * playbackSpeed;
       if (nextTime >= totalTime) {
         setIsPlaying(false);
-        return replay.frames.length - 1;
+        return totalTime;
       }
-      return findFrameIndexForTime(nextTime);
+      return nextTime;
     });
 
-    if (isPlaying) {
-      animationRef.current = requestAnimationFrame(animate);
-    }
-  }, [findFrameIndexForTime, isPlaying, playbackSpeed, replay.frames, totalTime]);
+    animationRef.current = requestAnimationFrame(animate);
+  }, [playbackSpeed, totalTime]);
 
   useEffect(() => {
     if (isPlaying) {
@@ -363,8 +364,9 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
               trackPath={replay.trackPath}
               drivers={replay.drivers}
               currentFrame={currentFrame}
+              currentTime={currentTime}
+              nextFrame={nextFrame}
               selectedDrivers={selectedDrivers}
-              playbackSpeed={playbackSpeed}
               onDriverClick={handleDriverSelect}
             />
 
@@ -431,12 +433,17 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
         currentLap={currentLap}
         totalLaps={totalLaps}
         trackStatus={trackStatus}
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
         onSpeedChange={setPlaybackSpeed}
         onSeek={handleSeek}
         onSkipLap={handleSkipLap}
         onSkipTime={handleSkipTime}
+        onPlay={() => {
+          if (playheadTime >= totalTime) {
+            setPlayheadTime(0);
+          }
+          setIsPlaying(true);
+        }}
+        onPause={() => setIsPlaying(false)}
       />
 
       {compare ? <ReplayComparePanel compare={compare} legacyHref={featuredCompareHref} /> : null}

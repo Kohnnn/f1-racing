@@ -510,6 +510,11 @@ function pickShowcaseRef(refs) {
   return refs.at(-1) ?? sample.ref;
 }
 
+function getIndexedRefs(refs) {
+  const visibleRefs = refs.filter((ref) => ref.grandPrixSlug !== "demo-weekend");
+  return visibleRefs.length ? visibleRefs : refs;
+}
+
 async function syncDirectory(sourceDir, destinationDir) {
   await mkdir(destinationDir, { recursive: true });
   const entries = await readdir(sourceDir, { withFileTypes: true });
@@ -557,17 +562,18 @@ async function generate() {
   await writeMirrored(path.join(base, "stints.json"), sample.stints);
 
   const refs = await readAvailablePackRefs();
-  const showcaseRef = pickShowcaseRef(refs);
+  const indexedRefs = getIndexedRefs(refs);
+  const showcaseRef = pickShowcaseRef(indexedRefs);
   const latest = {
     version: 1,
-    seasons: Array.from(new Set(refs.map((ref) => ref.season))),
+    seasons: Array.from(new Set(indexedRefs.map((ref) => ref.season))),
     latest: showcaseRef,
   };
 
   const seasons = {
     generatedAt: sample.summary.generatedAt,
-    seasons: Array.from(new Set(refs.map((ref) => ref.season))).map((season) => {
-      const seasonRefs = refs.filter((ref) => ref.season === season);
+    seasons: Array.from(new Set(indexedRefs.map((ref) => ref.season))).map((season) => {
+      const seasonRefs = indexedRefs.filter((ref) => ref.season === season);
       const grandsPrix = Array.from(new Set(seasonRefs.map((ref) => ref.grandPrixSlug))).map((grandPrixSlug) => {
         const grandPrixRefs = seasonRefs.filter((ref) => ref.grandPrixSlug === grandPrixSlug);
         return {

@@ -385,7 +385,19 @@ export async function getLatestManifest() {
 }
 
 export async function getSeasonIndex() {
-  return readJson<SeasonIndex>(path.join("manifests", "seasons.json"));
+  const index = await readJson<SeasonIndex>(path.join("manifests", "seasons.json"));
+
+  const filteredSeasons = index.seasons
+    .map((season) => ({
+      ...season,
+      grandsPrix: season.grandsPrix.filter((grandPrix) => grandPrix.grandPrixSlug !== "demo-weekend"),
+    }))
+    .filter((season) => season.grandsPrix.length > 0);
+
+  return {
+    ...index,
+    seasons: filteredSeasons,
+  };
 }
 
 export async function getSessionManifest(season: number | string, grandPrix: string, session: string) {
