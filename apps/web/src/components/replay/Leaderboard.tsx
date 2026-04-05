@@ -56,6 +56,14 @@ function tyreColor(compound: string | null) {
 export function Leaderboard({ drivers, selectedDrivers, onDriverSelect }: LeaderboardProps) {
   return (
     <div className="replay-leaderboard">
+      <div className="replay-leaderboard__toolbar">
+        <div>
+          <p className="eyebrow">Live order</p>
+          <strong>Leaderboard</strong>
+        </div>
+        <span>{selectedDrivers.length ? `${selectedDrivers.length} selected` : "Click to inspect"}</span>
+      </div>
+
       <div className="replay-leaderboard__header">
         <span>Pos</span>
         <span>Driver</span>
@@ -71,6 +79,7 @@ export function Leaderboard({ drivers, selectedDrivers, onDriverSelect }: Leader
               key={driver.abbr}
               type="button"
               className={`replay-leaderboard__row${isSelected ? " replay-leaderboard__row--selected" : ""}`}
+              title={`${driver.fullName} · ${driver.team}`}
               onClick={(event) => onDriverSelect(driver.abbr, event.shiftKey || event.metaKey || event.ctrlKey)}
             >
               <span className="replay-leaderboard__position">{driver.position ?? "-"}</span>
@@ -78,7 +87,7 @@ export function Leaderboard({ drivers, selectedDrivers, onDriverSelect }: Leader
                 <span className="replay-leaderboard__stripe" style={{ backgroundColor: driver.color }} />
                 <span className="replay-leaderboard__identity">
                   <strong>{driver.abbr}</strong>
-                  <span>{driver.team}</span>
+                  <span>{driver.fullName}</span>
                 </span>
               </span>
               <span className="replay-leaderboard__gap">{driver.intervalLabel}</span>

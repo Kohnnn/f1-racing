@@ -24,7 +24,7 @@ export function ReplayComparePanel({ compare, legacyHref }: { compare: ComparePa
         </div>
       </div>
       <p className="replay-insight-panel__lead">
-        Keep the compare read inside replay. Use the delta sections and derived events below when you need quick lap context without leaving the playback workspace.
+        Featured lap pair from this replay. Use the section deltas and derived events below when you want quick context without leaving the playback workspace.
       </p>
       <div className="replay-insight-grid">
         <div>
@@ -72,7 +72,7 @@ export function ReplayStintPanel({ stintPack, legacyHref }: { stintPack: StintPa
         </div>
       </div>
       <p className="replay-insight-panel__lead">
-        Use stint shape as an in-replay strategy layer. These cards summarize the latest compound, average pace, and tyre fade without sending you to a separate page.
+        Latest tyre-window read for the featured pack. Compound, pace, and fade stay visible here instead of living on a separate route.
       </p>
       <div className="replay-stint-grid">
         {featuredDrivers.map((driver) => {
@@ -82,7 +82,7 @@ export function ReplayStintPanel({ stintPack, legacyHref }: { stintPack: StintPa
           }
 
           return (
-            <article className="panel panel--nested replay-stint-card" key={driver.driverCode}>
+            <article className="replay-stint-card" key={driver.driverCode}>
               <p className="eyebrow">{driver.team}</p>
               <h3>{driver.driverCode}</h3>
               <div className="metric-grid">

@@ -43,6 +43,24 @@ function intervalLabel(interval: number | null) {
   return `+${interval.toFixed(3)}`;
 }
 
+function formatSlugLabel(value: string) {
+  return value
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function formatReplaySource(source: ReplayPack["source"]) {
+  switch (source) {
+    case "fastf1":
+      return "FastF1 feed";
+    case "openf1":
+      return "OpenF1 feed";
+    default:
+      return source;
+  }
+}
+
 export function ReplayView({ replay, manifest, summary, compare, route, stintPack }: ReplayViewProps) {
   const [playheadTime, setPlayheadTime] = useState(replay.frames[0]?.t || 0);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -87,6 +105,8 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
   const currentLap = currentFrame?.lap || null;
   const totalLaps = Math.max(...replay.laps.map((lap) => lap.lapNumber), 0);
   const replayFocus = getFocusPoint(focusId);
+  const trackLabel = formatSlugLabel(replay.trackId);
+  const replaySourceLabel = formatReplaySource(replay.source);
 
   const driverInfoByCode = useMemo(
     () => new Map(replay.drivers.map((driver) => [driver.driverCode, driver])),
@@ -141,13 +161,20 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
       });
   }, [currentFrame, driverInfoByCode, lapHistoryByDriver]);
 
-  const suggestedDriver = useMemo(() => {
-    const fastestLap = replay.laps
-      .filter((lap) => lap.lapTime !== null)
+  const fastestLap = useMemo(() => {
+    const completedLaps = replay.laps.filter((lap) => lap.lapTime !== null);
+    if (!completedLaps.length) {
+      return null;
+    }
+
+    return completedLaps
       .slice()
       .sort((left, right) => (left.lapTime ?? Infinity) - (right.lapTime ?? Infinity))[0];
+  }, [replay.laps]);
+
+  const suggestedDriver = useMemo(() => {
     return fastestLap?.driverCode ?? displayedDrivers[0]?.abbr ?? null;
-  }, [displayedDrivers, replay.laps]);
+  }, [displayedDrivers, fastestLap]);
 
   useEffect(() => {
     if (selectedDrivers.length) {
@@ -167,6 +194,16 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
     return replay.raceControlMessages.filter((message) => message.t <= currentTime).slice(-4).reverse();
   }, [currentTime, replay.raceControlMessages]);
   const currentWeather = currentFrame?.weather || null;
+  const weatherLabel = currentWeather
+    ? `${currentWeather.airTempC}C air · ${currentWeather.trackTempC}C track`
+    : `${summary.weatherSummary.airTempC}C air · ${summary.weatherSummary.trackTempC}C track`;
+  const windLabel = currentWeather
+    ? `${currentWeather.windSpeedMps.toFixed(1)} m/s · ${Math.round(currentWeather.windDirectionDeg)}°`
+    : `Rain risk ${summary.weatherSummary.rainRiskPct}%`;
+  const selectedDriverLabel = selectedTelemetryDrivers.length
+    ? selectedTelemetryDrivers.map((driver) => driver.abbr).join(" · ")
+    : "No drivers selected";
+  const leadDriver = displayedDrivers[0] || null;
 
   const featuredCompareKey = Object.keys(manifest.compare ?? {})[0] ?? null;
   const featuredCompareHref = featuredCompareKey
@@ -306,24 +343,47 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
       <section className="replay-session-banner">
         <div className="replay-session-banner__identity">
           <p className="eyebrow">Replay workspace</p>
-          <h1>{replay.grandPrix} · {replay.session}</h1>
+          <h1>{replay.grandPrix}</h1>
           <p>
-            Replay is the main product surface. Modelview and Learn stay available when you need engineering context, but the lap story starts here.
+            {replay.session} replay at {trackLabel}. Live order, race control, and selected telemetry stay on one surface so the lap story reads like a control room instead of a route switch.
           </p>
         </div>
         <div className="replay-session-banner__facts">
-          <span>{currentWeather ? `${currentWeather.airTempC}C / ${currentWeather.trackTempC}C` : `${summary.weatherSummary.airTempC}C / ${summary.weatherSummary.trackTempC}C`}</span>
-          <span>{currentWeather ? `Humidity ${currentWeather.humidityPct}%` : `Rain risk ${summary.weatherSummary.rainRiskPct}%`}</span>
-          <span>{currentWeather ? `${currentWeather.windSpeedMps.toFixed(1)} m/s @ ${Math.round(currentWeather.windDirectionDeg)}°` : `Rain risk ${summary.weatherSummary.rainRiskPct}%`}</span>
-          <span>Session key {replay.sessionKey}</span>
-          <span>{currentLap ? `Lap ${currentLap}` : "Lap -"}</span>
-          <span>{formatSeconds(currentTime)} / {formatSeconds(totalTime)}</span>
+          <article className="replay-session-banner__fact">
+            <span>Status</span>
+            <strong>{trackStatus}</strong>
+          </article>
+          <article className="replay-session-banner__fact">
+            <span>Replay clock</span>
+            <strong>{formatSeconds(currentTime)} / {formatSeconds(totalTime)}</strong>
+          </article>
+          <article className="replay-session-banner__fact">
+            <span>Lap</span>
+            <strong>{currentLap ? `${currentLap}${totalLaps ? ` / ${totalLaps}` : ""}` : totalLaps ? `- / ${totalLaps}` : "-"}</strong>
+          </article>
+          <article className="replay-session-banner__fact">
+            <span>Track</span>
+            <strong>{trackLabel}</strong>
+          </article>
+          <article className="replay-session-banner__fact">
+            <span>Weather</span>
+            <strong>{weatherLabel}</strong>
+          </article>
+          <article className="replay-session-banner__fact">
+            <span>{currentWeather ? "Wind" : "Forecast"}</span>
+            <strong>{windLabel}</strong>
+          </article>
         </div>
-        <div className="replay-session-banner__actions">
-          <a href="/replay">Replay library</a>
-          <a href="/cars/current-spec">Modelview</a>
-          <a href="/learn">Learn</a>
-          <a href={`/sessions/${route.season}/${route.grandPrix}/${route.session}`}>Session summary</a>
+        <div className="replay-session-banner__footer">
+          <p className="replay-session-banner__note">
+            {replay.note || `${replaySourceLabel} · session key ${replay.sessionKey}`}
+          </p>
+          <div className="replay-session-banner__actions">
+            <a className="replay-session-banner__action replay-session-banner__action--primary" href="/replay">Replay library</a>
+            <a className="replay-session-banner__action" href="/cars/current-spec">Modelview</a>
+            <a className="replay-session-banner__action" href="/learn">Learn</a>
+            <a className="replay-session-banner__action" href={`/sessions/${route.season}/${route.grandPrix}/${route.session}`}>Session summary</a>
+          </div>
         </div>
       </section>
 
@@ -349,13 +409,26 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
       <div className="replay-workspace-grid">
         <section className="replay-track-panel">
           <div className="replay-track-panel__header">
-            <div>
-              <span>Track map</span>
-              <strong>{trackStatus}</strong>
+            <div className="replay-track-panel__title">
+              <p className="eyebrow">Track stage</p>
+              <h2>{trackLabel}</h2>
+              <p>
+                Click any marker to isolate a car. Shift-click keeps a comparison set of up to four drivers pinned into the telemetry deck below.
+              </p>
             </div>
-            <div>
-              <span>Selected drivers</span>
-              <strong>{selectedDrivers.length || 0}</strong>
+            <div className="replay-track-panel__stats">
+              <div>
+                <span>Track status</span>
+                <strong>{trackStatus}</strong>
+              </div>
+              <div>
+                <span>Selected</span>
+                <strong>{selectedDrivers.length || 0}</strong>
+              </div>
+              <div>
+                <span>Messages</span>
+                <strong>{activeRaceControlMessages.length || 0}</strong>
+              </div>
             </div>
           </div>
 
@@ -390,11 +463,29 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
 
         <aside className="replay-side-column">
           <section className="replay-side-card">
-            <p className="eyebrow">Replay workflow</p>
-            <h3>Use replay as the control room.</h3>
+            <p className="eyebrow">Current read</p>
+            <h3>{selectedTelemetryDrivers.length ? `Telemetry on ${selectedDriverLabel}` : leadDriver ? `${leadDriver.abbr} leads the field` : "Pick a driver to inspect"}</h3>
             <p>
-              Click a driver to isolate their telemetry. Shift-click to compare multiple drivers. The old compare and stint pages now mirror the same read below instead of owning the flow.
+              Track clicks and leaderboard picks feed the same telemetry deck. Keep fast context here, then use compare or stints lower down when you need a deeper supporting read.
             </p>
+            <dl className="replay-side-card__stats">
+              <div>
+                <dt>Leader</dt>
+                <dd>{leadDriver ? `${leadDriver.abbr} · ${leadDriver.team}` : "-"}</dd>
+              </div>
+              <div>
+                <dt>Fastest lap</dt>
+                <dd>{fastestLap?.lapTime ? `${fastestLap.driverCode} · ${formatLapTime(fastestLap.lapTime)}` : "-"}</dd>
+              </div>
+              <div>
+                <dt>Selected</dt>
+                <dd>{selectedDriverLabel}</dd>
+              </div>
+              <div>
+                <dt>Hotkeys</dt>
+                <dd>Space · [ ] · 1-4x</dd>
+              </div>
+            </dl>
           </section>
 
           <Leaderboard
@@ -406,11 +497,23 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
       </div>
 
       <section className="replay-telemetry-panel">
-        <div className="section-header">
+        <div className="section-header replay-telemetry-panel__header">
           <div>
             <p className="eyebrow">Driver telemetry</p>
             <h2>{selectedTelemetryDrivers.length ? "Selected telemetry strips" : "Select drivers from the leaderboard"}</h2>
           </div>
+          {selectedTelemetryDrivers.length ? (
+            <div className="replay-telemetry-panel__selection">
+              {selectedTelemetryDrivers.map((driver) => (
+                <span className="replay-telemetry-panel__selection-chip" key={driver.abbr}>
+                  <span className="replay-telemetry-panel__selection-dot" style={{ backgroundColor: driver.color }} />
+                  <strong>{driver.abbr}</strong>
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="replay-telemetry-panel__hint">Use the track map or leaderboard to load telemetry cards.</p>
+          )}
         </div>
         {selectedTelemetryDrivers.length ? (
           <div className="replay-telemetry-stack">
