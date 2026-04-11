@@ -10,6 +10,8 @@ import { ReplayComparePanel, ReplayStintPanel } from "./replay-insights";
 import { ReplayTelemetryStrip } from "./replay-telemetry-strip";
 import { TrackCanvas } from "./TrackCanvas";
 
+const UI_SYNC_INTERVAL_MS = 180;
+
 interface ReplayViewProps {
   replay: ReplayPack;
   manifest: SessionManifest;
@@ -21,6 +23,7 @@ interface ReplayViewProps {
     session: string;
   };
   stintPack: StintPack | null;
+  onEnsureTimeLoaded?: (time: number) => void;
 }
 
 function formatSeconds(seconds: number) {
@@ -61,14 +64,21 @@ function formatReplaySource(source: ReplayPack["source"]) {
   }
 }
 
-export function ReplayView({ replay, manifest, summary, compare, route, stintPack }: ReplayViewProps) {
-  const [playheadTime, setPlayheadTime] = useState(replay.frames[0]?.t || 0);
+export function ReplayView({ replay, manifest, summary, compare, route, stintPack, onEnsureTimeLoaded }: ReplayViewProps) {
+  const initialTime = replay.frames[0]?.t || 0;
+  const [playbackState, setPlaybackState] = useState(() => ({
+    currentTime: initialTime,
+    frameIndex: 0,
+  }));
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [selectedDrivers, setSelectedDrivers] = useState<string[]>([]);
   const [focusId, setFocusId] = useState<string | null>(null);
   const animationRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(0);
+  const playheadTimeRef = useRef(initialTime);
+  const frameIndexRef = useRef(0);
+  const lastUiSyncRef = useRef(initialTime);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -78,7 +88,8 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
     setFocusId(params.get("focus"));
   }, []);
 
-  const totalTime = replay.frames.at(-1)?.t || 0;
+  const totalTime = replay.totalTime ?? (replay.frames.at(-1)?.t || 0);
+  const loadedEndTime = replay.frames.at(-1)?.t || 0;
   const findFrameIndexForTime = useCallback((time: number) => {
     let left = 0;
     let right = replay.frames.length - 1;
@@ -97,10 +108,10 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
     return result;
   }, [replay.frames]);
 
-  const currentFrameIndex = useMemo(() => findFrameIndexForTime(playheadTime), [findFrameIndexForTime, playheadTime]);
+  const currentFrameIndex = playbackState.frameIndex;
   const currentFrame = replay.frames[currentFrameIndex] || null;
   const nextFrame = replay.frames[currentFrameIndex + 1] || null;
-  const currentTime = playheadTime;
+  const currentTime = playbackState.currentTime;
   const trackStatus = currentFrame?.trackStatus || "GREEN";
   const currentLap = currentFrame?.lap || null;
   const totalLaps = Math.max(...replay.laps.map((lap) => lap.lapNumber), 0);
@@ -211,23 +222,33 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
     : null;
   const featuredStintHref = manifest.stints ? `/stints/${route.season}/${route.grandPrix}/${route.session}` : null;
 
+  const syncPlaybackState = useCallback((time: number, frameIndex: number) => {
+    playheadTimeRef.current = time;
+    frameIndexRef.current = frameIndex;
+    lastUiSyncRef.current = time;
+    setPlaybackState({ currentTime: time, frameIndex });
+  }, []);
+
   const handleSeek = useCallback((time: number) => {
-    setPlayheadTime(Math.max(0, Math.min(totalTime, time)));
+    const nextTime = Math.max(0, Math.min(totalTime, time));
+    onEnsureTimeLoaded?.(nextTime);
+    const nextFrameIndex = findFrameIndexForTime(nextTime);
+    syncPlaybackState(nextTime, nextFrameIndex);
     setIsPlaying(false);
-  }, [totalTime]);
+  }, [findFrameIndexForTime, onEnsureTimeLoaded, syncPlaybackState, totalTime]);
 
   const handleSkipTime = useCallback((delta: number) => {
-    const next = Math.max(0, Math.min(totalTime, currentTime + delta));
+    const next = Math.max(0, Math.min(totalTime, playheadTimeRef.current + delta));
     handleSeek(next);
-  }, [currentTime, handleSeek, totalTime]);
+  }, [handleSeek, totalTime]);
 
   const handleSkipLap = useCallback((delta: number) => {
     const targetLap = Math.max(1, (currentLap || 1) + delta);
     const targetFrame = replay.frames.findIndex((frame) => (frame.lap || 0) >= targetLap);
     const frame = replay.frames[targetFrame === -1 ? replay.frames.length - 1 : targetFrame];
-    setPlayheadTime(frame?.t || 0);
+    syncPlaybackState(frame?.t || 0, targetFrame === -1 ? replay.frames.length - 1 : targetFrame);
     setIsPlaying(false);
-  }, [currentLap, replay.frames]);
+  }, [currentLap, replay.frames, syncPlaybackState]);
 
   const handleDriverSelect = useCallback((driverCode: string | null, append: boolean) => {
     if (!driverCode) {
@@ -258,17 +279,52 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
     const deltaMs = timestamp - lastTimeRef.current;
     lastTimeRef.current = timestamp;
 
-    setPlayheadTime((previous) => {
-      const nextTime = previous + (deltaMs / 1000) * playbackSpeed;
-      if (nextTime >= totalTime) {
-        setIsPlaying(false);
-        return totalTime;
-      }
-      return nextTime;
-    });
+    const nextTime = playheadTimeRef.current + (deltaMs / 1000) * playbackSpeed;
+    if (nextTime >= totalTime) {
+      syncPlaybackState(totalTime, replay.frames.length - 1);
+      setIsPlaying(false);
+      return;
+    }
+
+    if (nextTime > loadedEndTime && loadedEndTime < totalTime) {
+      onEnsureTimeLoaded?.(nextTime);
+      playheadTimeRef.current = loadedEndTime;
+      animationRef.current = requestAnimationFrame(animate);
+      return;
+    }
+
+    playheadTimeRef.current = nextTime;
+    onEnsureTimeLoaded?.(nextTime + playbackSpeed * 12);
+    const nextFrameIndex = findFrameIndexForTime(nextTime);
+    const frameChanged = nextFrameIndex !== frameIndexRef.current;
+    const uiDue = (nextTime - lastUiSyncRef.current) * 1000 >= UI_SYNC_INTERVAL_MS;
+
+    if (frameChanged || uiDue) {
+      frameIndexRef.current = nextFrameIndex;
+      lastUiSyncRef.current = nextTime;
+      setPlaybackState({ currentTime: nextTime, frameIndex: nextFrameIndex });
+    }
 
     animationRef.current = requestAnimationFrame(animate);
-  }, [playbackSpeed, totalTime]);
+  }, [findFrameIndexForTime, loadedEndTime, onEnsureTimeLoaded, playbackSpeed, replay.frames.length, syncPlaybackState, totalTime]);
+
+  useEffect(() => {
+    onEnsureTimeLoaded?.(currentTime + playbackSpeed * 12);
+  }, [currentTime, onEnsureTimeLoaded, playbackSpeed]);
+
+  useEffect(() => {
+    const nextFrameIndex = findFrameIndexForTime(playheadTimeRef.current);
+    frameIndexRef.current = nextFrameIndex;
+    setPlaybackState((previous) => {
+      if (previous.frameIndex === nextFrameIndex && previous.currentTime === playheadTimeRef.current) {
+        return previous;
+      }
+      return {
+        currentTime: playheadTimeRef.current,
+        frameIndex: nextFrameIndex,
+      };
+    });
+  }, [findFrameIndexForTime, replay.frames]);
 
   useEffect(() => {
     if (isPlaying) {
@@ -437,7 +493,6 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
               trackPath={replay.trackPath}
               drivers={replay.drivers}
               currentFrame={currentFrame}
-              currentTime={currentTime}
               nextFrame={nextFrame}
               selectedDrivers={selectedDrivers}
               onDriverClick={handleDriverSelect}
@@ -541,8 +596,8 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
         onSkipLap={handleSkipLap}
         onSkipTime={handleSkipTime}
         onPlay={() => {
-          if (playheadTime >= totalTime) {
-            setPlayheadTime(0);
+          if (playheadTimeRef.current >= totalTime) {
+            syncPlaybackState(0, 0);
           }
           setIsPlaying(true);
         }}

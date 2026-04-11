@@ -7,10 +7,14 @@
     "workers/*"
   ],
   "scripts": {
-    "dev": "npm run generate:sample && npm run dev -w @f1-racing/web",
-    "build": "npm run generate:sample && npm run build -w @f1-racing/web",
-    "build:pages": "npm run generate:sample && npm run build -w @f1-racing/web",
+    "dev": "npm run sync:models && npm run generate:sample && npm run split:replay && npm run dev -w @f1-racing/web",
+    "build": "npm run sync:models && npm run generate:sample && npm run split:replay && npm run build -w @f1-racing/web",
+    "build:pages": "npm run sync:models && npm run generate:sample && npm run split:replay && npm run build -w @f1-racing/web",
     "generate:sample": "node pipeline/export/src/generate-sample-data.mjs",
+    "sync:models": "node pipeline/export/src/sync-web-models.mjs",
+    "split:replay": "node pipeline/export/src/split-replay-packs.mjs",
+    "api:dev": "python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8080",
+    "api:start": "python -m uvicorn backend.main:app --host 0.0.0.0 --port 8080",
     "check:data": "node pipeline/export/src/generate-sample-data.mjs --check",
     "init:openfoam:local": "node pipeline/openfoam/src/init-openfoam-local.mjs",
     "build:openfoam:overlay": "node pipeline/openfoam/src/build-openfoam-overlay-pack.mjs",

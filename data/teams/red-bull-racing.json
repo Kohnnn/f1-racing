@@ -1,0 +1,29 @@
+{
+  "id": "red-bull-racing",
+  "displayName": "Red Bull Racing",
+  "fullTeamName": "Oracle Red Bull Racing",
+  "base": "Milton Keynes, United Kingdom",
+  "teamChief": "Laurent Mekies",
+  "technicalChief": "Pierre Wache",
+  "powerUnit": "Red Bull Ford",
+  "logo": "/images/teams/red-bull/logo.webp",
+  "carImage": "/images/teams/red-bull/car-right.webp",
+  "source": {
+    "label": "Formula1.com Red Bull Racing team page",
+    "url": "https://www.formula1.com/en/teams/red-bull-racing"
+  },
+  "drivers": [
+    {
+      "name": "Max Verstappen",
+      "role": "Driver",
+      "image": "/images/teams/red-bull/max-verstappen.webp",
+      "profileUrl": "https://www.formula1.com/en/drivers/max-verstappen"
+    },
+    {
+      "name": "Isack Hadjar",
+      "role": "Driver",
+      "image": "/images/teams/red-bull/isack-hadjar.webp",
+      "profileUrl": "https://www.formula1.com/en/drivers/isack-hadjar"
+    }
+  ]
+}

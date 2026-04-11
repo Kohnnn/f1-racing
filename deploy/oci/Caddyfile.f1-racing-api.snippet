@@ -1,0 +1,14 @@
+f1-api.129.150.58.64.sslip.io {
+	encode gzip zstd
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+
+	handle {
+		reverse_proxy f1-racing-api:8080
+	}
+}

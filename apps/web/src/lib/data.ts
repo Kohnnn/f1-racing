@@ -228,6 +228,28 @@ export interface CarModelCatalog {
   }>;
 }
 
+export interface TeamProfile {
+  id: string;
+  displayName: string;
+  fullTeamName: string;
+  base: string;
+  teamChief: string;
+  technicalChief: string;
+  powerUnit: string;
+  logo: string;
+  carImage: string;
+  source: {
+    label: string;
+    url: string;
+  };
+  drivers: Array<{
+    name: string;
+    role: string;
+    image: string;
+    profileUrl: string;
+  }>;
+}
+
 export interface WindScenarioCatalog {
   generatedAt: string;
   source: {
@@ -436,6 +458,10 @@ export async function getCarModelCatalog() {
   return readJson<CarModelCatalog>(path.join("packs", "cars", "catalog.json"));
 }
 
+export async function getTeamProfile(id: string) {
+  return readJson<TeamProfile>(path.join("teams", `${id}.json`));
+}
+
 export async function getWindScenarioCatalog() {
   return readJson<WindScenarioCatalog>(path.join("packs", "sims", "fs-cfd-database-source.json"));
 }
@@ -530,6 +556,23 @@ export interface ReplayPack {
   trackPath: [number, number][] | null;
   laps: ReplayLap[];
   raceControlMessages?: ReplayRaceControlMessage[];
+  totalTime?: number;
+  frameCount?: number;
+  frameChunkSize?: number;
+  frameChunks?: string[];
+  frameChunkIndex?: Array<{
+    index: number;
+    fromTime: number;
+    toTime: number;
+    path: string;
+  }>;
+  frames: ReplayFrame[];
+}
+
+export interface ReplayFrameChunk {
+  index: number;
+  fromTime: number;
+  toTime: number;
   frames: ReplayFrame[];
 }
 

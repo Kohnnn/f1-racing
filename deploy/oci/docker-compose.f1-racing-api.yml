@@ -1,0 +1,15 @@
+services:
+  f1-racing-api:
+    container_name: f1-racing-api
+    build:
+      context: ../..
+      dockerfile: backend/Dockerfile
+    env_file:
+      - ./f1-racing-api.env
+    restart: unless-stopped
+    networks:
+      - vnibb_default
+
+networks:
+  vnibb_default:
+    external: true

@@ -469,7 +469,16 @@ a {
   width: 100%;
   min-height: 760px;
   height: 100%;
+  object-fit: contain;
+  object-position: center;
   background: transparent;
+}
+
+.landing-stage-v2__cta {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  z-index: 2;
 }
 
 .landing-stage-v2__panel {
@@ -502,6 +511,24 @@ a {
   line-height: 1.6;
 }
 
+.landing-stage-v2__team-header {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 12px;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.landing-stage-v2__team-header img {
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+}
+
+.landing-stage-v2__team-header p {
+  margin: 4px 0 0;
+}
+
 .landing-stage-v2__panel dl {
   display: grid;
   gap: 12px;
@@ -527,6 +554,45 @@ a {
   margin: 0;
   color: #fff7f3;
   line-height: 1.55;
+}
+
+.landing-stage-v2__drivers {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.landing-stage-v2__driver {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 12px;
+  align-items: center;
+  padding-top: 12px;
+  border-top: 1px solid rgba(167, 189, 219, 0.1);
+  color: inherit;
+}
+
+.landing-stage-v2__driver img {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.landing-stage-v2__driver div {
+  display: grid;
+  gap: 4px;
+}
+
+.landing-stage-v2__driver strong {
+  font-size: 1rem;
+}
+
+.landing-stage-v2__driver span {
+  color: rgba(231, 237, 247, 0.56);
+  font-size: 0.74rem;
+  letter-spacing: 0.12em;
 }
 
 .landing-briefing {

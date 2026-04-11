@@ -1,0 +1,16 @@
+[Unit]
+Description=F1 Racing API Docker Compose Stack
+Requires=docker.service network-online.target
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/f1-racing-api/current
+ExecStart=/usr/bin/docker compose -f deploy/oci/docker-compose.f1-racing-api.yml up -d --build
+ExecReload=/usr/bin/docker compose -f deploy/oci/docker-compose.f1-racing-api.yml up -d --build
+ExecStop=/usr/bin/docker compose -f deploy/oci/docker-compose.f1-racing-api.yml down
+RemainAfterExit=yes
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target

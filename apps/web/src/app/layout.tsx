@@ -22,6 +22,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             </a>
             <div className="site-header__navs">
               <nav className="site-nav site-nav--primary">
+                <a href="/live">Live</a>
                 <a href="/replay">Replay</a>
               </nav>
               <nav className="site-nav site-nav--secondary">

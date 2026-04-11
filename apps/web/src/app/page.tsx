@@ -1,14 +1,17 @@
-import { getCarModelCatalog, getLatestManifest } from "@/lib/data";
+import { getCarModelCatalog, getLatestManifest, getTeamProfile } from "@/lib/data";
 import { LandingStage } from "@/components/story/landing-stage";
 import { learnModules } from "./learn/modules";
 
 export default async function HomePage() {
-  const [manifest, catalog] = await Promise.all([
+  const [manifest, catalog, redBullProfile] = await Promise.all([
     getLatestManifest(),
     getCarModelCatalog(),
+    getTeamProfile("red-bull-racing"),
   ]);
 
-  const leadModel = catalog.models.find((model) => model.surfaceReady) ?? catalog.models[0];
+  const leadModel = catalog.models.find((model) => model.id === "red-bull-2025-rb21")
+    ?? catalog.models.find((model) => model.surfaceReady)
+    ?? catalog.models[0];
   const featuredLearn = learnModules.find((module) => module.slug === "aero") ?? learnModules[0];
   const replayHref = manifest.latest.path.replace(/^\/sessions\//, "/replay/");
 
@@ -34,6 +37,11 @@ export default async function HomePage() {
           </a>
 
           <div className="landing-support-grid" aria-label="Secondary product routes">
+            <a className="landing-support-card" href="/live">
+              <span>Primary route</span>
+              <strong>Live</strong>
+              <p>Open the socket-backed live board or the fallback simulator to watch the current session as a control room surface.</p>
+            </a>
             <a className="landing-support-card" href="/cars/current-spec">
               <span>Secondary route</span>
               <strong>Modelview</strong>
@@ -50,11 +58,13 @@ export default async function HomePage() {
         {leadModel ? (
           <LandingStage
             modelSrc={leadModel.file}
+            posterSrc={leadModel.poster}
             modelTitle={leadModel.displayName}
             sizeLabel={leadModel.sizeLabel}
             replayLabel={`${manifest.latest.grandPrixName} · ${manifest.latest.sessionName}`}
             learnLabel={featuredLearn.title}
             note={leadModel.notes}
+            teamProfile={redBullProfile}
           />
         ) : null}
       </section>
@@ -68,6 +78,7 @@ export default async function HomePage() {
             routes that deepen the same story instead of competing for top-level attention.
           </p>
           <div className="hero-actions">
+            <a className="button button--secondary" href="/live">Open live feed</a>
             <a className="button" href="/replay">Browse replay library</a>
             <a className="button button--secondary" href="/cars/current-spec">Open modelview</a>
             <a className="button button--ghost" href="/learn">Open learn</a>

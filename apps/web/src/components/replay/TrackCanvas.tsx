@@ -8,13 +8,25 @@ interface TrackCanvasProps {
   trackPath: [number, number][] | null;
   drivers: ReplayDriver[];
   currentFrame: ReplayFrame | null;
-  currentTime: number;
   nextFrame: ReplayFrame | null;
   selectedDrivers: string[];
   width?: number;
   height?: number;
   onDriverClick?: (driverCode: string | null, append: boolean) => void;
 }
+
+interface PositionTarget {
+  previousX: number;
+  previousY: number;
+  targetX: number;
+  targetY: number;
+  startTime: number;
+  duration: number;
+  position: number | null;
+  color: string;
+}
+
+const BASE_INTERPOLATION_MS = 340;
 
 interface CanvasMetrics {
   minX: number;
@@ -62,7 +74,6 @@ export function TrackCanvas({
   trackPath,
   drivers,
   currentFrame,
-  currentTime,
   nextFrame,
   selectedDrivers,
   width = 920,
@@ -71,6 +82,10 @@ export function TrackCanvas({
 }: TrackCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const renderedMarkersRef = useRef<DriverMarker[]>([]);
+  const animationFrameRef = useRef<number | null>(null);
+  const positionTargetsRef = useRef<Map<string, PositionTarget>>(new Map());
+  const trackStatusRef = useRef(currentFrame?.trackStatus || "GREEN");
+  const selectedDriversRef = useRef(selectedDrivers);
 
   const trackPoints = useMemo<TrackPoint[]>(() => (
     trackPath?.map(([x, y]) => ({ x, y })) ?? []
@@ -83,33 +98,52 @@ export function TrackCanvas({
 
   const canvasMetrics = useMemo(() => buildCanvasMetrics(trackPoints, width, height), [trackPoints, width, height]);
 
-  const markers = useMemo<DriverMarker[]>(() => {
+  useEffect(() => {
+    trackStatusRef.current = currentFrame?.trackStatus || "GREEN";
+    selectedDriversRef.current = selectedDrivers;
+  }, [currentFrame, nextFrame, selectedDrivers]);
+
+  useEffect(() => {
     if (!currentFrame) {
-      return [];
+      positionTargetsRef.current.clear();
+      renderedMarkersRef.current = [];
+      return;
     }
 
-    const frameStart = currentFrame.t;
-    const frameEnd = nextFrame?.t ?? frameStart;
-    const ratio = frameEnd > frameStart
-      ? Math.max(0, Math.min(1, (currentTime - frameStart) / (frameEnd - frameStart)))
-      : 0;
-
-    return Object.values(currentFrame.drivers)
+    const now = performance.now();
+    const frameDuration = Math.max(120, ((nextFrame?.t ?? currentFrame.t) - currentFrame.t) * 1000);
+    const targetDrivers = Object.values(currentFrame.drivers)
       .filter((driver) => driver.x !== null && driver.y !== null)
-      .sort((left, right) => left.position - right.position)
-      .map((driver) => {
-        const nextDriver = nextFrame?.drivers?.[driver.driverCode];
-        const targetX = nextDriver?.x ?? driver.x ?? 0;
-        const targetY = nextDriver?.y ?? driver.y ?? 0;
-        return {
-          abbr: driver.driverCode,
-          x: (driver.x ?? 0) + (targetX - (driver.x ?? 0)) * ratio,
-          y: (driver.y ?? 0) + (targetY - (driver.y ?? 0)) * ratio,
-          color: driverColorByCode.get(driver.driverCode) || "#9ca3af",
-          position: driver.position,
-        };
+      .sort((left, right) => left.position - right.position);
+
+    for (const driver of targetDrivers) {
+      const existing = positionTargetsRef.current.get(driver.driverCode);
+      const previousX = existing
+        ? existing.previousX + (existing.targetX - existing.previousX) * Math.min((now - existing.startTime) / existing.duration, 1)
+        : (driver.x ?? 0);
+      const previousY = existing
+        ? existing.previousY + (existing.targetY - existing.previousY) * Math.min((now - existing.startTime) / existing.duration, 1)
+        : (driver.y ?? 0);
+
+      positionTargetsRef.current.set(driver.driverCode, {
+        previousX,
+        previousY,
+        targetX: driver.x ?? 0,
+        targetY: driver.y ?? 0,
+        startTime: now,
+        duration: Math.max(BASE_INTERPOLATION_MS, frameDuration * 1.35),
+        position: driver.position,
+        color: driverColorByCode.get(driver.driverCode) || "#9ca3af",
       });
-  }, [currentFrame, currentTime, driverColorByCode, nextFrame]);
+    }
+
+    const activeDrivers = new Set(targetDrivers.map((driver) => driver.driverCode));
+    for (const key of positionTargetsRef.current.keys()) {
+      if (!activeDrivers.has(key)) {
+        positionTargetsRef.current.delete(key);
+      }
+    }
+  }, [currentFrame, driverColorByCode, nextFrame]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -122,33 +156,62 @@ export function TrackCanvas({
       return;
     }
 
-    const dpr = window.devicePixelRatio || 1;
-    const targetWidth = Math.round(width * dpr);
-    const targetHeight = Math.round(height * dpr);
+    const drawFrame = () => {
+      const dpr = window.devicePixelRatio || 1;
+      const targetWidth = Math.round(width * dpr);
+      const targetHeight = Math.round(height * dpr);
 
-    if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
-      canvas.width = targetWidth;
-      canvas.height = targetHeight;
-    }
+      if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+      }
 
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = "#0a0d13";
-    ctx.fillRect(0, 0, width, height);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = "#0a0d13";
+      ctx.fillRect(0, 0, width, height);
 
-    if (!trackPoints.length) {
-      ctx.fillStyle = "#7f8797";
-      ctx.font = "600 16px Aptos, sans-serif";
-      ctx.textAlign = "center";
-      ctx.fillText("Track path not available", width / 2, height / 2);
-      renderedMarkersRef.current = [];
-      return;
-    }
+      if (!trackPoints.length) {
+        ctx.fillStyle = "#7f8797";
+        ctx.font = "600 16px Aptos, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText("Track path not available", width / 2, height / 2);
+        renderedMarkersRef.current = [];
+        animationFrameRef.current = requestAnimationFrame(drawFrame);
+        return;
+      }
 
-    drawTrack(ctx, trackPoints, width, height, currentFrame?.trackStatus || "GREEN");
-    drawDrivers(ctx, markers, trackPoints, width, height, selectedDrivers);
-    renderedMarkersRef.current = markers;
-  }, [currentFrame?.trackStatus, height, markers, selectedDrivers, trackPoints, width]);
+      drawTrack(ctx, trackPoints, width, height, trackStatusRef.current);
+
+      const now = performance.now();
+      const interpolatedMarkers: DriverMarker[] = [];
+
+      for (const [abbr, target] of positionTargetsRef.current.entries()) {
+        const progress = Math.min((now - target.startTime) / target.duration, 1);
+        interpolatedMarkers.push({
+          abbr,
+          x: target.previousX + (target.targetX - target.previousX) * progress,
+          y: target.previousY + (target.targetY - target.previousY) * progress,
+          color: target.color,
+          position: target.position,
+        });
+      }
+
+      interpolatedMarkers.sort((left, right) => (left.position ?? Number.MAX_SAFE_INTEGER) - (right.position ?? Number.MAX_SAFE_INTEGER));
+      drawDrivers(ctx, interpolatedMarkers, trackPoints, width, height, selectedDriversRef.current);
+      renderedMarkersRef.current = interpolatedMarkers;
+      animationFrameRef.current = requestAnimationFrame(drawFrame);
+    };
+
+    drawFrame();
+
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+    };
+  }, [height, trackPoints, width]);
 
   function handleCanvasClick(event: React.MouseEvent<HTMLCanvasElement>) {
     if (!onDriverClick || !renderedMarkersRef.current.length || !canvasMetrics) {

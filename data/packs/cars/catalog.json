@@ -2,6 +2,18 @@
   "generatedAt": "2026-03-28T00:00:00Z",
   "models": [
     {
+      "id": "red-bull-2025-rb21",
+      "constructor": "Red Bull Racing",
+      "constructorSlug": "red-bull",
+      "season": 2025,
+      "displayName": "Red Bull RB21",
+      "file": "/models/2025/red-bull/rb21.glb",
+      "poster": "/images/teams/red-bull/car-right.webp",
+      "sizeLabel": "~3.1 MB (compressed)",
+      "surfaceReady": true,
+      "notes": "Compressed local RB21 from glb_model. Front-page hero and modelview-ready asset sourced from your mirrored local model library."
+    },
+    {
       "id": "mclaren-2025-mcl39",
       "constructor": "McLaren",
       "constructorSlug": "mclaren",
@@ -9,7 +21,7 @@
       "displayName": "McLaren MCL39",
       "file": "/models/2025/mclaren/mcl39.glb",
       "poster": "/posters/2025/mclaren/mcl39.svg",
-      "sizeLabel": "~37 MB (compressed)",
+      "sizeLabel": "~36.2 MB (compressed)",
       "surfaceReady": true,
       "notes": "Local GLB provided in the workspace. A first OpenFOAM starter case and baked overlay pack scaffold now target this model, but real CFD output still depends on your cleaned STL and solved case."
     },
@@ -21,7 +33,7 @@
       "displayName": "APX GP APX01",
       "file": "/models/2025/apx-gp/apx01.glb",
       "poster": "/posters/2025/apx-gp/apx01.svg",
-      "sizeLabel": "~30 MB",
+      "sizeLabel": "~3.2 MB (compressed)",
       "surfaceReady": false,
       "notes": "Local GLB provided in the workspace. Good candidate for the first hotspot and CFD-overlay prototype."
     }

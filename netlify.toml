@@ -1,6 +1,7 @@
 [build]
 command = "npm install && npm run build"
-publish = "out"
+publish = "apps/web/out"
 
 [build.environment]
 NODE_VERSION = "20"
+NETLIFY_NEXT_PLUGIN_SKIP = "true"
