@@ -1,20 +1,13 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type {
-  LatestManifest,
-  ReplayFrame,
-  ReplayPack,
-  ReplayRaceControlMessage,
-  SessionSummary,
-} from "@/lib/data";
+import type { ReplayFrame, ReplayLap, ReplayPack, ReplayRaceControlMessage, SessionSummary } from "@/lib/data";
 import { buildClientDataUrl, buildClientWebSocketUrl, getClientApiOrigin } from "@/lib/client-data";
 import { Leaderboard, type ReplayLeaderboardRow } from "@/components/replay/Leaderboard";
 import { ReplayTelemetryStrip } from "@/components/replay/replay-telemetry-strip";
 import { TrackCanvas } from "@/components/replay/TrackCanvas";
 
-interface LiveSessionRef {
+export interface LiveSessionRef {
   season: number;
   grandPrix: string;
   grandPrixName: string;
@@ -48,6 +41,14 @@ interface LiveFeedState {
   frame: ReplayFrame | null;
   rcMessages: ReplayRaceControlMessage[];
   error: string | null;
+}
+
+interface LiveRouteClientProps {
+  initialSession: LiveSessionRef;
+  initialSummary: SessionSummary;
+  initialReplayMeta: ReplayPack;
+  initialFrame: ReplayFrame | null;
+  initialSpeed: number;
 }
 
 function intervalLabel(interval: number | null) {
@@ -91,6 +92,10 @@ function buildReplayMetaUrl(route: Pick<LiveSessionRef, "season" | "grandPrix" |
   return buildClientDataUrl(staticPath, `/api/replay/${route.season}/${route.grandPrix}/${route.session}/meta`);
 }
 
+function buildReplayLapsUrl(route: Pick<LiveSessionRef, "season" | "grandPrix" | "session">) {
+  return `${buildSessionBasePath(route)}/replay.laps.json`;
+}
+
 function buildReplayFullUrl(route: Pick<LiveSessionRef, "season" | "grandPrix" | "session">) {
   const staticPath = `${buildSessionBasePath(route)}/replay.json`;
   return buildClientDataUrl(staticPath, `/api/replay/${route.season}/${route.grandPrix}/${route.session}/full`);
@@ -108,20 +113,6 @@ async function fetchJson<T>(url: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-function latestToLiveRef(latest: LatestManifest["latest"]): LiveSessionRef {
-  return {
-    season: latest.season,
-    grandPrix: latest.grandPrixSlug,
-    grandPrixName: latest.grandPrixName,
-    session: latest.sessionSlug,
-    sessionName: latest.sessionName,
-    trackId: latest.trackId,
-    sessionKey: latest.sessionKey,
-    path: latest.path,
-    source: "static-latest",
-  };
-}
-
 function liveStatusToRef(status: NonNullable<LiveStatusResponse["live"]>): LiveSessionRef {
   return {
     season: status.season,
@@ -136,32 +127,31 @@ function liveStatusToRef(status: NonNullable<LiveStatusResponse["live"]>): LiveS
   };
 }
 
-export function LiveRouteClient() {
-  const searchParams = useSearchParams();
+export function LiveRouteClient({
+  initialSession,
+  initialSummary,
+  initialReplayMeta,
+  initialFrame,
+  initialSpeed,
+}: LiveRouteClientProps) {
   const apiOrigin = getClientApiOrigin();
-  const [activeSession, setActiveSession] = useState<LiveSessionRef | null>(null);
-  const [summary, setSummary] = useState<SessionSummary | null>(null);
-  const [replayMeta, setReplayMeta] = useState<ReplayPack | null>(null);
+  const [activeSession, setActiveSession] = useState<LiveSessionRef>(initialSession);
+  const [summary, setSummary] = useState<SessionSummary>(initialSummary);
+  const [replayMeta, setReplayMeta] = useState<ReplayPack>(initialReplayMeta);
   const [feed, setFeed] = useState<LiveFeedState>({
-    loading: true,
+    loading: false,
     connected: false,
     finished: false,
-    sourceLabel: apiOrigin ? "Connecting to OCI live feed" : "Static live simulator",
-    frame: null,
+    sourceLabel: apiOrigin ? "Booting OCI live feed" : "Static live simulator",
+    frame: initialFrame,
     rcMessages: [],
     error: null,
   });
   const [selectedDrivers, setSelectedDrivers] = useState<string[]>([]);
   const [reloadKey, setReloadKey] = useState(0);
   const timerRef = useRef<number | null>(null);
-
-  const speed = useMemo(() => {
-    const raw = Number(searchParams.get("speed") || "8");
-    if (!Number.isFinite(raw)) {
-      return 8;
-    }
-    return Math.max(0.5, Math.min(32, raw));
-  }, [searchParams]);
+  const speed = initialSpeed;
+  const initialSessionId = `${initialSession.season}:${initialSession.grandPrix}:${initialSession.session}`;
 
   const closeTimer = useCallback(() => {
     if (timerRef.current) {
@@ -174,52 +164,22 @@ export function LiveRouteClient() {
     let cancelled = false;
 
     async function resolveSession() {
-      const season = searchParams.get("season");
-      const grandPrix = searchParams.get("grandPrix");
-      const session = searchParams.get("session");
-      const grandPrixName = searchParams.get("grandPrixName");
-      const sessionName = searchParams.get("sessionName");
-      const trackId = searchParams.get("trackId");
-      const sessionKey = Number(searchParams.get("sessionKey") || "0");
-
-      if (season && grandPrix && session) {
-        if (!cancelled) {
-          setActiveSession({
-            season: Number(season),
-            grandPrix,
-            grandPrixName: grandPrixName || formatSlugLabel(grandPrix),
-            session,
-            sessionName: sessionName || formatSlugLabel(session),
-            trackId: trackId || grandPrix,
-            sessionKey,
-            path: `/sessions/${season}/${grandPrix}/${session}`,
-            source: apiOrigin ? "oci-live" : "static-latest",
-          });
-        }
+      if (!apiOrigin) {
         return;
       }
 
       try {
-        if (apiOrigin) {
-          const status = await fetchJson<LiveStatusResponse>(`${apiOrigin}/api/live/status`);
-          if (!cancelled && status.live) {
-            setActiveSession(liveStatusToRef(status.live));
-            return;
+        const status = await fetchJson<LiveStatusResponse>(`${apiOrigin}/api/live/status`);
+        if (!cancelled && status.live) {
+          const nextSession = liveStatusToRef(status.live);
+          const nextSessionId = `${nextSession.season}:${nextSession.grandPrix}:${nextSession.session}`;
+          const currentSessionId = `${activeSession.season}:${activeSession.grandPrix}:${activeSession.session}`;
+          if (nextSessionId !== currentSessionId) {
+            setActiveSession(nextSession);
           }
         }
-
-        const latestManifest = await fetchJson<LatestManifest>("/data/manifests/latest.json");
-        if (!cancelled) {
-          setActiveSession(latestToLiveRef(latestManifest.latest));
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setFeed((previous) => ({
-            ...previous,
-            loading: false,
-            error: error instanceof Error ? error.message : "Live session could not be resolved.",
-          }));
-        }
+      } catch {
+        return;
       }
     }
 
@@ -228,28 +188,34 @@ export function LiveRouteClient() {
     return () => {
       cancelled = true;
     };
-  }, [apiOrigin, reloadKey, searchParams]);
+  }, [activeSession.grandPrix, activeSession.season, activeSession.session, apiOrigin, reloadKey]);
 
   useEffect(() => {
-    if (!activeSession) {
+    const sessionRef = activeSession;
+    const sessionId = `${sessionRef.season}:${sessionRef.grandPrix}:${sessionRef.session}`;
+    const shouldReuseInitial = reloadKey === 0 && sessionId === initialSessionId;
+    if (shouldReuseInitial) {
       return;
     }
 
-    const sessionRef = activeSession;
     let cancelled = false;
 
     async function loadSessionMetadata() {
-      setFeed((previous) => ({ ...previous, loading: true, error: null }));
+      setFeed((previous) => ({ ...previous, error: null }));
 
       try {
-        const [nextSummary, nextReplayMeta] = await Promise.all([
+        const [nextSummary, nextReplayMeta, nextReplayLaps] = await Promise.all([
           fetchJson<SessionSummary>(buildSummaryUrl(sessionRef)),
           fetchJson<ReplayPack>(buildReplayMetaUrl(sessionRef)),
+          fetchJson<ReplayLap[]>(buildReplayLapsUrl(sessionRef)).catch(() => []),
         ]);
 
         if (!cancelled) {
           setSummary(nextSummary);
-          setReplayMeta(nextReplayMeta);
+          setReplayMeta({
+            ...nextReplayMeta,
+            laps: nextReplayLaps,
+          });
         }
       } catch (error) {
         if (!cancelled) {
@@ -267,27 +233,22 @@ export function LiveRouteClient() {
     return () => {
       cancelled = true;
     };
-  }, [activeSession]);
+  }, [activeSession, initialSessionId, reloadKey]);
 
   useEffect(() => {
-    if (!activeSession || !replayMeta) {
-      return;
-    }
-
     const sessionRef = activeSession;
     let cancelled = false;
     let socket: WebSocket | null = null;
 
     closeTimer();
-    setFeed({
-      loading: true,
+    setFeed((previous) => ({
+      ...previous,
+      loading: previous.frame ? false : true,
       connected: false,
       finished: false,
       sourceLabel: apiOrigin ? "OCI live feed" : "Static live simulator",
-      frame: null,
-      rcMessages: [],
       error: null,
-    });
+    }));
 
     async function startStaticSimulation() {
       try {
@@ -295,6 +256,13 @@ export function LiveRouteClient() {
         if (cancelled) {
           return;
         }
+
+        setReplayMeta((previous) => ({
+          ...previous,
+          laps: replay.laps,
+          totalLaps: replay.totalLaps ?? previous.totalLaps,
+          fastestLap: replay.fastestLap ?? previous.fastestLap,
+        }));
 
         const frames = replay.frames;
         const raceControlMessages = replay.raceControlMessages ?? [];
@@ -387,7 +355,7 @@ export function LiveRouteClient() {
         if (message.type === "status") {
           setFeed((previous) => ({
             ...previous,
-            loading: true,
+            loading: previous.frame ? false : true,
             sourceLabel: message.source ? formatSlugLabel(message.source) : previous.sourceLabel,
           }));
           return;
@@ -441,23 +409,23 @@ export function LiveRouteClient() {
       closeTimer();
       socket?.close();
     };
-  }, [activeSession, apiOrigin, closeTimer, replayMeta, speed]);
+  }, [activeSession, apiOrigin, closeTimer, speed]);
 
   const currentFrame = feed.frame;
   const currentTime = currentFrame?.t ?? 0;
   const trackStatus = currentFrame?.trackStatus || "GREEN";
   const currentLap = currentFrame?.lap || null;
-  const totalTime = replayMeta?.totalTime ?? 0;
-  const totalLaps = Math.max(...(replayMeta?.laps.map((lap) => lap.lapNumber) ?? [0]), 0);
+  const totalTime = replayMeta.totalTime ?? 0;
+  const totalLaps = replayMeta.totalLaps ?? Math.max(...replayMeta.laps.map((lap) => lap.lapNumber), 0);
 
   const driverInfoByCode = useMemo(
-    () => new Map((replayMeta?.drivers ?? []).map((driver) => [driver.driverCode, driver])),
-    [replayMeta?.drivers],
+    () => new Map(replayMeta.drivers.map((driver) => [driver.driverCode, driver])),
+    [replayMeta.drivers],
   );
 
   const lapHistoryByDriver = useMemo(() => {
     const history = new Map<string, NonNullable<ReplayPack["laps"]>>();
-    for (const lap of replayMeta?.laps ?? []) {
+    for (const lap of replayMeta.laps) {
       const entry = history.get(lap.driverCode) || [];
       entry.push(lap);
       history.set(lap.driverCode, entry);
@@ -466,7 +434,23 @@ export function LiveRouteClient() {
       laps.sort((left, right) => left.lapNumber - right.lapNumber);
     }
     return history;
-  }, [replayMeta?.laps]);
+  }, [replayMeta.laps]);
+
+  const previousLapLabelByDriverLap = useMemo(() => {
+    const lookup = new Map<string, string | null>();
+
+    for (const [driverCode, laps] of lapHistoryByDriver.entries()) {
+      let previousLabel: string | null = null;
+      for (const lap of laps) {
+        lookup.set(`${driverCode}:${lap.lapNumber}`, previousLabel);
+        if (lap.lapTime !== null) {
+          previousLabel = `${lap.lapTime.toFixed(3)}s`;
+        }
+      }
+    }
+
+    return lookup;
+  }, [lapHistoryByDriver]);
 
   const displayedDrivers = useMemo<ReplayLeaderboardRow[]>(() => {
     if (!currentFrame) {
@@ -478,9 +462,7 @@ export function LiveRouteClient() {
       .sort((left, right) => left.position - right.position)
       .map((driver) => {
         const info = driverInfoByCode.get(driver.driverCode);
-        const lastLap = (lapHistoryByDriver.get(driver.driverCode) || [])
-          .filter((lap) => lap.lapNumber < (driver.lap || 0) && lap.lapTime !== null)
-          .at(-1);
+        const lastLapLabel = previousLapLabelByDriverLap.get(`${driver.driverCode}:${driver.lap || 0}`) ?? null;
 
         return {
           abbr: driver.driverCode,
@@ -498,31 +480,23 @@ export function LiveRouteClient() {
           gear: driver.gear,
           rpm: driver.rpm,
           drs: driver.drs,
-          lastLapLabel: lastLap?.lapTime ? `${lastLap.lapTime.toFixed(3)}s` : null,
+          lastLapLabel,
         };
       });
-  }, [currentFrame, driverInfoByCode, lapHistoryByDriver]);
-
-  useEffect(() => {
-    if (selectedDrivers.length || !displayedDrivers[0]) {
-      return;
-    }
-    setSelectedDrivers([displayedDrivers[0].abbr]);
-  }, [displayedDrivers, selectedDrivers.length]);
+  }, [currentFrame, driverInfoByCode, previousLapLabelByDriverLap]);
 
   const selectedTelemetryDrivers = displayedDrivers.filter((driver) => selectedDrivers.includes(driver.abbr));
   const leadDriver = displayedDrivers[0] || null;
-  const trackLabel = activeSession ? formatSlugLabel(activeSession.trackId) : "Track";
+  const trackLabel = formatSlugLabel(activeSession.trackId);
   const weatherLabel = currentFrame?.weather
     ? `${currentFrame.weather.airTempC}C air · ${currentFrame.weather.trackTempC}C track`
-    : summary
-      ? `${summary.weatherSummary.airTempC}C air · ${summary.weatherSummary.trackTempC}C track`
-      : "Weather loading";
+    : `${summary.weatherSummary.airTempC}C air · ${summary.weatherSummary.trackTempC}C track`;
   const windLabel = currentFrame?.weather
     ? `${currentFrame.weather.windSpeedMps.toFixed(1)} m/s · ${Math.round(currentFrame.weather.windDirectionDeg)}°`
-    : summary
-      ? `Rain risk ${summary.weatherSummary.rainRiskPct}%`
-      : "Waiting for weather";
+    : `Rain risk ${summary.weatherSummary.rainRiskPct}%`;
+  const selectedDriverLabel = selectedTelemetryDrivers.length
+    ? selectedTelemetryDrivers.map((driver) => driver.abbr).join(" · ")
+    : "No drivers selected";
 
   function handleDriverSelect(driverCode: string | null, append: boolean) {
     if (!driverCode) {
@@ -563,14 +537,14 @@ export function LiveRouteClient() {
     );
   }
 
-  if (!activeSession || !summary || !replayMeta || feed.loading) {
+  if (!currentFrame) {
     return (
       <div className="page-stack">
         <section className="hero hero--compact">
           <p className="eyebrow">Live workspace</p>
-          <h1>{activeSession?.grandPrixName || "Resolving latest session"}</h1>
+          <h1>{activeSession.grandPrixName}</h1>
           <p className="lead">
-            Loading the current live surface. When the backend is configured this route uses OCI WebSockets; otherwise it
+            Initializing the live workspace. When the backend is configured this route uses OCI WebSockets; otherwise it
             simulates the feed from the latest replay pack.
           </p>
         </section>
@@ -596,7 +570,7 @@ export function LiveRouteClient() {
           </article>
           <article className="replay-session-banner__fact">
             <span>Status</span>
-            <strong>{feed.finished ? "Finished" : feed.connected ? "LIVE" : "Buffering"}</strong>
+            <strong>{feed.finished ? "Finished" : feed.connected ? "LIVE" : currentFrame ? "Booting" : "Buffering"}</strong>
           </article>
           <article className="replay-session-banner__fact">
             <span>Replay clock</span>
@@ -611,7 +585,7 @@ export function LiveRouteClient() {
             <strong>{weatherLabel}</strong>
           </article>
           <article className="replay-session-banner__fact">
-            <span>{currentFrame?.weather ? "Wind" : "Forecast"}</span>
+            <span>{currentFrame.weather ? "Wind" : "Forecast"}</span>
             <strong>{windLabel}</strong>
           </article>
         </div>
@@ -686,7 +660,7 @@ export function LiveRouteClient() {
         <aside className="replay-side-column">
           <section className="replay-side-card">
             <p className="eyebrow">Live read</p>
-            <h3>{selectedTelemetryDrivers.length ? `Telemetry on ${selectedTelemetryDrivers.map((driver) => driver.abbr).join(" · ")}` : leadDriver ? `${leadDriver.abbr} leads the live feed` : "Waiting for drivers"}</h3>
+            <h3>{selectedTelemetryDrivers.length ? `Telemetry on ${selectedTelemetryDrivers.map((driver) => driver.abbr).join(" · ")}` : leadDriver ? `${leadDriver.abbr} leads the live feed` : "Select drivers to inspect"}</h3>
             <p>
               This surface mirrors the replay workspace but lets you keep an always-on live board while the backend streams
               session frames. Use replay afterward for fine-grained scrubbing.
@@ -705,8 +679,8 @@ export function LiveRouteClient() {
                 <dd>{activeSession.sessionName}</dd>
               </div>
               <div>
-                <dt>Speed</dt>
-                <dd>{speed.toFixed(1)}x</dd>
+                <dt>Selected</dt>
+                <dd>{selectedDriverLabel}</dd>
               </div>
             </dl>
           </section>

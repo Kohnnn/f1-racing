@@ -224,6 +224,8 @@ export interface CarModelCatalog {
     poster: string;
     sizeLabel: string;
     surfaceReady: boolean;
+    modelScale?: string;
+    heroScale?: string;
     heroCamera?: {
       orbit: string;
       target: string;

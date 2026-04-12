@@ -41,7 +41,7 @@ function getBufferState(currentTime: number, loadedTime: number, totalTime: numb
   const bufferedAhead = Math.max(0, loadedTime - currentTime);
   if (bufferedAhead < 3) {
     return {
-      label: "Loading chunk",
+      label: currentTime === 0 && loadedTime === 0 ? "Booting replay" : "Loading chunk",
       className: "replay-controls-v2__status replay-controls-v2__status--loading",
     };
   }

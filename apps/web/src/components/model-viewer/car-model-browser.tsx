@@ -300,6 +300,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
                 ref: viewerRef,
                 src: selected.file,
                 alt: selected.displayName,
+                scale: selected.modelScale,
                 "camera-controls": true,
                 reveal: "auto",
                 loading: "eager",

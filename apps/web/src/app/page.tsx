@@ -61,6 +61,7 @@ export default async function HomePage() {
             posterSrc={leadModel.poster}
             modelTitle={leadModel.displayName}
             sizeLabel={leadModel.sizeLabel}
+            modelScale={leadModel.heroScale || leadModel.modelScale}
             heroCamera={leadModel.heroCamera}
             replayLabel={`${manifest.latest.grandPrixName} · ${manifest.latest.sessionName}`}
             learnLabel={featuredLearn.title}

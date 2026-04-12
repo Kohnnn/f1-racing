@@ -8,6 +8,7 @@ interface LandingStageProps {
   posterSrc: string;
   modelTitle: string;
   sizeLabel: string;
+  modelScale?: string;
   heroCamera?: {
     orbit: string;
     target: string;
@@ -26,6 +27,7 @@ export function LandingStage({
   posterSrc,
   modelTitle,
   sizeLabel,
+  modelScale,
   heroCamera,
   replayLabel,
   learnLabel,
@@ -48,6 +50,7 @@ export function LandingStage({
           src: modelSrc,
           poster: posterSrc,
           alt: modelTitle,
+          scale: modelScale,
           reveal: "auto",
           loading: "eager",
           "camera-controls": true,
