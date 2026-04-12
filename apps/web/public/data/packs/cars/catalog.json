@@ -11,6 +11,13 @@
       "poster": "/images/teams/red-bull/car-right.webp",
       "sizeLabel": "~3.1 MB (compressed)",
       "surfaceReady": true,
+      "heroCamera": {
+        "orbit": "14deg 77deg 1.14m",
+        "target": "0m 0.16m 0m",
+        "fieldOfView": "21deg",
+        "minOrbit": "auto auto 0.92m",
+        "maxOrbit": "auto auto 1.7m"
+      },
       "notes": "Compressed local RB21 from glb_model. Front-page hero and modelview-ready asset sourced from your mirrored local model library."
     },
     {

@@ -8,6 +8,13 @@ interface LandingStageProps {
   posterSrc: string;
   modelTitle: string;
   sizeLabel: string;
+  heroCamera?: {
+    orbit: string;
+    target: string;
+    fieldOfView?: string;
+    minOrbit?: string;
+    maxOrbit?: string;
+  };
   replayLabel: string;
   learnLabel: string;
   note: string;
@@ -19,6 +26,7 @@ export function LandingStage({
   posterSrc,
   modelTitle,
   sizeLabel,
+  heroCamera,
   replayLabel,
   learnLabel,
   note,
@@ -45,9 +53,12 @@ export function LandingStage({
           "camera-controls": true,
           "auto-rotate": true,
           "auto-rotate-delay": 0,
-          "rotation-per-second": "18deg",
-          "camera-orbit": "32deg 78deg 2.45m",
-          "camera-target": "0m 0.23m 0m",
+          "rotation-per-second": "12deg",
+          "camera-orbit": heroCamera?.orbit || "20deg 76deg 1.45m",
+          "camera-target": heroCamera?.target || "0m 0.18m 0m",
+          "field-of-view": heroCamera?.fieldOfView || "24deg",
+          "min-camera-orbit": heroCamera?.minOrbit || "auto auto 1m",
+          "max-camera-orbit": heroCamera?.maxOrbit || "auto auto 2.2m",
           exposure: "1.08",
           "shadow-intensity": "1",
           "touch-action": "pan-y",

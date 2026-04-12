@@ -19,3 +19,4 @@ apps/web/public/data/packs/seasons/
 *.tsbuildinfo
 # Netlify CLI artifacts
 apps/web/.netlify/
+deploy/oci/command

@@ -3,7 +3,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node ../../pipeline/export/src/sync-web-models.mjs && node ../../pipeline/export/src/generate-sample-data.mjs && node ../../pipeline/export/src/split-replay-packs.mjs && npm run next:build",
+    "next:build": "next build",
     "start": "next start"
   },
   "dependencies": {

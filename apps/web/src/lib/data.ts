@@ -221,10 +221,17 @@ export interface CarModelCatalog {
       season: number;
       displayName: string;
       file: string;
-      poster: string;
-      sizeLabel: string;
-      surfaceReady: boolean;
-      notes: string;
+    poster: string;
+    sizeLabel: string;
+    surfaceReady: boolean;
+    heroCamera?: {
+      orbit: string;
+      target: string;
+      fieldOfView?: string;
+      minOrbit?: string;
+      maxOrbit?: string;
+    };
+    notes: string;
   }>;
 }
 
@@ -557,6 +564,8 @@ export interface ReplayPack {
   laps: ReplayLap[];
   raceControlMessages?: ReplayRaceControlMessage[];
   totalTime?: number;
+  totalLaps?: number;
+  fastestLap?: ReplayLap | null;
   frameCount?: number;
   frameChunkSize?: number;
   frameChunks?: string[];
@@ -578,4 +587,20 @@ export interface ReplayFrameChunk {
 
 export async function getReplayPack(season: number | string, grandPrix: string, session: string) {
   return readJson<ReplayPack>(path.join(sessionBasePath(season, grandPrix, session), "replay.json"));
+}
+
+export async function getReplayMetaPack(season: number | string, grandPrix: string, session: string) {
+  return readJson<ReplayPack>(path.join(sessionBasePath(season, grandPrix, session), "replay.meta.json"));
+}
+
+export async function getReplayFrameChunk(season: number | string, grandPrix: string, session: string, chunkPath: string) {
+  return readJson<ReplayFrameChunk>(path.join(sessionBasePath(season, grandPrix, session), chunkPath));
+}
+
+export async function getReplayLaps(season: number | string, grandPrix: string, session: string) {
+  return readJson<ReplayLap[]>(path.join(sessionBasePath(season, grandPrix, session), "replay.laps.json"));
+}
+
+export async function getReplayRaceControl(season: number | string, grandPrix: string, session: string) {
+  return readJson<ReplayRaceControlMessage[]>(path.join(sessionBasePath(season, grandPrix, session), "replay.race-control.json"));
 }

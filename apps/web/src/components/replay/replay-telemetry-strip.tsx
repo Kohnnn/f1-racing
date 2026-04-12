@@ -43,6 +43,10 @@ export function ReplayTelemetryStrip({ driver }: ReplayTelemetryStripProps) {
         </div>
 
         <div className="replay-telemetry-strip__summary">
+          <div className="replay-telemetry-strip__summary-item replay-telemetry-strip__summary-item--primary">
+            <span>Speed</span>
+            <strong>{driver.speed !== null ? `${Math.round(driver.speed)} km/h` : "-"}</strong>
+          </div>
           <div className="replay-telemetry-strip__summary-item">
             <span>Tyre</span>
             <strong>{driver.compound ? `${driver.compound.slice(0, 1)}${driver.tyreAge !== null ? ` · ${driver.tyreAge}` : ""}` : "-"}</strong>
@@ -55,11 +59,6 @@ export function ReplayTelemetryStrip({ driver }: ReplayTelemetryStripProps) {
       </div>
 
       <div className="replay-telemetry-strip__metrics">
-        <div className="replay-telemetry-strip__metric">
-          <span>Speed</span>
-          <strong>{driver.speed !== null ? `${Math.round(driver.speed)} km/h` : "-"}</strong>
-        </div>
-
         <div className="replay-telemetry-strip__metric replay-telemetry-strip__metric--bars">
           <span>Throttle</span>
           <Pips value={driver.throttle ?? 0} max={100} color="#22c55e" />

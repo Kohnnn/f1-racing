@@ -4,6 +4,9 @@ import { CompareSummary } from "@/components/telemetry/compare-summary";
 import { TelemetryTraces } from "@/components/telemetry/telemetry-traces";
 import { getComparePack, getLapRecords, getSeasonIndex, getSessionManifest } from "@/lib/data";
 
+export const dynamic = "force-static";
+export const dynamicParams = false;
+
 interface ComparePageProps {
   params: Promise<{
     season: string;
@@ -16,7 +19,13 @@ interface ComparePageProps {
 
 export async function generateStaticParams() {
   const index = await getSeasonIndex();
-  const params = [];
+  const params: Array<{
+    season: string;
+    grandPrix: string;
+    session: string;
+    left: string;
+    right: string;
+  }> = [];
 
   for (const season of index.seasons) {
     for (const grandPrix of season.grandsPrix) {

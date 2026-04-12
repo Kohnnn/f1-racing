@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { ReplayRouteClient } from "@/components/replay/replay-route-client";
-import { getSeasonIndex, getSessionManifest, getSessionSummary } from "@/lib/data";
+import { getReplayFrameChunk, getReplayMetaPack, getReplayPack, getSeasonIndex, getSessionManifest, getSessionSummary } from "@/lib/data";
 
 interface ReplayPageProps {
   params: Promise<{
@@ -33,8 +33,26 @@ export default async function ReplayPage({ params }: ReplayPageProps) {
       getSessionSummary(season, grandPrix, session),
     ]);
 
+    let initialReplay;
+    try {
+      const replayMeta = await getReplayMetaPack(season, grandPrix, session);
+      const firstChunkPath = replayMeta.frameChunkIndex?.[0]?.path;
+      if (!firstChunkPath) {
+        throw new Error("Missing replay frame chunk index");
+      }
+
+      const firstChunk = await getReplayFrameChunk(season, grandPrix, session, firstChunkPath);
+      initialReplay = {
+        ...replayMeta,
+        frames: firstChunk.frames.slice(0, 1),
+      };
+    } catch {
+      initialReplay = await getReplayPack(season, grandPrix, session);
+    }
+
     return (
       <ReplayRouteClient
+        initialReplay={initialReplay}
         manifest={manifest}
         summary={summary}
         route={{ season, grandPrix, session }}

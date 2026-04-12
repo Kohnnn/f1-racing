@@ -64,6 +64,24 @@ function formatReplaySource(source: ReplayPack["source"]) {
   }
 }
 
+function findLastIndexBeforeOrAt(time: number, values: number[]) {
+  let left = 0;
+  let right = values.length - 1;
+  let result = -1;
+
+  while (left <= right) {
+    const mid = Math.floor((left + right) / 2);
+    if (values[mid] <= time) {
+      result = mid;
+      left = mid + 1;
+    } else {
+      right = mid - 1;
+    }
+  }
+
+  return result;
+}
+
 export function ReplayView({ replay, manifest, summary, compare, route, stintPack, onEnsureTimeLoaded }: ReplayViewProps) {
   const initialTime = replay.frames[0]?.t || 0;
   const [playbackState, setPlaybackState] = useState(() => ({
@@ -90,6 +108,9 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
 
   const totalTime = replay.totalTime ?? (replay.frames.at(-1)?.t || 0);
   const loadedEndTime = replay.frames.at(-1)?.t || 0;
+  const computedTotalLaps = useMemo(() => Math.max(...replay.laps.map((lap) => lap.lapNumber), 0), [replay.laps]);
+  const totalLaps = replay.totalLaps ?? computedTotalLaps;
+  const raceControlTimes = useMemo(() => replay.raceControlMessages?.map((message) => message.t) ?? [], [replay.raceControlMessages]);
   const findFrameIndexForTime = useCallback((time: number) => {
     let left = 0;
     let right = replay.frames.length - 1;
@@ -114,7 +135,6 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
   const currentTime = playbackState.currentTime;
   const trackStatus = currentFrame?.trackStatus || "GREEN";
   const currentLap = currentFrame?.lap || null;
-  const totalLaps = Math.max(...replay.laps.map((lap) => lap.lapNumber), 0);
   const replayFocus = getFocusPoint(focusId);
   const trackLabel = formatSlugLabel(replay.trackId);
   const replaySourceLabel = formatReplaySource(replay.source);
@@ -137,6 +157,22 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
     return history;
   }, [replay.laps]);
 
+  const previousLapLabelByDriverLap = useMemo(() => {
+    const lookup = new Map<string, string | null>();
+
+    for (const [driverCode, laps] of lapHistoryByDriver.entries()) {
+      let previousLabel: string | null = null;
+      for (const lap of laps) {
+        lookup.set(`${driverCode}:${lap.lapNumber}`, previousLabel);
+        if (lap.lapTime !== null) {
+          previousLabel = formatLapTime(lap.lapTime);
+        }
+      }
+    }
+
+    return lookup;
+  }, [lapHistoryByDriver]);
+
   const displayedDrivers = useMemo<ReplayLeaderboardRow[]>(() => {
     if (!currentFrame) {
       return [];
@@ -147,9 +183,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
       .sort((left, right) => left.position - right.position)
       .map((driver) => {
         const info = driverInfoByCode.get(driver.driverCode);
-        const lastLap = (lapHistoryByDriver.get(driver.driverCode) || [])
-          .filter((lap) => lap.lapNumber < (driver.lap || 0) && lap.lapTime !== null)
-          .at(-1);
+        const lastLapLabel = previousLapLabelByDriverLap.get(`${driver.driverCode}:${driver.lap || 0}`) ?? null;
 
         return {
           abbr: driver.driverCode,
@@ -167,12 +201,16 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
           gear: driver.gear,
           rpm: driver.rpm,
           drs: driver.drs,
-          lastLapLabel: lastLap?.lapTime ? formatLapTime(lastLap.lapTime) : null,
+          lastLapLabel,
         };
       });
-  }, [currentFrame, driverInfoByCode, lapHistoryByDriver]);
+  }, [currentFrame, driverInfoByCode, previousLapLabelByDriverLap]);
 
   const fastestLap = useMemo(() => {
+    if (replay.fastestLap) {
+      return replay.fastestLap;
+    }
+
     const completedLaps = replay.laps.filter((lap) => lap.lapTime !== null);
     if (!completedLaps.length) {
       return null;
@@ -181,7 +219,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
     return completedLaps
       .slice()
       .sort((left, right) => (left.lapTime ?? Infinity) - (right.lapTime ?? Infinity))[0];
-  }, [replay.laps]);
+  }, [replay.fastestLap, replay.laps]);
 
   const suggestedDriver = useMemo(() => {
     return fastestLap?.driverCode ?? displayedDrivers[0]?.abbr ?? null;
@@ -202,8 +240,13 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
       return [];
     }
 
-    return replay.raceControlMessages.filter((message) => message.t <= currentTime).slice(-4).reverse();
-  }, [currentTime, replay.raceControlMessages]);
+    const lastIndex = findLastIndexBeforeOrAt(currentTime, raceControlTimes);
+    if (lastIndex < 0) {
+      return [];
+    }
+
+    return replay.raceControlMessages.slice(Math.max(0, lastIndex - 3), lastIndex + 1).reverse();
+  }, [currentTime, raceControlTimes, replay.raceControlMessages]);
   const currentWeather = currentFrame?.weather || null;
   const weatherLabel = currentWeather
     ? `${currentWeather.airTempC}C air · ${currentWeather.trackTempC}C track`
@@ -294,7 +337,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
     }
 
     playheadTimeRef.current = nextTime;
-    onEnsureTimeLoaded?.(nextTime + playbackSpeed * 12);
+    onEnsureTimeLoaded?.(Math.min(totalTime, nextTime + Math.max(24, playbackSpeed * 28)));
     const nextFrameIndex = findFrameIndexForTime(nextTime);
     const frameChanged = nextFrameIndex !== frameIndexRef.current;
     const uiDue = (nextTime - lastUiSyncRef.current) * 1000 >= UI_SYNC_INTERVAL_MS;
@@ -309,8 +352,8 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
   }, [findFrameIndexForTime, loadedEndTime, onEnsureTimeLoaded, playbackSpeed, replay.frames.length, syncPlaybackState, totalTime]);
 
   useEffect(() => {
-    onEnsureTimeLoaded?.(currentTime + playbackSpeed * 12);
-  }, [currentTime, onEnsureTimeLoaded, playbackSpeed]);
+    onEnsureTimeLoaded?.(Math.min(totalTime, currentTime + Math.max(24, playbackSpeed * 28)));
+  }, [currentTime, onEnsureTimeLoaded, playbackSpeed, totalTime]);
 
   useEffect(() => {
     const nextFrameIndex = findFrameIndexForTime(playheadTimeRef.current);
@@ -514,6 +557,28 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
               </div>
             ) : null}
           </div>
+
+          <PlaybackControls
+            isPlaying={isPlaying}
+            playbackSpeed={playbackSpeed}
+            currentTime={currentTime}
+            totalTime={totalTime}
+            loadedTime={loadedEndTime}
+            currentLap={currentLap}
+            totalLaps={totalLaps}
+            trackStatus={trackStatus}
+            onSpeedChange={setPlaybackSpeed}
+            onSeek={handleSeek}
+            onSkipLap={handleSkipLap}
+            onSkipTime={handleSkipTime}
+            onPlay={() => {
+              if (playheadTimeRef.current >= totalTime) {
+                syncPlaybackState(0, 0);
+              }
+              setIsPlaying(true);
+            }}
+            onPause={() => setIsPlaying(false)}
+          />
         </section>
 
         <aside className="replay-side-column">
@@ -583,29 +648,12 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
         )}
       </section>
 
-      <PlaybackControls
-        isPlaying={isPlaying}
-        playbackSpeed={playbackSpeed}
-        currentTime={currentTime}
-        totalTime={totalTime}
-        currentLap={currentLap}
-        totalLaps={totalLaps}
-        trackStatus={trackStatus}
-        onSpeedChange={setPlaybackSpeed}
-        onSeek={handleSeek}
-        onSkipLap={handleSkipLap}
-        onSkipTime={handleSkipTime}
-        onPlay={() => {
-          if (playheadTimeRef.current >= totalTime) {
-            syncPlaybackState(0, 0);
-          }
-          setIsPlaying(true);
-        }}
-        onPause={() => setIsPlaying(false)}
-      />
-
-      {compare ? <ReplayComparePanel compare={compare} legacyHref={featuredCompareHref} /> : null}
-      {stintPack ? <ReplayStintPanel stintPack={stintPack} legacyHref={featuredStintHref} /> : null}
+      {compare || stintPack ? (
+        <div className="replay-insights-grid">
+          {compare ? <ReplayComparePanel compare={compare} legacyHref={featuredCompareHref} /> : null}
+          {stintPack ? <ReplayStintPanel stintPack={stintPack} legacyHref={featuredStintHref} /> : null}
+        </div>
+      ) : null}
     </div>
   );
 }

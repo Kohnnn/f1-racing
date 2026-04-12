@@ -1,11 +1,12 @@
 "use client";
 
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
-import type { ComparePack, ReplayFrameChunk, ReplayPack, SessionManifest, SessionSummary, StintPack } from "@/lib/data";
+import type { ComparePack, ReplayFrameChunk, ReplayLap, ReplayPack, ReplayRaceControlMessage, SessionManifest, SessionSummary, StintPack } from "@/lib/data";
 import { buildClientDataUrl, buildClientWebSocketUrl } from "@/lib/client-data";
 import { ReplayView } from "./ReplayView";
 
 interface ReplayRouteClientProps {
+  initialReplay: ReplayPack;
   manifest: SessionManifest;
   summary: SessionSummary;
   route: {
@@ -32,6 +33,9 @@ interface ReplayInsightsState {
   compare: ComparePack | null;
   stintPack: StintPack | null;
 }
+
+const BUFFER_LOOKAHEAD_CHUNKS = 2;
+const BUFFER_HISTORY_CHUNKS = 1;
 
 function buildPackUrl(route: ReplayRouteClientProps["route"], fileName: string) {
   const staticPath = `/data/packs/seasons/${route.season}/${route.grandPrix}/${route.session}/${fileName}`;
@@ -85,6 +89,14 @@ function buildReplaySocketUrl(route: ReplayRouteClientProps["route"]) {
   return buildClientWebSocketUrl(`/ws/replay/${route.season}/${route.grandPrix}/${route.session}`);
 }
 
+function buildReplayLapsUrl(route: ReplayRouteClientProps["route"]) {
+  return `/data/packs/seasons/${route.season}/${route.grandPrix}/${route.session}/replay.laps.json`;
+}
+
+function buildReplayRaceControlUrl(route: ReplayRouteClientProps["route"]) {
+  return `/data/packs/seasons/${route.season}/${route.grandPrix}/${route.session}/replay.race-control.json`;
+}
+
 function mergeReplayFrames(existingFrames: ReplayPack["frames"], nextFrames: ReplayPack["frames"]) {
   const frameMap = new Map<number, ReplayPack["frames"][number]>();
   for (const frame of existingFrames) {
@@ -96,8 +108,33 @@ function mergeReplayFrames(existingFrames: ReplayPack["frames"], nextFrames: Rep
   return Array.from(frameMap.values()).sort((left, right) => left.t - right.t);
 }
 
-export function ReplayRouteClient({ manifest, summary, route }: ReplayRouteClientProps) {
-  const [state, setState] = useState<ReplayRouteState>({ status: "loading" });
+function pruneReplayFrames(
+  frames: ReplayPack["frames"],
+  chunkEntries: NonNullable<ReplayPack["frameChunkIndex"]>,
+  loadedChunkIndexes: Set<number>,
+) {
+  if (!chunkEntries.length || !loadedChunkIndexes.size) {
+    return frames;
+  }
+
+  const keptEntries = chunkEntries
+    .filter((entry) => loadedChunkIndexes.has(entry.index))
+    .sort((left, right) => left.index - right.index);
+
+  if (!keptEntries.length) {
+    return frames;
+  }
+
+  const minTime = keptEntries[0].fromTime;
+  const maxTime = keptEntries.at(-1)?.toTime ?? keptEntries[0].toTime;
+  return frames.filter((frame) => frame.t >= minTime && frame.t <= maxTime);
+}
+
+export function ReplayRouteClient({ initialReplay, manifest, summary, route }: ReplayRouteClientProps) {
+  const [state, setState] = useState<ReplayRouteState>({
+    status: "ready",
+    replay: initialReplay,
+  });
   const [insights, setInsights] = useState<ReplayInsightsState>({ compare: null, stintPack: null });
   const [reloadKey, setReloadKey] = useState(0);
   const chunkEntriesRef = useRef<NonNullable<ReplayPack["frameChunkIndex"]>>([]);
@@ -234,6 +271,35 @@ export function ReplayRouteClient({ manifest, summary, route }: ReplayRouteClien
     requestedChunksRef.current.delete(chunkIndex);
   }, [requestChunkOverSocket, route]);
 
+  const trimChunkCache = useCallback((anchorChunkIndex: number) => {
+    const minChunkIndex = Math.max(0, anchorChunkIndex - BUFFER_HISTORY_CHUNKS);
+    const maxChunkIndex = anchorChunkIndex + BUFFER_LOOKAHEAD_CHUNKS;
+    const nextLoadedChunks = new Set(
+      Array.from(loadedChunksRef.current).filter((index) => index >= minChunkIndex && index <= maxChunkIndex),
+    );
+
+    if (nextLoadedChunks.size === loadedChunksRef.current.size) {
+      return;
+    }
+
+    loadedChunksRef.current = nextLoadedChunks;
+    startTransition(() => {
+      setState((previous) => {
+        if (previous.status !== "ready") {
+          return previous;
+        }
+
+        return {
+          status: "ready",
+          replay: {
+            ...previous.replay,
+            frames: pruneReplayFrames(previous.replay.frames, chunkEntriesRef.current, nextLoadedChunks),
+          },
+        };
+      });
+    });
+  }, []);
+
   const ensureTimeLoaded = useCallback((time: number) => {
     const chunkEntries = chunkEntriesRef.current;
     if (!chunkEntries.length) {
@@ -245,56 +311,40 @@ export function ReplayRouteClient({ manifest, summary, route }: ReplayRouteClien
       return;
     }
 
-    void ensureChunkLoaded(activeEntry.index);
-
-    if (time >= activeEntry.toTime - 12) {
-      void ensureChunkLoaded(activeEntry.index + 1);
+    for (let offset = 0; offset <= BUFFER_LOOKAHEAD_CHUNKS; offset += 1) {
+      void ensureChunkLoaded(activeEntry.index + offset);
     }
-  }, [ensureChunkLoaded]);
+
+    trimChunkCache(activeEntry.index);
+  }, [ensureChunkLoaded, trimChunkCache]);
+
+  useEffect(() => {
+    routeVersionRef.current += 1;
+    chunkEntriesRef.current = initialReplay.frameChunkIndex ?? [];
+    requestedChunksRef.current = new Set();
+
+    if (initialReplay.frameChunkIndex?.length) {
+      loadedChunksRef.current = new Set();
+      for (let offset = 0; offset <= BUFFER_LOOKAHEAD_CHUNKS; offset += 1) {
+        void ensureChunkLoaded(offset);
+      }
+    } else {
+      loadedChunksRef.current = new Set();
+    }
+
+    setState({
+      status: "ready",
+      replay: initialReplay,
+    });
+    setInsights({ compare: null, stintPack: null });
+  }, [ensureChunkLoaded, initialReplay]);
 
   useEffect(() => {
     let cancelled = false;
     const compareFile = Object.values(manifest.compare ?? {})[0] ?? null;
 
     async function loadReplayRoute() {
-      routeVersionRef.current += 1;
-      chunkEntriesRef.current = [];
-      loadedChunksRef.current = new Set();
-      requestedChunksRef.current = new Set();
-      setState({ status: "loading" });
-      setInsights({ compare: null, stintPack: null });
-
       try {
-        const replayFile = manifest.replay ?? "replay.json";
-        let replay: ReplayPack;
-
-        try {
-          const replayMeta = await fetchJson<ReplayPack>(buildReplayMetaUrl(route, replayFile));
-          const chunkEntries = replayMeta.frameChunkIndex ?? [];
-          const firstChunkEntry = chunkEntries[0];
-
-          if (!firstChunkEntry) {
-            throw new Error("Replay metadata is missing frame chunks.");
-          }
-
-          const firstChunk = await fetchJson<ReplayFrameChunk>(buildReplayChunkUrl(route, firstChunkEntry));
-          chunkEntriesRef.current = chunkEntries;
-          loadedChunksRef.current.add(firstChunkEntry.index);
-          replay = {
-            ...replayMeta,
-            frames: firstChunk.frames,
-          };
-        } catch {
-          replay = await fetchJson<ReplayPack>(buildReplayFullUrl(route, replayFile));
-        }
-
-        if (!cancelled) {
-          setState({
-            status: "ready",
-            replay,
-          });
-        }
-
         Promise.all([
           compareFile ? fetchJson<ComparePack>(buildPackUrl(route, compareFile)).catch(() => null) : Promise.resolve(null),
           manifest.stints ? fetchJson<StintPack>(buildPackUrl(route, manifest.stints)).catch(() => null) : Promise.resolve(null),
@@ -307,11 +357,36 @@ export function ReplayRouteClient({ manifest, summary, route }: ReplayRouteClien
             setInsights({ compare, stintPack });
           });
         });
+
+        Promise.all([
+          fetchJson<ReplayLap[]>(buildReplayLapsUrl(route)).catch(() => []),
+          fetchJson<ReplayRaceControlMessage[]>(buildReplayRaceControlUrl(route)).catch(() => []),
+        ]).then(([laps, raceControlMessages]) => {
+          if (cancelled) {
+            return;
+          }
+
+          startTransition(() => {
+            setState((previous) => {
+              if (previous.status !== "ready") {
+                return previous;
+              }
+              return {
+                status: "ready",
+                replay: {
+                  ...previous.replay,
+                  laps,
+                  raceControlMessages,
+                },
+              };
+            });
+          });
+        });
       } catch (error) {
         if (!cancelled) {
           setState({
-            status: "error",
-            message: error instanceof Error ? error.message : "Replay data could not be loaded.",
+            status: "ready",
+            replay: initialReplay,
           });
         }
       }
@@ -323,7 +398,7 @@ export function ReplayRouteClient({ manifest, summary, route }: ReplayRouteClien
       cancelled = true;
       closeReplaySocket();
     };
-  }, [closeReplaySocket, manifest, reloadKey, route]);
+  }, [closeReplaySocket, initialReplay, manifest, reloadKey, route]);
 
   if (state.status === "ready") {
     return (
@@ -339,36 +414,24 @@ export function ReplayRouteClient({ manifest, summary, route }: ReplayRouteClien
       );
   }
 
+  if (state.status !== "error") {
+    return null;
+  }
+
   return (
     <div className="replay-view replay-view--workspace">
-      <section className="hero hero--compact replay-hero">
-        <p className="eyebrow">Replay workspace</p>
-        <h1>{summary.grandPrix}</h1>
-        <p className="lead">
-          {summary.session} is loading as a route-specific static pack so the page stays light on first paint and only
-          pulls the replay data when this workspace is actually opened. If chunk metadata is available, the first frame
-          window loads first and the rest of the replay streams in behind it.
-        </p>
-      </section>
-
-      <section className="panel">
+      <section className="panel replay-error-panel">
         <div className="section-header">
           <div>
-            <p className="eyebrow">{state.status === "error" ? "Replay unavailable" : "Loading pack"}</p>
-            <h2>{state.status === "error" ? "Replay data could not be loaded" : "Fetching the session pack"}</h2>
+            <p className="eyebrow">Replay degraded</p>
+            <h2>Replay data could not be refreshed</h2>
           </div>
         </div>
-        <p>
-          {state.status === "error"
-            ? state.message
-            : `Preparing session key ${summary.sessionKey} for ${route.season} ${summary.grandPrix}.`}
-        </p>
+        <p>{state.message}</p>
         <div className="hero-actions">
-          {state.status === "error" ? (
-            <button className="button" type="button" onClick={() => setReloadKey((value) => value + 1)}>
-              Retry replay load
-            </button>
-          ) : null}
+          <button className="button" type="button" onClick={() => setReloadKey((value) => value + 1)}>
+            Retry replay load
+          </button>
           <a className="button button--secondary" href="/replay">Replay library</a>
           <a className="button button--ghost" href="/cars/current-spec">Modelview</a>
         </div>

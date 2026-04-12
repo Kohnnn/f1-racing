@@ -8,8 +8,8 @@
   ],
   "scripts": {
     "dev": "npm run sync:models && npm run generate:sample && npm run split:replay && npm run dev -w @f1-racing/web",
-    "build": "npm run sync:models && npm run generate:sample && npm run split:replay && npm run build -w @f1-racing/web",
-    "build:pages": "npm run sync:models && npm run generate:sample && npm run split:replay && npm run build -w @f1-racing/web",
+    "build": "npm run sync:models && npm run generate:sample && npm run split:replay && npm run next:build -w @f1-racing/web",
+    "build:pages": "npm run sync:models && npm run generate:sample && npm run split:replay && npm run next:build -w @f1-racing/web",
     "generate:sample": "node pipeline/export/src/generate-sample-data.mjs",
     "sync:models": "node pipeline/export/src/sync-web-models.mjs",
     "split:replay": "node pipeline/export/src/split-replay-packs.mjs",

@@ -1,5 +1,6 @@
 import { copyFile, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   CarModelCatalogSchema,
   CfdOverlaySchemaExampleSchema,
@@ -16,7 +17,7 @@ import {
   WindOverlayPackSchema,
 } from "../../../packages/schemas/src/index.js";
 
-const root = path.resolve(process.cwd());
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const dataRoot = path.join(root, "data");
 const publicRoot = path.join(root, "apps", "web", "public", "data");
 

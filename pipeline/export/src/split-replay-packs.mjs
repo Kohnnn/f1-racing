@@ -1,7 +1,8 @@
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const root = path.resolve(process.cwd());
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const chunkSize = 120;
 const seasonRoots = [
   path.join(root, "data", "packs", "seasons"),
@@ -39,6 +40,8 @@ async function writeJson(filePath, payload) {
 async function splitReplayPack(filePath) {
   const replay = JSON.parse(await readFile(filePath, "utf8"));
   const frames = Array.isArray(replay.frames) ? replay.frames : [];
+  const laps = Array.isArray(replay.laps) ? replay.laps : [];
+  const raceControlMessages = Array.isArray(replay.raceControlMessages) ? replay.raceControlMessages : [];
 
   if (!frames.length) {
     return;
@@ -67,9 +70,21 @@ async function splitReplayPack(filePath) {
     });
   }
 
+  const totalLaps = laps.reduce((max, lap) => Math.max(max, lap.lapNumber || 0), 0);
+  const fastestLap = laps
+    .filter((lap) => typeof lap.lapTime === "number")
+    .sort((left, right) => (left.lapTime ?? Number.POSITIVE_INFINITY) - (right.lapTime ?? Number.POSITIVE_INFINITY))[0] ?? null;
+
+  await writeJson(filePath.replace(/replay\.json$/i, "replay.laps.json"), laps);
+  await writeJson(filePath.replace(/replay\.json$/i, "replay.race-control.json"), raceControlMessages);
+
   const meta = {
     ...replay,
+    laps: [],
+    raceControlMessages: [],
     totalTime: frames.at(-1)?.t ?? 0,
+    totalLaps,
+    fastestLap,
     frameCount: frames.length,
     frameChunkSize: chunkSize,
     frameChunks: chunkFileNames,
