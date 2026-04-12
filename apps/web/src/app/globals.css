@@ -2367,11 +2367,16 @@ code {
 
 .replay-leaderboard__toolbar {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
   padding: 16px 16px 12px;
   border-bottom: 1px solid rgba(167, 189, 219, 0.12);
+}
+
+.replay-leaderboard__toolbar-main {
+  display: grid;
+  gap: 4px;
 }
 
 .replay-leaderboard__toolbar strong {
@@ -2386,6 +2391,52 @@ code {
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
+}
+
+.replay-leaderboard__toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.replay-leaderboard__search {
+  min-width: 180px;
+  padding: 9px 12px;
+  border: 1px solid rgba(167, 189, 219, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--shell-ink);
+  font: inherit;
+  font-size: 0.76rem;
+}
+
+.replay-leaderboard__search::placeholder {
+  color: rgba(231, 237, 247, 0.42);
+}
+
+.replay-leaderboard__search:focus-visible {
+  outline: 1px solid rgba(255, 122, 26, 0.4);
+  outline-offset: 0;
+}
+
+.replay-leaderboard__toolbar-button {
+  padding: 8px 12px;
+  border: 1px solid rgba(167, 189, 219, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--shell-ink);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.replay-leaderboard__toolbar-button--active {
+  background: rgba(255, 122, 26, 0.16);
+  border-color: rgba(255, 122, 26, 0.32);
 }
 
 .replay-leaderboard__header,
@@ -2409,6 +2460,16 @@ code {
 .replay-leaderboard__rows {
   display: grid;
   overflow: auto;
+}
+
+.replay-leaderboard__empty {
+  padding: 18px 16px 20px;
+  color: rgba(231, 237, 247, 0.72);
+  line-height: 1.6;
+}
+
+.replay-leaderboard__empty strong {
+  color: #ffffff;
 }
 
 .replay-leaderboard__row {
@@ -2870,6 +2931,7 @@ code {
   .replay-controls-v2__footer,
   .replay-controls-v2__cluster,
   .replay-controls-v2__transport,
+  .replay-leaderboard__toolbar,
   .replay-telemetry-strip__top,
   .replay-telemetry-strip__summary,
   .replay-telemetry-panel__header,
@@ -2899,10 +2961,16 @@ code {
 
   .replay-controls-v2__cluster,
   .replay-controls-v2__transport,
-  .replay-controls-v2__speeds {
+  .replay-controls-v2__speeds,
+  .replay-leaderboard__toolbar-actions {
     flex-direction: row;
     flex-wrap: wrap;
     justify-content: center;
+  }
+
+  .replay-leaderboard__search {
+    min-width: 0;
+    width: 100%;
   }
 
   .replay-controls-v2__ghost,
