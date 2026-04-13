@@ -51,6 +51,96 @@ interface LiveRouteClientProps {
   initialSpeed: number;
 }
 
+function hasStaticTrackCoordinates(frames?: ReplayPack["frames"]) {
+  if (!frames || frames.length < 2) {
+    return false;
+  }
+
+  const firstFrame = frames[0];
+  const sampleCodes = Object.keys(firstFrame.drivers).slice(0, 6);
+  if (!sampleCodes.length) {
+    return false;
+  }
+
+  const sampleFrames = frames.slice(1, Math.min(frames.length, 12));
+  return sampleCodes.every((driverCode) => {
+    const baseline = firstFrame.drivers[driverCode];
+    if (!baseline || baseline.x === null || baseline.y === null) {
+      return false;
+    }
+
+    return sampleFrames.every((frame) => {
+      const current = frame.drivers[driverCode];
+      return !!current && current.x === baseline.x && current.y === baseline.y;
+    });
+  });
+}
+
+function getTrackPointAndNormal(trackPath: ReplayPack["trackPath"], ratio: number) {
+  if (!trackPath || trackPath.length < 2) {
+    return { x: 0, y: 0, nx: 0, ny: -1 };
+  }
+
+  const normalizedRatio = ((ratio % 1) + 1) % 1;
+  const segmentCount = trackPath.length - 1;
+  const segmentFloat = normalizedRatio * segmentCount;
+  const segmentIndex = Math.floor(segmentFloat);
+  const segmentRatio = segmentFloat - segmentIndex;
+  const currentPoint = trackPath[segmentIndex];
+  const nextPoint = trackPath[Math.min(segmentIndex + 1, trackPath.length - 1)];
+
+  const dx = nextPoint[0] - currentPoint[0];
+  const dy = nextPoint[1] - currentPoint[1];
+  const length = Math.hypot(dx, dy) || 1;
+
+  return {
+    x: currentPoint[0] + dx * segmentRatio,
+    y: currentPoint[1] + dy * segmentRatio,
+    nx: -dy / length,
+    ny: dx / length,
+  };
+}
+
+function buildSyntheticFrame(
+  frame: ReplayPack["frames"][number] | null,
+  trackPath: ReplayPack["trackPath"],
+  currentTime: number,
+  estimatedLapDuration: number,
+) {
+  if (!frame) {
+    return null;
+  }
+
+  const baseLap = currentTime / estimatedLapDuration;
+  const baseRatio = ((baseLap % 1) + 1) % 1;
+  const lapNumber = Math.max(1, Math.floor(baseLap) + 1);
+  const drivers = Object.fromEntries(
+    Object.values(frame.drivers).map((driver) => {
+      const intervalRatio = Math.max(0, (driver.interval ?? (driver.position - 1) * 0.45) / estimatedLapDuration);
+      const positionSpacing = Math.max(0, driver.position - 1) * 0.004;
+      const driverRatio = (baseRatio - intervalRatio - positionSpacing + 1) % 1;
+      const laneOffset = ((driver.driverNumber % 5) - 2) * 2.6;
+      const { x, y, nx, ny } = getTrackPointAndNormal(trackPath, driverRatio);
+
+      return [
+        driver.driverCode,
+        {
+          ...driver,
+          x: x + nx * laneOffset,
+          y: y + ny * laneOffset,
+          lap: lapNumber,
+        },
+      ];
+    }),
+  ) as typeof frame.drivers;
+
+  return {
+    ...frame,
+    lap: lapNumber,
+    drivers,
+  };
+}
+
 function intervalLabel(interval: number | null) {
   if (interval === null) {
     return "-";
@@ -413,10 +503,23 @@ export function LiveRouteClient({
 
   const currentFrame = feed.frame;
   const currentTime = currentFrame?.t ?? 0;
-  const trackStatus = currentFrame?.trackStatus || "GREEN";
-  const currentLap = currentFrame?.lap || null;
   const totalTime = replayMeta.totalTime ?? 0;
   const totalLaps = replayMeta.totalLaps ?? Math.max(...replayMeta.laps.map((lap) => lap.lapNumber), 0);
+  const useSyntheticTrackMotion = useMemo(() => hasStaticTrackCoordinates(replayMeta.frames), [replayMeta.frames]);
+  const estimatedLapDuration = useMemo(() => {
+    if (totalLaps > 0 && totalTime > 0) {
+      return Math.max(55, totalTime / totalLaps);
+    }
+    return 95;
+  }, [totalLaps, totalTime]);
+  const renderedCurrentFrame = useMemo(
+    () => useSyntheticTrackMotion
+      ? buildSyntheticFrame(currentFrame, replayMeta.trackPath, currentTime, estimatedLapDuration)
+      : currentFrame,
+    [currentFrame, currentTime, estimatedLapDuration, replayMeta.trackPath, useSyntheticTrackMotion],
+  );
+  const trackStatus = renderedCurrentFrame?.trackStatus || "GREEN";
+  const currentLap = renderedCurrentFrame?.lap || null;
 
   const driverInfoByCode = useMemo(
     () => new Map(replayMeta.drivers.map((driver) => [driver.driverCode, driver])),
@@ -453,11 +556,11 @@ export function LiveRouteClient({
   }, [lapHistoryByDriver]);
 
   const displayedDrivers = useMemo<ReplayLeaderboardRow[]>(() => {
-    if (!currentFrame) {
+    if (!renderedCurrentFrame) {
       return [];
     }
 
-    return Object.values(currentFrame.drivers)
+    return Object.values(renderedCurrentFrame.drivers)
       .filter((driver) => driver.position > 0)
       .sort((left, right) => left.position - right.position)
       .map((driver) => {
@@ -483,7 +586,7 @@ export function LiveRouteClient({
           lastLapLabel,
         };
       });
-  }, [currentFrame, driverInfoByCode, previousLapLabelByDriverLap]);
+  }, [driverInfoByCode, previousLapLabelByDriverLap, renderedCurrentFrame]);
 
   const selectedTelemetryDrivers = displayedDrivers.filter((driver) => selectedDrivers.includes(driver.abbr));
   const leadDriver = displayedDrivers[0] || null;
@@ -570,7 +673,7 @@ export function LiveRouteClient({
           </article>
           <article className="replay-session-banner__fact">
             <span>Status</span>
-            <strong>{feed.finished ? "Finished" : feed.connected ? "LIVE" : currentFrame ? "Booting" : "Buffering"}</strong>
+                <strong>{feed.finished ? "Finished" : feed.connected ? "LIVE" : currentFrame ? "Booting" : "Buffering"}</strong>
           </article>
           <article className="replay-session-banner__fact">
             <span>Replay clock</span>
@@ -633,7 +736,7 @@ export function LiveRouteClient({
             <TrackCanvas
               trackPath={replayMeta.trackPath}
               drivers={replayMeta.drivers}
-              currentFrame={currentFrame}
+              currentFrame={renderedCurrentFrame}
               nextFrame={null}
               selectedDrivers={selectedDrivers}
               onDriverClick={handleDriverSelect}

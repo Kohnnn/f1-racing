@@ -26,6 +26,96 @@ interface ReplayViewProps {
   onEnsureTimeLoaded?: (time: number) => void;
 }
 
+function hasStaticTrackCoordinates(frames: ReplayPack["frames"]) {
+  if (frames.length < 2) {
+    return false;
+  }
+
+  const firstFrame = frames[0];
+  const sampleCodes = Object.keys(firstFrame.drivers).slice(0, 6);
+  if (!sampleCodes.length) {
+    return false;
+  }
+
+  const sampleFrames = frames.slice(1, Math.min(frames.length, 12));
+  return sampleCodes.every((driverCode) => {
+    const baseline = firstFrame.drivers[driverCode];
+    if (!baseline || baseline.x === null || baseline.y === null) {
+      return false;
+    }
+
+    return sampleFrames.every((frame) => {
+      const current = frame.drivers[driverCode];
+      return !!current && current.x === baseline.x && current.y === baseline.y;
+    });
+  });
+}
+
+function getTrackPointAndNormal(trackPath: ReplayPack["trackPath"], ratio: number) {
+  if (!trackPath || trackPath.length < 2) {
+    return { x: 0, y: 0, nx: 0, ny: -1 };
+  }
+
+  const normalizedRatio = ((ratio % 1) + 1) % 1;
+  const segmentCount = trackPath.length - 1;
+  const segmentFloat = normalizedRatio * segmentCount;
+  const segmentIndex = Math.floor(segmentFloat);
+  const segmentRatio = segmentFloat - segmentIndex;
+  const currentPoint = trackPath[segmentIndex];
+  const nextPoint = trackPath[Math.min(segmentIndex + 1, trackPath.length - 1)];
+
+  const dx = nextPoint[0] - currentPoint[0];
+  const dy = nextPoint[1] - currentPoint[1];
+  const length = Math.hypot(dx, dy) || 1;
+
+  return {
+    x: currentPoint[0] + dx * segmentRatio,
+    y: currentPoint[1] + dy * segmentRatio,
+    nx: -dy / length,
+    ny: dx / length,
+  };
+}
+
+function buildSyntheticFrame(
+  frame: ReplayPack["frames"][number] | null,
+  trackPath: ReplayPack["trackPath"],
+  currentTime: number,
+  estimatedLapDuration: number,
+) {
+  if (!frame) {
+    return null;
+  }
+
+  const baseLap = currentTime / estimatedLapDuration;
+  const baseRatio = ((baseLap % 1) + 1) % 1;
+  const lapNumber = Math.max(1, Math.floor(baseLap) + 1);
+  const drivers = Object.fromEntries(
+    Object.values(frame.drivers).map((driver) => {
+      const intervalRatio = Math.max(0, (driver.interval ?? (driver.position - 1) * 0.45) / estimatedLapDuration);
+      const positionSpacing = Math.max(0, driver.position - 1) * 0.004;
+      const driverRatio = (baseRatio - intervalRatio - positionSpacing + 1) % 1;
+      const laneOffset = ((driver.driverNumber % 5) - 2) * 2.6;
+      const { x, y, nx, ny } = getTrackPointAndNormal(trackPath, driverRatio);
+
+      return [
+        driver.driverCode,
+        {
+          ...driver,
+          x: x + nx * laneOffset,
+          y: y + ny * laneOffset,
+          lap: lapNumber,
+        },
+      ];
+    }),
+  ) as typeof frame.drivers;
+
+  return {
+    ...frame,
+    lap: lapNumber,
+    drivers,
+  };
+}
+
 function formatSeconds(seconds: number) {
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
@@ -110,6 +200,13 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
   const loadedEndTime = replay.frames.at(-1)?.t || 0;
   const computedTotalLaps = useMemo(() => Math.max(...replay.laps.map((lap) => lap.lapNumber), 0), [replay.laps]);
   const totalLaps = replay.totalLaps ?? computedTotalLaps;
+  const useSyntheticTrackMotion = useMemo(() => hasStaticTrackCoordinates(replay.frames), [replay.frames]);
+  const estimatedLapDuration = useMemo(() => {
+    if (totalLaps > 0 && totalTime > 0) {
+      return Math.max(55, totalTime / totalLaps);
+    }
+    return 95;
+  }, [totalLaps, totalTime]);
   const raceControlTimes = useMemo(() => replay.raceControlMessages?.map((message) => message.t) ?? [], [replay.raceControlMessages]);
   const findFrameIndexForTime = useCallback((time: number) => {
     let left = 0;
@@ -130,9 +227,21 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
   }, [replay.frames]);
 
   const currentFrameIndex = playbackState.frameIndex;
-  const currentFrame = replay.frames[currentFrameIndex] || null;
-  const nextFrame = replay.frames[currentFrameIndex + 1] || null;
+  const rawCurrentFrame = replay.frames[currentFrameIndex] || null;
+  const rawNextFrame = replay.frames[currentFrameIndex + 1] || null;
   const currentTime = playbackState.currentTime;
+  const currentFrame = useMemo(
+    () => useSyntheticTrackMotion
+      ? buildSyntheticFrame(rawCurrentFrame, replay.trackPath, currentTime, estimatedLapDuration)
+      : rawCurrentFrame,
+    [currentTime, estimatedLapDuration, rawCurrentFrame, replay.trackPath, useSyntheticTrackMotion],
+  );
+  const nextFrame = useMemo(
+    () => useSyntheticTrackMotion
+      ? buildSyntheticFrame(rawNextFrame, replay.trackPath, rawNextFrame?.t ?? currentTime + 4, estimatedLapDuration)
+      : rawNextFrame,
+    [currentTime, estimatedLapDuration, rawNextFrame, replay.trackPath, useSyntheticTrackMotion],
+  );
   const trackStatus = currentFrame?.trackStatus || "GREEN";
   const currentLap = currentFrame?.lap || null;
   const replayFocus = getFocusPoint(focusId);
@@ -475,7 +584,9 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
         </div>
         <div className="replay-session-banner__footer">
           <p className="replay-session-banner__note">
-            {replay.note || `${replaySourceLabel} · session key ${replay.sessionKey}`}
+            {useSyntheticTrackMotion
+              ? `Timing-first replay using a synthetic track map fallback · session key ${replay.sessionKey}`
+              : replay.note || `${replaySourceLabel} · session key ${replay.sessionKey}`}
           </p>
           <div className="replay-session-banner__actions">
             <a className="replay-session-banner__action replay-session-banner__action--primary" href="/replay">Replay library</a>
