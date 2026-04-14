@@ -62,7 +62,16 @@ function hasStaticTrackCoordinates(frames?: ReplayPack["frames"]) {
     return false;
   }
 
-  const sampleFrames = frames.slice(1, Math.min(frames.length, 12));
+  const sampleIndexes = Array.from(new Set([
+    1,
+    Math.floor(frames.length * 0.2),
+    Math.floor(frames.length * 0.4),
+    Math.floor(frames.length * 0.6),
+    Math.floor(frames.length * 0.8),
+    frames.length - 1,
+  ].filter((index) => index > 0 && index < frames.length)));
+
+  const sampleFrames = sampleIndexes.map((index) => frames[index]);
   return sampleCodes.every((driverCode) => {
     const baseline = firstFrame.drivers[driverCode];
     if (!baseline || baseline.x === null || baseline.y === null) {

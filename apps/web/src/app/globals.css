@@ -1985,9 +1985,9 @@ code {
 .replay-session-banner {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1.22fr) minmax(300px, 0.78fr);
-  gap: 24px;
-  padding: 28px;
+  grid-template-columns: minmax(0, 1.18fr) minmax(320px, 0.82fr);
+  gap: 18px;
+  padding: 20px 22px;
   overflow: hidden;
   background:
     radial-gradient(circle at top right, rgba(113, 193, 255, 0.14), transparent 24%),
@@ -2016,35 +2016,36 @@ code {
 .replay-session-banner__identity {
   display: grid;
   align-content: start;
-  gap: 14px;
+  gap: 10px;
 }
 
 .replay-session-banner__identity h1 {
   margin: 0;
   color: #ffffff;
-  font-size: clamp(2.4rem, 5vw, 4.4rem);
-  line-height: 0.94;
+  font-size: clamp(2rem, 4vw, 3.3rem);
+  line-height: 0.92;
 }
 
 .replay-session-banner__identity p {
   margin: 0;
-  max-width: 64ch;
+  max-width: 58ch;
   color: rgba(231, 237, 247, 0.76);
-  line-height: 1.65;
+  line-height: 1.55;
+  font-size: 0.96rem;
 }
 
 .replay-session-banner__facts {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
   align-content: start;
 }
 
 .replay-session-banner__fact {
-  min-height: 92px;
-  padding: 16px 18px;
+  min-height: 74px;
+  padding: 12px 14px;
   border: 1px solid rgba(167, 189, 219, 0.14);
-  border-radius: 18px;
+  border-radius: 16px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.03));
 }
 
@@ -2059,27 +2060,28 @@ code {
 
 .replay-session-banner__fact strong {
   display: block;
-  margin-top: 10px;
+  margin-top: 6px;
   color: #ffffff;
-  font-size: 1rem;
+  font-size: 0.9rem;
   line-height: 1.4;
 }
 
 .replay-session-banner__footer {
   grid-column: 1 / -1;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
-  gap: 18px;
-  padding-top: 6px;
+  gap: 14px;
+  padding-top: 4px;
   border-top: 1px solid rgba(167, 189, 219, 0.14);
 }
 
 .replay-session-banner__note {
   margin: 0;
-  max-width: 72ch;
+  max-width: 66ch;
   color: rgba(231, 237, 247, 0.66);
-  line-height: 1.6;
+  line-height: 1.5;
+  font-size: 0.88rem;
 }
 
 .replay-session-banner__actions {
@@ -2173,15 +2175,15 @@ code {
 
 .replay-workspace-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.34fr) minmax(300px, 0.66fr);
-  gap: 22px;
+  grid-template-columns: minmax(0, 1.44fr) minmax(280px, 0.56fr);
+  gap: 18px;
   align-items: start;
 }
 
 .replay-track-panel {
   display: grid;
-  gap: 18px;
-  padding: 22px;
+  gap: 14px;
+  padding: 18px;
   background:
     radial-gradient(circle at top right, rgba(255, 122, 26, 0.08), transparent 24%),
     linear-gradient(180deg, rgba(10, 14, 22, 0.98), rgba(12, 18, 28, 0.94));
@@ -2190,28 +2192,55 @@ code {
 .replay-track-panel__header {
   display: flex;
   justify-content: space-between;
-  gap: 20px;
+  gap: 14px;
   align-items: flex-start;
   flex-wrap: wrap;
 }
 
 .replay-track-panel__title {
   display: grid;
-  gap: 10px;
-  max-width: 56ch;
+  gap: 8px;
+  max-width: 48ch;
 }
 
 .replay-track-panel__title h2 {
   margin: 0;
   color: #ffffff;
-  font-size: clamp(1.9rem, 3vw, 2.8rem);
+  font-size: clamp(1.6rem, 2.4vw, 2.2rem);
   line-height: 0.96;
 }
 
 .replay-track-panel__title p {
   margin: 0;
   color: rgba(231, 237, 247, 0.72);
-  line-height: 1.6;
+  line-height: 1.52;
+  font-size: 0.92rem;
+}
+
+.replay-track-panel__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.replay-track-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 11px;
+  border: 1px solid rgba(167, 189, 219, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(231, 237, 247, 0.84);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.replay-track-chip--accent {
+  background: rgba(255, 122, 26, 0.1);
+  border-color: rgba(255, 122, 26, 0.22);
+  color: rgba(255, 216, 196, 0.92);
 }
 
 .replay-track-panel__stats {
@@ -2222,7 +2251,7 @@ code {
 }
 
 .replay-track-panel__stats div {
-  padding: 14px 16px;
+  padding: 12px 14px;
   border: 1px solid rgba(167, 189, 219, 0.12);
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.04);
@@ -2241,14 +2270,14 @@ code {
 .replay-track-panel__header strong,
 .replay-track-panel__stats strong {
   display: block;
-  margin-top: 6px;
+  margin-top: 4px;
   color: #ffffff;
-  font-size: 1rem;
+  font-size: 0.9rem;
 }
 
 .replay-track-panel__canvas {
   position: relative;
-  min-height: 680px;
+  min-height: 720px;
   overflow: hidden;
   border: 1px solid rgba(167, 189, 219, 0.12);
   border-radius: 24px;
@@ -2266,8 +2295,8 @@ code {
   position: absolute;
   top: 20px;
   right: 20px;
-  width: min(340px, calc(100% - 40px));
-  padding: 16px 18px;
+  width: min(320px, calc(100% - 40px));
+  padding: 14px 16px;
   border: 1px solid rgba(167, 189, 219, 0.14);
   border-radius: 20px;
   background: rgba(11, 15, 24, 0.82);
@@ -2306,40 +2335,92 @@ code {
   line-height: 1.45;
 }
 
+.replay-stage-order {
+  position: absolute;
+  left: 18px;
+  bottom: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  z-index: 2;
+}
+
+.replay-stage-order__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 11px;
+  border: 1px solid rgba(167, 189, 219, 0.14);
+  border-radius: 999px;
+  background: rgba(11, 15, 24, 0.84);
+  color: var(--shell-ink);
+  cursor: pointer;
+  backdrop-filter: blur(14px);
+}
+
+.replay-stage-order__chip--selected {
+  border-color: rgba(255, 122, 26, 0.26);
+  background: rgba(255, 122, 26, 0.12);
+}
+
+.replay-stage-order__position,
+.replay-stage-order__gap {
+  font-family: "IBM Plex Mono", Consolas, monospace;
+  font-size: 0.72rem;
+}
+
+.replay-stage-order__position {
+  color: rgba(255, 216, 196, 0.92);
+}
+
+.replay-stage-order__driver {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+.replay-stage-order__gap {
+  color: rgba(231, 237, 247, 0.62);
+}
+
 .replay-side-column {
   display: grid;
-  gap: 18px;
+  gap: 14px;
   align-self: start;
+  position: sticky;
+  top: 18px;
 }
 
 .replay-side-card {
   display: grid;
-  gap: 14px;
-  padding: 20px 22px;
+  gap: 10px;
+  padding: 16px 18px;
 }
 
 .replay-side-card h3 {
   margin: 0;
-  font-size: 1.3rem;
+  font-size: 1.08rem;
   line-height: 1.1;
 }
 
 .replay-side-card p {
   margin: 0;
   color: rgba(231, 237, 247, 0.74);
-  line-height: 1.6;
+  line-height: 1.5;
+  font-size: 0.9rem;
 }
 
 .replay-side-card__stats {
   display: grid;
-  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 12px;
   margin: 2px 0 0;
 }
 
 .replay-side-card__stats div {
   display: grid;
   gap: 4px;
-  padding-top: 12px;
+  padding-top: 10px;
   border-top: 1px solid rgba(167, 189, 219, 0.1);
 }
 
@@ -2354,8 +2435,57 @@ code {
 .replay-side-card__stats dd {
   margin: 0;
   color: #ffffff;
-  font-size: 0.92rem;
+  font-size: 0.84rem;
   line-height: 1.45;
+}
+
+.replay-insight-panel--embedded {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+}
+
+.replay-support-panel {
+  display: grid;
+  gap: 14px;
+  padding: 18px 20px 20px;
+  border: 1px solid rgba(167, 189, 219, 0.14);
+  border-radius: 28px;
+  background: linear-gradient(180deg, rgba(10, 14, 22, 0.98), rgba(13, 18, 29, 0.94));
+  box-shadow: 0 22px 60px rgba(2, 6, 23, 0.18);
+}
+
+.replay-support-panel__header {
+  align-items: flex-end;
+}
+
+.replay-support-panel__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.replay-support-panel__tab {
+  padding: 9px 12px;
+  border: 1px solid rgba(167, 189, 219, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(231, 237, 247, 0.82);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.replay-support-panel__tab--active {
+  background: rgba(255, 122, 26, 0.14);
+  border-color: rgba(255, 122, 26, 0.28);
+  color: #fff2e8;
 }
 
 .replay-leaderboard {
@@ -2947,6 +3077,25 @@ code {
   .replay-session-banner__facts,
   .replay-track-panel__stats,
   .replay-telemetry-strip__metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .replay-track-panel__chips,
+  .replay-stage-order,
+  .replay-support-panel__tabs {
+    justify-content: flex-start;
+  }
+
+  .replay-stage-order {
+    position: static;
+    padding: 12px;
+  }
+
+  .replay-side-column {
+    position: static;
+  }
+
+  .replay-side-card__stats {
     grid-template-columns: 1fr;
   }
 

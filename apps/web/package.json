@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node ../../pipeline/export/src/sync-web-models.mjs && node ../../pipeline/export/src/generate-sample-data.mjs && node ../../pipeline/export/src/split-replay-packs.mjs && npm run next:build",
+    "build": "node ../../pipeline/export/src/sync-web-models.mjs && node ../../pipeline/export/src/generate-sample-data.mjs && node ../../pipeline/export/src/build-openf1-replay-pack.mjs --grandPrixSlug abu-dhabi-grand-prix --sessionSlug race && node ../../pipeline/export/src/split-replay-packs.mjs && npm run next:build",
     "next:build": "next build",
     "start": "next start"
   },

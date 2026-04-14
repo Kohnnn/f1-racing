@@ -7,9 +7,9 @@
     "workers/*"
   ],
   "scripts": {
-    "dev": "npm run sync:models && npm run generate:sample && npm run split:replay && npm run dev -w @f1-racing/web",
-    "build": "npm run sync:models && npm run generate:sample && npm run split:replay && npm run next:build -w @f1-racing/web",
-    "build:pages": "npm run sync:models && npm run generate:sample && npm run split:replay && npm run next:build -w @f1-racing/web",
+    "dev": "npm run sync:models && npm run generate:sample && npm run refresh:showcase:replay && npm run dev -w @f1-racing/web",
+    "build": "npm run sync:models && npm run generate:sample && npm run refresh:showcase:replay && npm run next:build -w @f1-racing/web",
+    "build:pages": "npm run sync:models && npm run generate:sample && npm run refresh:showcase:replay && npm run next:build -w @f1-racing/web",
     "generate:sample": "node pipeline/export/src/generate-sample-data.mjs",
     "sync:models": "node pipeline/export/src/sync-web-models.mjs",
     "split:replay": "node pipeline/export/src/split-replay-packs.mjs",
@@ -25,6 +25,7 @@
     "ingest:openf1:2025": "node pipeline/ingest/src/ingest-openf1-2025-season.mjs",
     "build:openf1:session": "node pipeline/export/src/build-openf1-session-pack.mjs",
     "build:openf1:replay": "node pipeline/export/src/build-openf1-replay-pack.mjs",
+    "refresh:showcase:replay": "node pipeline/export/src/build-openf1-replay-pack.mjs --grandPrixSlug abu-dhabi-grand-prix --sessionSlug race && node pipeline/export/src/split-replay-packs.mjs",
     "build:fastf1:replay": "python pipeline/fastf1/build-fastf1-replay-pack.py",
     "build:fastf1:replay:2025": "node pipeline/fastf1/rebuild-fastf1-season.mjs --year 2025",
     "build:fastf1:replay:local": "pip install -r pipeline/fastf1/requirements.txt && python pipeline/fastf1/build-fastf1-replay-pack.py",

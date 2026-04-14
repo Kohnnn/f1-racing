@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "path";
+import { fileURLToPath } from "node:url";
 import {
   fetchCarData,
   fetchDrivers,
@@ -12,7 +13,7 @@ import {
 } from "../../ingest/src/openf1-client.mjs";
 import { slugify } from "../../normalize/src/normalize-session.mjs";
 
-const root = path.resolve(process.cwd());
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const dataRoot = path.join(root, "data");
 const publicRoot = path.join(root, "apps", "web", "public", "data");
 

@@ -14,9 +14,9 @@ function buildTrendLabel(value: number) {
   return "stable";
 }
 
-export function ReplayComparePanel({ compare, legacyHref }: { compare: ComparePack; legacyHref?: string | null }) {
+export function ReplayComparePanel({ compare, legacyHref, embedded = false }: { compare: ComparePack; legacyHref?: string | null; embedded?: boolean }) {
   return (
-    <section className="panel replay-insight-panel">
+    <section className={`replay-insight-panel${embedded ? " replay-insight-panel--embedded" : " panel"}`}>
       <div className="section-header">
         <div>
           <p className="eyebrow">Replay compare</p>
@@ -60,11 +60,11 @@ export function ReplayComparePanel({ compare, legacyHref }: { compare: ComparePa
   );
 }
 
-export function ReplayStintPanel({ stintPack, legacyHref }: { stintPack: StintPack; legacyHref?: string | null }) {
+export function ReplayStintPanel({ stintPack, legacyHref, embedded = false }: { stintPack: StintPack; legacyHref?: string | null; embedded?: boolean }) {
   const featuredDrivers = stintPack.drivers.slice(0, 4);
 
   return (
-    <section className="panel replay-insight-panel">
+    <section className={`replay-insight-panel${embedded ? " replay-insight-panel--embedded" : " panel"}`}>
       <div className="section-header">
         <div>
           <p className="eyebrow">Replay stints</p>

@@ -12,6 +12,8 @@ import { TrackCanvas } from "./TrackCanvas";
 
 const UI_SYNC_INTERVAL_MS = 180;
 
+type AnalysisTab = "telemetry" | "compare" | "stints";
+
 interface ReplayViewProps {
   replay: ReplayPack;
   manifest: SessionManifest;
@@ -37,7 +39,16 @@ function hasStaticTrackCoordinates(frames: ReplayPack["frames"]) {
     return false;
   }
 
-  const sampleFrames = frames.slice(1, Math.min(frames.length, 12));
+  const sampleIndexes = Array.from(new Set([
+    1,
+    Math.floor(frames.length * 0.2),
+    Math.floor(frames.length * 0.4),
+    Math.floor(frames.length * 0.6),
+    Math.floor(frames.length * 0.8),
+    frames.length - 1,
+  ].filter((index) => index > 0 && index < frames.length)));
+
+  const sampleFrames = sampleIndexes.map((index) => frames[index]);
   return sampleCodes.every((driverCode) => {
     const baseline = firstFrame.drivers[driverCode];
     if (!baseline || baseline.x === null || baseline.y === null) {
@@ -174,6 +185,7 @@ function findLastIndexBeforeOrAt(time: number, values: number[]) {
 
 export function ReplayView({ replay, manifest, summary, compare, route, stintPack, onEnsureTimeLoaded }: ReplayViewProps) {
   const initialTime = replay.frames[0]?.t || 0;
+  const defaultAnalysisTab = compare ? "compare" as const : stintPack ? "stints" as const : "telemetry" as const;
   const [playbackState, setPlaybackState] = useState(() => ({
     currentTime: initialTime,
     frameIndex: 0,
@@ -181,6 +193,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [selectedDrivers, setSelectedDrivers] = useState<string[]>([]);
+  const [analysisTab, setAnalysisTab] = useState<"telemetry" | "compare" | "stints">(defaultAnalysisTab);
   const [focusId, setFocusId] = useState<string | null>(null);
   const animationRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(0);
@@ -367,12 +380,24 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
     ? selectedTelemetryDrivers.map((driver) => driver.abbr).join(" · ")
     : "No drivers selected";
   const leadDriver = displayedDrivers[0] || null;
+  const stageDrivers = displayedDrivers.slice(0, 3);
 
   const featuredCompareKey = Object.keys(manifest.compare ?? {})[0] ?? null;
   const featuredCompareHref = featuredCompareKey
     ? `/compare/${route.season}/${route.grandPrix}/${route.session}/${featuredCompareKey.split("-")[0]}/${featuredCompareKey.split("-")[1]}`
     : null;
   const featuredStintHref = manifest.stints ? `/stints/${route.season}/${route.grandPrix}/${route.session}` : null;
+
+  useEffect(() => {
+    if (analysisTab === "compare" && !compare) {
+      setAnalysisTab(stintPack ? "stints" : "telemetry");
+      return;
+    }
+
+    if (analysisTab === "stints" && !stintPack) {
+      setAnalysisTab(compare ? "compare" : "telemetry");
+    }
+  }, [analysisTab, compare, stintPack]);
 
   const syncPlaybackState = useCallback((time: number, frameIndex: number) => {
     playheadTimeRef.current = time;
@@ -553,7 +578,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
           <p className="eyebrow">Replay workspace</p>
           <h1>{replay.grandPrix}</h1>
           <p>
-            {replay.session} replay at {trackLabel}. Live order, race control, and selected telemetry stay on one surface so the lap story reads like a control room instead of a route switch.
+            {replay.session} replay at {trackLabel}. One dense control surface for order, track state, telemetry, and comparison work.
           </p>
         </div>
         <div className="replay-session-banner__facts">
@@ -623,7 +648,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
               <p className="eyebrow">Track stage</p>
               <h2>{trackLabel}</h2>
               <p>
-                Click any marker to isolate a car. Shift-click keeps a comparison set of up to four drivers pinned into the telemetry deck below.
+                Click any marker to inspect a car. Shift-click keeps up to four drivers pinned for a denser compare workflow.
               </p>
             </div>
             <div className="replay-track-panel__stats">
@@ -640,6 +665,14 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
                 <strong>{activeRaceControlMessages.length || 0}</strong>
               </div>
             </div>
+          </div>
+
+          <div className="replay-track-panel__chips">
+            <span className="replay-track-chip replay-track-chip--accent">{replaySourceLabel}</span>
+            {leadDriver ? <span className="replay-track-chip">Leader {leadDriver.abbr}</span> : null}
+            {fastestLap?.lapTime ? <span className="replay-track-chip">Fastest {fastestLap.driverCode} · {formatLapTime(fastestLap.lapTime)}</span> : null}
+            <span className="replay-track-chip">Selected {selectedDrivers.length || 0}</span>
+            {replayFocus ? <span className="replay-track-chip">Focus {replayFocus.title}</span> : null}
           </div>
 
           <div className="replay-track-panel__canvas">
@@ -665,6 +698,23 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
                     </li>
                   ))}
                 </ul>
+              </div>
+            ) : null}
+
+            {stageDrivers.length ? (
+              <div className="replay-stage-order">
+                {stageDrivers.map((driver) => (
+                  <button
+                    key={driver.abbr}
+                    type="button"
+                    className={`replay-stage-order__chip${selectedDrivers.includes(driver.abbr) ? " replay-stage-order__chip--selected" : ""}`}
+                    onClick={() => handleDriverSelect(driver.abbr, false)}
+                  >
+                    <span className="replay-stage-order__position">{driver.position}</span>
+                    <span className="replay-stage-order__driver">{driver.abbr}</span>
+                    <span className="replay-stage-order__gap">{driver.intervalLabel}</span>
+                  </button>
+                ))}
               </div>
             ) : null}
           </div>
@@ -695,9 +745,9 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
         <aside className="replay-side-column">
           <section className="replay-side-card">
             <p className="eyebrow">Current read</p>
-            <h3>{selectedTelemetryDrivers.length ? `Telemetry on ${selectedDriverLabel}` : leadDriver ? `${leadDriver.abbr} leads the field` : "Pick a driver to inspect"}</h3>
+            <h3>{selectedTelemetryDrivers.length ? `Telemetry on ${selectedDriverLabel}` : leadDriver ? `${leadDriver.abbr} anchors the replay` : "Pick a driver to inspect"}</h3>
             <p>
-              Track clicks and leaderboard picks feed the same telemetry deck. Keep fast context here, then use compare or stints lower down when you need a deeper supporting read.
+              Use the stage and order rail as the fast layer. The deck below is for telemetry, compare, and tyre-window reads.
             </p>
             <dl className="replay-side-card__stats">
               <div>
@@ -727,44 +777,86 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
         </aside>
       </div>
 
-      <section className="replay-telemetry-panel">
-        <div className="section-header replay-telemetry-panel__header">
+      <section className="replay-support-panel">
+        <div className="section-header replay-support-panel__header">
           <div>
-            <p className="eyebrow">Driver telemetry</p>
-            <h2>{selectedTelemetryDrivers.length ? "Selected telemetry strips" : "Select drivers from the leaderboard"}</h2>
+            <p className="eyebrow">Analysis deck</p>
+            <h2>
+              {analysisTab === "telemetry"
+                ? selectedTelemetryDrivers.length
+                  ? "Selected telemetry strips"
+                  : "Select drivers from the leaderboard"
+                : analysisTab === "compare"
+                  ? `${compare?.drivers[0]} vs ${compare?.drivers[1]}`
+                  : "Tyre window snapshot"}
+            </h2>
           </div>
-          {selectedTelemetryDrivers.length ? (
-            <div className="replay-telemetry-panel__selection">
-              {selectedTelemetryDrivers.map((driver) => (
-                <span className="replay-telemetry-panel__selection-chip" key={driver.abbr}>
-                  <span className="replay-telemetry-panel__selection-dot" style={{ backgroundColor: driver.color }} />
-                  <strong>{driver.abbr}</strong>
-                </span>
-              ))}
-            </div>
-          ) : (
-            <p className="replay-telemetry-panel__hint">Use the track map or leaderboard to load telemetry cards.</p>
-          )}
+          <div className="replay-support-panel__tabs">
+            <button
+              type="button"
+              className={`replay-support-panel__tab${analysisTab === "telemetry" ? " replay-support-panel__tab--active" : ""}`}
+              onClick={() => setAnalysisTab("telemetry")}
+            >
+              Telemetry {selectedTelemetryDrivers.length ? `· ${selectedTelemetryDrivers.length}` : ""}
+            </button>
+            {compare ? (
+              <button
+                type="button"
+                className={`replay-support-panel__tab${analysisTab === "compare" ? " replay-support-panel__tab--active" : ""}`}
+                onClick={() => setAnalysisTab("compare")}
+              >
+                Compare
+              </button>
+            ) : null}
+            {stintPack ? (
+              <button
+                type="button"
+                className={`replay-support-panel__tab${analysisTab === "stints" ? " replay-support-panel__tab--active" : ""}`}
+                onClick={() => setAnalysisTab("stints")}
+              >
+                Stints
+              </button>
+            ) : null}
+          </div>
         </div>
-        {selectedTelemetryDrivers.length ? (
-          <div className="replay-telemetry-stack">
-            {selectedTelemetryDrivers.map((driver) => (
-              <ReplayTelemetryStrip key={driver.abbr} driver={driver} />
-            ))}
-          </div>
-        ) : (
-          <p className="replay-empty-copy">
-            Choose one driver for a focused lap read, or shift-click several drivers to compare telemetry strips side by side.
-          </p>
-        )}
-      </section>
 
-      {compare || stintPack ? (
-        <div className="replay-insights-grid">
-          {compare ? <ReplayComparePanel compare={compare} legacyHref={featuredCompareHref} /> : null}
-          {stintPack ? <ReplayStintPanel stintPack={stintPack} legacyHref={featuredStintHref} /> : null}
-        </div>
-      ) : null}
+        {analysisTab === "telemetry" ? (
+          <>
+            {selectedTelemetryDrivers.length ? (
+              <div className="replay-telemetry-panel__selection">
+                {selectedTelemetryDrivers.map((driver) => (
+                  <span className="replay-telemetry-panel__selection-chip" key={driver.abbr}>
+                    <span className="replay-telemetry-panel__selection-dot" style={{ backgroundColor: driver.color }} />
+                    <strong>{driver.abbr}</strong>
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="replay-telemetry-panel__hint">Use the track map or leaderboard to load telemetry cards.</p>
+            )}
+
+            {selectedTelemetryDrivers.length ? (
+              <div className="replay-telemetry-stack">
+                {selectedTelemetryDrivers.map((driver) => (
+                  <ReplayTelemetryStrip key={driver.abbr} driver={driver} />
+                ))}
+              </div>
+            ) : (
+              <p className="replay-empty-copy">
+                Choose one driver for a focused lap read, or shift-click several drivers to compare telemetry strips side by side.
+              </p>
+            )}
+          </>
+        ) : null}
+
+        {analysisTab === "compare" && compare ? (
+          <ReplayComparePanel compare={compare} legacyHref={featuredCompareHref} embedded />
+        ) : null}
+
+        {analysisTab === "stints" && stintPack ? (
+          <ReplayStintPanel stintPack={stintPack} legacyHref={featuredStintHref} embedded />
+        ) : null}
+      </section>
     </div>
   );
 }
