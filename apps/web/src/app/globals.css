@@ -268,7 +268,7 @@ a {
   display: grid;
   grid-template-columns: minmax(320px, 0.74fr) minmax(0, 1.26fr);
   gap: 18px;
-  min-height: 820px;
+  min-height: min(820px, calc(100vh - 140px));
   padding: 24px;
   border: 1px solid rgba(167, 189, 219, 0.16);
   border-radius: 36px;
@@ -277,7 +277,7 @@ a {
     radial-gradient(circle at 80% 24%, rgba(255, 255, 255, 0.05), transparent 26%),
     linear-gradient(180deg, rgba(19, 14, 11, 0.92), rgba(10, 12, 17, 0.98));
   box-shadow: var(--shadow-strong);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .landing-cinematic::before {

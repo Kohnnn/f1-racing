@@ -10,6 +10,10 @@ interface LapTableProps {
   laps: LapRecord[];
 }
 
+function displayCompound(compound: string) {
+  return compound && compound !== "UNKNOWN" ? compound : "Not reported";
+}
+
 export function LapTable({ laps }: LapTableProps) {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const visibleLaps = useMemo(() => laps.slice(0, visibleCount), [laps, visibleCount]);
@@ -52,8 +56,8 @@ export function LapTable({ laps }: LapTableProps) {
                 <td>{formatLapTime(lap.sector1)}</td>
                 <td>{formatLapTime(lap.sector2)}</td>
                 <td>{formatLapTime(lap.sector3)}</td>
-                <td>{lap.compound}</td>
-                <td>{lap.stint}</td>
+                <td>{displayCompound(lap.compound)}</td>
+                <td>{Math.max(1, lap.stint)}</td>
               </tr>
             ))}
           </tbody>

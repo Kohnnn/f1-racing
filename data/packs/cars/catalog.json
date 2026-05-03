@@ -33,18 +33,6 @@
       "sizeLabel": "~36.2 MB (compressed)",
       "surfaceReady": true,
       "notes": "McLaren 2025 model for comparing bodywork shape, proportions, and visible aero surfaces against the Red Bull reference."
-    },
-    {
-      "id": "apx-gp-2025-apx01",
-      "constructor": "APX GP",
-      "constructorSlug": "apx-gp",
-      "season": 2025,
-      "displayName": "APX GP APX01",
-      "file": "/models/2025/apx-gp/apx01.glb",
-      "poster": "/posters/2025/apx-gp/apx01.svg",
-      "sizeLabel": "~3.2 MB (compressed)",
-      "surfaceReady": false,
-      "notes": "Fictional APX GP reference model kept as a preview surface for visual experiments."
     }
   ]
 }

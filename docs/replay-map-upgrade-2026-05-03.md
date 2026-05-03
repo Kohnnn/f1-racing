@@ -31,6 +31,10 @@ The implementation keeps this project static-export friendly and does not copy l
   - `B`: toggle event markers
 - Improved leaderboard rows with team name, last lap or speed fallback, tyre age, and DRS badges.
 - Added a safety-car visual fallback when the frame status is `SC` or `VSC` but no explicit safety-car position exists.
+- Cleaned public-facing copy called out by QA: model catalog notes, compare route wording, stint route wording, library coverage labels, and session summary display labels.
+- Removed the fictional APX GP model from the production model selector.
+- Hardened session-summary fastest-lap display to use the minimum lap time instead of trusting stale `isFastest` flags.
+- Increased Yas Marina synthetic path detail to reduce the decagon-like circuit shape until real GPS track geometry is exported.
 
 ## Reference Ideas Used
 

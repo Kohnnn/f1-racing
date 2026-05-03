@@ -899,29 +899,57 @@ function generateBakuPath() {
 
 function generateYasMarinaPath() {
   const points = [
-    [-480, -105],
-    [-300, -185],
-    [-90, -210],
-    [120, -170],
-    [365, -120],
-    [500, -25],
-    [470, 72],
-    [300, 88],
-    [130, 60],
-    [18, 112],
-    [115, 188],
-    [330, 210],
-    [420, 138],
-    [310, 20],
-    [82, -12],
-    [-110, 34],
-    [-262, 122],
-    [-430, 98],
-    [-510, 8],
-    [-480, -105],
+    [-515, -96],
+    [-405, -155],
+    [-250, -192],
+    [-72, -212],
+    [116, -188],
+    [286, -146],
+    [432, -92],
+    [512, -18],
+    [496, 52],
+    [410, 82],
+    [292, 76],
+    [170, 50],
+    [62, 80],
+    [18, 126],
+    [72, 174],
+    [188, 208],
+    [322, 216],
+    [426, 176],
+    [448, 112],
+    [386, 58],
+    [280, 24],
+    [152, 8],
+    [46, -6],
+    [-68, 22],
+    [-166, 76],
+    [-274, 126],
+    [-402, 106],
+    [-500, 48],
+    [-532, -28],
+    [-515, -96],
   ];
 
-  return smoothPath(points);
+  return densifyPath(smoothPath(points), 5);
+}
+
+function densifyPath(points, stepsPerSegment = 4) {
+  if (points.length < 2) return points;
+  const dense = [];
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const start = points[index];
+    const end = points[index + 1];
+    for (let step = 0; step < stepsPerSegment; step += 1) {
+      const ratio = step / stepsPerSegment;
+      dense.push([
+        start[0] + (end[0] - start[0]) * ratio,
+        start[1] + (end[1] - start[1]) * ratio,
+      ]);
+    }
+  }
+  dense.push(points.at(-1));
+  return dense;
 }
 
 function smoothPath(points) {

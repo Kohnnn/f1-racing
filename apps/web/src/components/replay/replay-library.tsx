@@ -13,9 +13,16 @@ function buildCoverageLabel(sessionCount: number) {
 
 function buildSessionMeta(season: number, sessionName: string) {
   if (season > 2025) {
-    return "2026 replay pack";
+    return "2026 preview replay";
   }
   return `${sessionName} replay`;
+}
+
+function buildCoverageNote(sessionCount: number) {
+  if (sessionCount >= 2) {
+    return "Race and support sessions exported.";
+  }
+  return "Only exported sessions are shown; more sessions can be added when packs are generated.";
 }
 
 export async function ReplayLibrary({ aliasMode = false }: ReplayLibraryProps) {
@@ -46,6 +53,7 @@ export async function ReplayLibrary({ aliasMode = false }: ReplayLibraryProps) {
           <span className="replay-meta-pill">
             {latestManifest.latest.grandPrixName} · {latestManifest.latest.sessionName}
           </span>
+          <span className="replay-meta-pill">Coverage varies by available exported data</span>
         </div>
       </section>
 
@@ -65,6 +73,7 @@ export async function ReplayLibrary({ aliasMode = false }: ReplayLibraryProps) {
                   <div>
                     <p className="eyebrow">{buildCoverageLabel(grandPrix.sessions.length)}</p>
                     <h3>{grandPrix.grandPrixName}</h3>
+                    <p className="replay-session-cluster__note">{buildCoverageNote(grandPrix.sessions.length)}</p>
                   </div>
                   <div className="replay-session-links">
                     {grandPrix.sessions.map((session) => (

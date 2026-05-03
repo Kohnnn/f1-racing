@@ -63,6 +63,13 @@ function formatSlugLabel(value: string) {
     .join(" ");
 }
 
+function findFastestLap(laps: LapRecord[]) {
+  return laps
+    .filter((lap) => Number.isFinite(lap.lapTime) && lap.lapTime > 0)
+    .slice()
+    .sort((left, right) => left.lapTime - right.lapTime)[0] ?? null;
+}
+
 async function fetchJson<T>(url: string): Promise<T> {
   const response = await fetch(url);
   if (!response.ok) {
@@ -128,14 +135,21 @@ export function SessionRouteClient({ manifest, summary, route }: SessionRouteCli
     if (state.status !== "ready") {
       return null;
     }
-    return state.laps.find((lap) => lap.isFastest) ?? state.laps[0] ?? null;
+    return findFastestLap(state.laps);
   }, [state]);
 
   const fastestByDriver = useMemo(() => {
     if (state.status !== "ready") {
       return new Map<string, LapRecord>();
     }
-    return new Map(state.laps.filter((lap) => lap.isFastest).map((lap) => [lap.driverCode, lap]));
+    const fastest = new Map<string, LapRecord>();
+    for (const lap of state.laps) {
+      const current = fastest.get(lap.driverCode);
+      if (!current || lap.lapTime < current.lapTime) {
+        fastest.set(lap.driverCode, lap);
+      }
+    }
+    return fastest;
   }, [state]);
 
   if (state.status === "ready") {

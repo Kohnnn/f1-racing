@@ -69,7 +69,7 @@ export default async function ComparePage({ params }: ComparePageProps) {
             {left} vs {right}
           </h1>
           <p className="lead">
-            This legacy compare route still works, but compare insight now lives directly inside replay so lap context stays in the same workspace.
+            Compare two representative laps with section deltas, telemetry traces, and derived braking or throttle notes. The replay workspace also embeds this same compare view for in-context analysis.
           </p>
           <div className="hero-actions">
             <a className="button" href={`/replay/${season}/${grandPrix}/${session}`}>Back to replay</a>
@@ -98,22 +98,22 @@ export default async function ComparePage({ params }: ComparePageProps) {
         <section className="panel">
           <div className="section-header">
             <div>
-              <p className="eyebrow">Next iteration</p>
-              <h2>Planned compare upgrades</h2>
+              <p className="eyebrow">Compare workflow</p>
+              <h2>How to use this read</h2>
             </div>
           </div>
           <ul className="summary-list">
             <li>
               <strong>Telemetry traces</strong>
-              <span>Speed, throttle, and brake traces now come from the compare pack. Gear and RPM can follow in the next iteration.</span>
+              <span>Speed, throttle, brake, gear, and RPM traces come from the compare pack for the selected lap pair.</span>
             </li>
             <li>
               <strong>Corner explorer</strong>
-              <span>Turn delta sections into corner-specific narratives with braking and throttle pickup summaries.</span>
+              <span>Use the derived events below the traces to identify where each driver gained or lost time.</span>
             </li>
             <li>
-              <strong>Track overlay</strong>
-              <span>Render a lightweight SVG or canvas track map showing which driver led each section.</span>
+              <strong>Replay context</strong>
+              <span>Open the replay workspace when you want the same comparison beside the moving track map and leaderboard.</span>
             </li>
           </ul>
         </section>

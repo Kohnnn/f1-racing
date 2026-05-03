@@ -33,7 +33,7 @@ export default async function HomePage() {
 
           <a className="landing-start" href={replayHref}>
             <strong>Open latest replay</strong>
-            <span>Latest session</span>
+            <span>{manifest.latest.grandPrixName}</span>
           </a>
 
           <div className="landing-support-grid" aria-label="Secondary product routes">
@@ -98,7 +98,7 @@ export default async function HomePage() {
           </div>
           <div>
             <span>Secondary routes</span>
-            <strong>{catalog.models.length} GLB cars · {learnModules.length} learn modules</strong>
+            <strong>{catalog.models.length} current-spec cars · {learnModules.length} learn modules</strong>
           </div>
         </div>
       </section>

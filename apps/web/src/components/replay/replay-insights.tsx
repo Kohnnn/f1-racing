@@ -55,7 +55,7 @@ export function ReplayComparePanel({ compare, legacyHref, embedded = false }: { 
           </ul>
         </div>
       </div>
-      {legacyHref ? <a className="inline-link" href={legacyHref}>Open legacy compare route</a> : null}
+      {legacyHref ? <a className="inline-link" href={legacyHref}>Open full compare page</a> : null}
     </section>
   );
 }
@@ -106,7 +106,7 @@ export function ReplayStintPanel({ stintPack, legacyHref, embedded = false }: { 
           );
         })}
       </div>
-      {legacyHref ? <a className="inline-link" href={legacyHref}>Open legacy stint route</a> : null}
+      {legacyHref ? <a className="inline-link" href={legacyHref}>Open full stint page</a> : null}
     </section>
   );
 }

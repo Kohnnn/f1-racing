@@ -69,7 +69,7 @@ If that `scp` form is awkward on your machine, use the same SSH key and host fro
 ### 4. Extract the archive on OCI
 
 ```powershell
-Invoke-Expression "$ociSsh 'rm -rf /srv/f1-racing-api/current/* && tar -xzf /srv/f1-racing-api/f1-racing-api-deploy.tgz -C /srv/f1-racing-api/current'"
+Invoke-Expression "$ociSsh 'cp /srv/f1-racing-api/current/deploy/oci/f1-racing-api.env /tmp/f1-racing-api.env 2>/dev/null || true && rm -rf /srv/f1-racing-api/current/* && tar -xzf /srv/f1-racing-api/f1-racing-api-deploy.tgz -C /srv/f1-racing-api/current && if [ -f /tmp/f1-racing-api.env ]; then mv /tmp/f1-racing-api.env /srv/f1-racing-api/current/deploy/oci/f1-racing-api.env; else cp /srv/f1-racing-api/current/deploy/oci/f1-racing-api.env.example /srv/f1-racing-api/current/deploy/oci/f1-racing-api.env; fi'"
 ```
 
 ### 5. Create the backend env file
@@ -150,6 +150,8 @@ Invoke-Expression "$ociSsh 'rm -rf /srv/f1-racing-api/current/* && tar -xzf /srv
 ```powershell
 Invoke-Expression "$ociSsh 'sudo systemctl restart f1-racing-api'"
 ```
+
+The redeploy step must preserve or recreate `deploy/oci/f1-racing-api.env`. Docker Compose will fail before starting the API if that file is missing.
 
 If the compose file changed significantly:
 

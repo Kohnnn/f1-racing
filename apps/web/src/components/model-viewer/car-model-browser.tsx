@@ -226,6 +226,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
     <section className="panel car-viewer-shell">
       <div className="car-viewer-toolbar">
         <div className="control-row">
+          {seasons.length > 1 ? (
           <label className="control-field">
             <span>Season</span>
             <select
@@ -249,6 +250,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
               ))}
             </select>
           </label>
+          ) : null}
           <label className="control-field">
             <span>Constructor</span>
             <select
