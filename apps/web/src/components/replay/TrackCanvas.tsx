@@ -13,6 +13,8 @@ interface TrackCanvasProps {
   selectedDrivers: string[];
   showDriverLabels?: boolean;
   showDrsZones?: boolean;
+  projectMarkersToTrack?: boolean;
+  estimatedLapDuration?: number;
   width?: number;
   height?: number;
   onDriverClick?: (driverCode: string | null, append: boolean) => void;
@@ -32,6 +34,7 @@ interface PositionTarget {
 }
 
 const BASE_INTERPOLATION_MS = 340;
+const LANE_SPACING = 3.2;
 
 export function TrackCanvas({
   trackPath,
@@ -41,6 +44,8 @@ export function TrackCanvas({
   selectedDrivers,
   showDriverLabels = false,
   showDrsZones = true,
+  projectMarkersToTrack = false,
+  estimatedLapDuration = 90,
   width = 920,
   height = 610,
   onDriverClick,
@@ -61,6 +66,34 @@ export function TrackCanvas({
   );
 
   const geometry = useMemo(() => buildTrackGeometry(trackPath, width, height), [trackPath, width, height]);
+
+  function buildProjectedTarget(driver: ReplayFrame["drivers"][string]) {
+    if (!geometry || !projectMarkersToTrack || driver.x === null || driver.y === null) {
+      return { x: driver.x ?? 0, y: driver.y ?? 0 };
+    }
+
+    const leader = currentFrame
+      ? Object.values(currentFrame.drivers).slice().sort((left, right) => left.position - right.position)[0]
+      : null;
+    const leaderProjection = leader && leader.x !== null && leader.y !== null
+      ? geometry.project({ x: leader.x, y: leader.y })
+      : null;
+    const ownProjection = geometry.project({ x: driver.x, y: driver.y });
+    const lapOffset = Math.max(0, (driver.lap ?? currentFrame?.lap ?? 1) - 1) * geometry.totalLength;
+    const intervalDistance = driver.interval !== null
+      ? (driver.interval / Math.max(55, estimatedLapDuration)) * geometry.totalLength
+      : (Math.max(0, driver.position - 1) * geometry.totalLength * 0.012);
+    const baseDistance = leaderProjection && driver.position > 1
+      ? lapOffset + leaderProjection.distance - intervalDistance
+      : lapOffset + ownProjection.distance;
+    const trackPoint = geometry.pointAtDistance(baseDistance);
+    const laneOffset = ((driver.position % 5) - 2) * LANE_SPACING;
+
+    return {
+      x: trackPoint.x + trackPoint.nx * laneOffset,
+      y: trackPoint.y + trackPoint.ny * laneOffset,
+    };
+  }
 
   useEffect(() => {
     trackStatusRef.current = currentFrame?.trackStatus || "GREEN";
@@ -88,18 +121,19 @@ export function TrackCanvas({
 
     for (const driver of targetDrivers) {
       const existing = positionTargetsRef.current.get(driver.driverCode);
+      const target = buildProjectedTarget(driver);
       const previousX = existing
         ? existing.previousX + (existing.targetX - existing.previousX) * Math.min((now - existing.startTime) / existing.duration, 1)
-        : (driver.x ?? 0);
+        : target.x;
       const previousY = existing
         ? existing.previousY + (existing.targetY - existing.previousY) * Math.min((now - existing.startTime) / existing.duration, 1)
-        : (driver.y ?? 0);
+        : target.y;
 
       positionTargetsRef.current.set(driver.driverCode, {
         previousX,
         previousY,
-        targetX: driver.x ?? 0,
-        targetY: driver.y ?? 0,
+        targetX: target.x,
+        targetY: target.y,
         startTime: now,
         duration: Math.max(BASE_INTERPOLATION_MS, frameDuration * 1.35),
         position: driver.position,
@@ -115,7 +149,7 @@ export function TrackCanvas({
         positionTargetsRef.current.delete(key);
       }
     }
-  }, [currentFrame, driverColorByCode, nextFrame]);
+  }, [currentFrame, driverColorByCode, geometry, nextFrame, projectMarkersToTrack, estimatedLapDuration]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

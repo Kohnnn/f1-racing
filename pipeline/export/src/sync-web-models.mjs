@@ -10,10 +10,6 @@ const MODEL_MAPPINGS = [
     destination: path.join(root, "apps", "web", "public", "models", "2025", "red-bull", "rb21.glb"),
   },
   {
-    source: path.join(root, "glb_model", "f1_2025_apx_gp_apx01.glb"),
-    destination: path.join(root, "apps", "web", "public", "models", "2025", "apx-gp", "apx01.glb"),
-  },
-  {
     source: path.join(root, "glb_model", "f1_2025_mclaren_mcl39-compressed.glb"),
     destination: path.join(root, "apps", "web", "public", "models", "2025", "mclaren", "mcl39.glb"),
   },

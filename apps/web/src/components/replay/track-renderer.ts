@@ -155,16 +155,16 @@ export function drawDrivers(
     const normal = geometry.densePoints[projection.index] ?? { nx: 0, ny: -1 };
     const isSelected = selectedDrivers.includes(driver.abbr);
     const isDrsActive = Number(driver.drs ?? 0) >= 10;
-    const radius = isSelected ? 8 : 5.5;
+    const radius = isSelected ? 7 : 4.6;
 
     if (isSelected) {
       ctx.beginPath();
-      ctx.arc(screen.x, screen.y, 17, 0, Math.PI * 2);
+      ctx.arc(screen.x, screen.y, 14, 0, Math.PI * 2);
       ctx.fillStyle = `${driver.color}40`;
       ctx.fill();
       ctx.beginPath();
       ctx.moveTo(screen.x, screen.y);
-      ctx.lineTo(screen.x + normal.nx * 38, screen.y - normal.ny * 38);
+      ctx.lineTo(screen.x + normal.nx * 30, screen.y - normal.ny * 30);
       ctx.strokeStyle = `${driver.color}aa`;
       ctx.lineWidth = 1.5;
       ctx.stroke();
@@ -172,7 +172,7 @@ export function drawDrivers(
 
     if (isDrsActive) {
       ctx.beginPath();
-      ctx.arc(screen.x, screen.y, radius + 5, 0, Math.PI * 2);
+      ctx.arc(screen.x, screen.y, radius + 4, 0, Math.PI * 2);
       ctx.strokeStyle = "#22c55e";
       ctx.lineWidth = 2;
       ctx.stroke();
@@ -196,7 +196,7 @@ export function drawDrivers(
       ctx.roundRect(labelX - textWidth / 2, labelY - 10, textWidth, 18, 9);
       ctx.fill();
       ctx.stroke();
-      ctx.font = isSelected ? "900 11px Aptos, sans-serif" : "800 9px Aptos, sans-serif";
+      ctx.font = isSelected ? "900 10px Aptos, sans-serif" : "800 8px Aptos, sans-serif";
       ctx.fillStyle = "#ffffff";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";

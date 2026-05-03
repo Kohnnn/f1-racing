@@ -171,6 +171,9 @@ export function buildTrackGeometry(trackPath: [number, number][] | null, width: 
       if (!densePoints.length) {
         return { x: 0, y: 0, distance: 0, nx: 0, ny: -1 };
       }
+      if (totalLength <= 0) {
+        return densePoints[0];
+      }
       const normalizedDistance = ((distance % totalLength) + totalLength) % totalLength;
       let nearest = densePoints[0];
       for (const point of densePoints) {

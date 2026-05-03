@@ -765,6 +765,8 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
               selectedDrivers={selectedDrivers}
               showDriverLabels={showDriverLabels}
               showDrsZones={showDrsZones}
+              projectMarkersToTrack={useSyntheticTrackMotion || replay.source === "openf1"}
+              estimatedLapDuration={estimatedLapDuration}
               onDriverClick={handleDriverSelect}
             />
 

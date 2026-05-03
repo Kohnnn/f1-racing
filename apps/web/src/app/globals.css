@@ -431,6 +431,7 @@ a {
     radial-gradient(circle at 56% 42%, rgba(255, 255, 255, 0.12), transparent 24%),
     linear-gradient(180deg, rgba(19, 16, 14, 0.72), rgba(7, 10, 14, 0.98));
   overflow: hidden;
+  padding: 20px;
 }
 
 .landing-stage-v2__frame::before {
@@ -467,8 +468,9 @@ a {
 .landing-stage-v2__viewer {
   display: block;
   width: 100%;
-  min-height: 760px;
+  min-height: 720px;
   height: 100%;
+  max-height: 780px;
   background: transparent;
 }
 

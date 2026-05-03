@@ -14,11 +14,11 @@
       "modelScale": "100 100 100",
       "heroScale": "100 100 100",
       "heroCamera": {
-        "orbit": "18deg 78deg 6.2m",
-        "target": "0m 0.56m 0m",
-        "fieldOfView": "28deg",
-        "minOrbit": "auto auto 4.8m",
-        "maxOrbit": "auto auto 8.5m"
+        "orbit": "92deg 78deg 8.8m",
+        "target": "0m 0.48m 0m",
+        "fieldOfView": "34deg",
+        "minOrbit": "auto auto 7.2m",
+        "maxOrbit": "auto auto 11m"
       },
       "notes": "Current Red Bull race car shown as the main 3D reference for model inspection and replay context."
     },
