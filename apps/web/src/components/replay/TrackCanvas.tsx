@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import type { ReplayDriver, ReplayFrame } from "@/lib/data";
-import { drawDrivers, drawTrack, type DriverMarker, type TrackPoint } from "./track-renderer";
+import { buildTrackGeometry } from "./track-geometry";
+import { drawDrivers, drawSafetyCar, drawTrack, type DriverMarker, type SafetyCarMarker } from "./track-renderer";
 
 interface TrackCanvasProps {
   trackPath: [number, number][] | null;
@@ -10,6 +11,8 @@ interface TrackCanvasProps {
   currentFrame: ReplayFrame | null;
   nextFrame: ReplayFrame | null;
   selectedDrivers: string[];
+  showDriverLabels?: boolean;
+  showDrsZones?: boolean;
   width?: number;
   height?: number;
   onDriverClick?: (driverCode: string | null, append: boolean) => void;
@@ -24,51 +27,11 @@ interface PositionTarget {
   duration: number;
   position: number | null;
   color: string;
+  speed: number | null;
+  drs: number | null;
 }
 
 const BASE_INTERPOLATION_MS = 340;
-
-interface CanvasMetrics {
-  minX: number;
-  maxX: number;
-  minY: number;
-  maxY: number;
-  scale: number;
-  offsetX: number;
-  offsetY: number;
-  padX: number;
-  padTop: number;
-  padBottom: number;
-}
-
-function buildCanvasMetrics(trackPoints: TrackPoint[], width: number, height: number): CanvasMetrics | null {
-  if (!trackPoints.length) {
-    return null;
-  }
-
-  let minX = Infinity;
-  let maxX = -Infinity;
-  let minY = Infinity;
-  let maxY = -Infinity;
-
-  for (const point of trackPoints) {
-    minX = Math.min(minX, point.x);
-    maxX = Math.max(maxX, point.x);
-    minY = Math.min(minY, point.y);
-    maxY = Math.max(maxY, point.y);
-  }
-
-  const padX = 40;
-  const padTop = 54;
-  const padBottom = 70;
-  const rangeX = maxX - minX || 1;
-  const rangeY = maxY - minY || 1;
-  const scale = Math.min((width - padX * 2) / rangeX, (height - padTop - padBottom) / rangeY);
-  const offsetX = padX + (width - padX * 2 - rangeX * scale) / 2;
-  const offsetY = padTop + (height - padTop - padBottom - rangeY * scale) / 2;
-
-  return { minX, maxX, minY, maxY, scale, offsetX, offsetY, padX, padTop, padBottom };
-}
 
 export function TrackCanvas({
   trackPath,
@@ -76,6 +39,8 @@ export function TrackCanvas({
   currentFrame,
   nextFrame,
   selectedDrivers,
+  showDriverLabels = false,
+  showDrsZones = true,
   width = 920,
   height = 610,
   onDriverClick,
@@ -86,22 +51,27 @@ export function TrackCanvas({
   const positionTargetsRef = useRef<Map<string, PositionTarget>>(new Map());
   const trackStatusRef = useRef(currentFrame?.trackStatus || "GREEN");
   const selectedDriversRef = useRef(selectedDrivers);
-
-  const trackPoints = useMemo<TrackPoint[]>(() => (
-    trackPath?.map(([x, y]) => ({ x, y })) ?? []
-  ), [trackPath]);
+  const showDriverLabelsRef = useRef(showDriverLabels);
+  const showDrsZonesRef = useRef(showDrsZones);
+  const safetyCarRef = useRef<SafetyCarMarker | null>(null);
 
   const driverColorByCode = useMemo(
     () => new Map(drivers.map((driver) => [driver.driverCode, driver.teamColor])),
     [drivers],
   );
 
-  const canvasMetrics = useMemo(() => buildCanvasMetrics(trackPoints, width, height), [trackPoints, width, height]);
+  const geometry = useMemo(() => buildTrackGeometry(trackPath, width, height), [trackPath, width, height]);
 
   useEffect(() => {
     trackStatusRef.current = currentFrame?.trackStatus || "GREEN";
     selectedDriversRef.current = selectedDrivers;
-  }, [currentFrame, nextFrame, selectedDrivers]);
+    showDriverLabelsRef.current = showDriverLabels;
+    showDrsZonesRef.current = showDrsZones;
+    const safetyCar = currentFrame?.safetyCar;
+    safetyCarRef.current = safetyCar && safetyCar.x !== null && safetyCar.y !== null && safetyCar.phase !== "none"
+      ? { x: safetyCar.x, y: safetyCar.y, phase: safetyCar.phase }
+      : null;
+  }, [currentFrame, nextFrame, selectedDrivers, showDriverLabels, showDrsZones]);
 
   useEffect(() => {
     if (!currentFrame) {
@@ -134,6 +104,8 @@ export function TrackCanvas({
         duration: Math.max(BASE_INTERPOLATION_MS, frameDuration * 1.35),
         position: driver.position,
         color: driverColorByCode.get(driver.driverCode) || "#9ca3af",
+        speed: driver.speed,
+        drs: driver.drs,
       });
     }
 
@@ -171,7 +143,7 @@ export function TrackCanvas({
       ctx.fillStyle = "#0a0d13";
       ctx.fillRect(0, 0, width, height);
 
-      if (!trackPoints.length) {
+      if (!geometry) {
         ctx.fillStyle = "#7f8797";
         ctx.font = "600 16px Aptos, sans-serif";
         ctx.textAlign = "center";
@@ -181,7 +153,7 @@ export function TrackCanvas({
         return;
       }
 
-      drawTrack(ctx, trackPoints, width, height, trackStatusRef.current);
+      drawTrack(ctx, geometry, trackStatusRef.current, showDrsZonesRef.current);
 
       const now = performance.now();
       const interpolatedMarkers: DriverMarker[] = [];
@@ -194,11 +166,14 @@ export function TrackCanvas({
           y: target.previousY + (target.targetY - target.previousY) * progress,
           color: target.color,
           position: target.position,
+          speed: target.speed,
+          drs: target.drs,
         });
       }
 
       interpolatedMarkers.sort((left, right) => (left.position ?? Number.MAX_SAFE_INTEGER) - (right.position ?? Number.MAX_SAFE_INTEGER));
-      drawDrivers(ctx, interpolatedMarkers, trackPoints, width, height, selectedDriversRef.current);
+      drawSafetyCar(ctx, geometry, safetyCarRef.current);
+      drawDrivers(ctx, interpolatedMarkers, geometry, selectedDriversRef.current, showDriverLabelsRef.current);
       renderedMarkersRef.current = interpolatedMarkers;
       animationFrameRef.current = requestAnimationFrame(drawFrame);
     };
@@ -211,10 +186,10 @@ export function TrackCanvas({
         animationFrameRef.current = null;
       }
     };
-  }, [height, trackPoints, width]);
+  }, [geometry, height, width]);
 
   function handleCanvasClick(event: React.MouseEvent<HTMLCanvasElement>) {
-    if (!onDriverClick || !renderedMarkersRef.current.length || !canvasMetrics) {
+    if (!onDriverClick || !renderedMarkersRef.current.length || !geometry) {
       return;
     }
 
@@ -229,9 +204,8 @@ export function TrackCanvas({
 
     let nearest: { abbr: string; distance: number } | null = null;
     for (const marker of renderedMarkersRef.current) {
-      const sx = canvasMetrics.offsetX + (marker.x - canvasMetrics.minX) * canvasMetrics.scale;
-      const sy = canvasMetrics.offsetY + (canvasMetrics.maxY - marker.y) * canvasMetrics.scale;
-      const distance = Math.hypot(x - sx, y - sy);
+      const screen = geometry.toScreen(marker);
+      const distance = Math.hypot(x - screen.x, y - screen.y);
       if (!nearest || distance < nearest.distance) {
         nearest = { abbr: marker.abbr, distance };
       }

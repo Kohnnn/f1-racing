@@ -33,7 +33,7 @@ export default async function HomePage() {
 
           <a className="landing-start" href={replayHref}>
             <strong>Open latest replay</strong>
-            <span>[LIVE PACK]</span>
+            <span>Latest session</span>
           </a>
 
           <div className="landing-support-grid" aria-label="Secondary product routes">

@@ -15,11 +15,12 @@ export async function generateStaticParams() {
 
   return index.seasons.flatMap((season) =>
     season.grandsPrix.flatMap((grandPrix) =>
-      grandPrix.sessions.map((session) => ({
-        season: String(session.season),
-        grandPrix: session.grandPrixSlug,
-        session: session.sessionSlug,
-      }))
+      grandPrix.sessions
+        .map((session) => ({
+          season: String(session.season),
+          grandPrix: session.grandPrixSlug,
+          session: session.sessionSlug,
+        }))
     )
   );
 }

@@ -9,6 +9,7 @@ import { PlaybackControls } from "./PlaybackControls";
 import { ReplayComparePanel, ReplayStintPanel } from "./replay-insights";
 import { ReplayTelemetryStrip } from "./replay-telemetry-strip";
 import { TrackCanvas } from "./TrackCanvas";
+import { buildTrackGeometry } from "./track-geometry";
 
 const UI_SYNC_INTERVAL_MS = 180;
 
@@ -147,6 +148,17 @@ function intervalLabel(interval: number | null) {
   return `+${interval.toFixed(3)}`;
 }
 
+function normalizeTrackStatus(status: string) {
+  switch (String(status).toUpperCase()) {
+    case "2": return "YELLOW";
+    case "4": return "SC";
+    case "5": return "RED";
+    case "6":
+    case "7": return "VSC";
+    default: return String(status || "GREEN").toUpperCase();
+  }
+}
+
 function formatSlugLabel(value: string) {
   return value
     .split("-")
@@ -195,6 +207,9 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
   const [selectedDrivers, setSelectedDrivers] = useState<string[]>([]);
   const [analysisTab, setAnalysisTab] = useState<"telemetry" | "compare" | "stints">(defaultAnalysisTab);
   const [focusId, setFocusId] = useState<string | null>(null);
+  const [showDriverLabels, setShowDriverLabels] = useState(false);
+  const [showDrsZones, setShowDrsZones] = useState(true);
+  const [showEvents, setShowEvents] = useState(true);
   const animationRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(0);
   const playheadTimeRef = useRef(initialTime);
@@ -214,6 +229,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
   const computedTotalLaps = useMemo(() => Math.max(...replay.laps.map((lap) => lap.lapNumber), 0), [replay.laps]);
   const totalLaps = replay.totalLaps ?? computedTotalLaps;
   const useSyntheticTrackMotion = useMemo(() => hasStaticTrackCoordinates(replay.frames), [replay.frames]);
+  const trackGeometry = useMemo(() => buildTrackGeometry(replay.trackPath, 920, 610), [replay.trackPath]);
   const estimatedLapDuration = useMemo(() => {
     if (totalLaps > 0 && totalTime > 0) {
       return Math.max(55, totalTime / totalLaps);
@@ -243,19 +259,48 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
   const rawCurrentFrame = replay.frames[currentFrameIndex] || null;
   const rawNextFrame = replay.frames[currentFrameIndex + 1] || null;
   const currentTime = playbackState.currentTime;
-  const currentFrame = useMemo(
-    () => useSyntheticTrackMotion
+  const currentFrame = useMemo(() => {
+    const frame = useSyntheticTrackMotion
       ? buildSyntheticFrame(rawCurrentFrame, replay.trackPath, currentTime, estimatedLapDuration)
-      : rawCurrentFrame,
-    [currentTime, estimatedLapDuration, rawCurrentFrame, replay.trackPath, useSyntheticTrackMotion],
-  );
+      : rawCurrentFrame;
+    if (!frame) {
+      return null;
+    }
+
+    if (frame.safetyCar?.phase !== "none" || !["SC", "VSC"].includes(normalizeTrackStatus(frame.trackStatus)) || !trackGeometry) {
+      return {
+        ...frame,
+        trackStatus: normalizeTrackStatus(frame.trackStatus),
+      };
+    }
+
+    const leader = Object.values(frame.drivers).sort((left, right) => left.position - right.position)[0];
+    if (!leader || leader.x === null || leader.y === null) {
+      return {
+        ...frame,
+        trackStatus: normalizeTrackStatus(frame.trackStatus),
+      };
+    }
+
+    const projected = trackGeometry.project({ x: leader.x, y: leader.y });
+    const point = trackGeometry.pointAtDistance(projected.distance + trackGeometry.totalLength * 0.035);
+    return {
+      ...frame,
+      trackStatus: normalizeTrackStatus(frame.trackStatus),
+      safetyCar: {
+        phase: "on_track" as const,
+        x: point.x,
+        y: point.y,
+      },
+    };
+  }, [currentTime, estimatedLapDuration, rawCurrentFrame, replay.trackPath, trackGeometry, useSyntheticTrackMotion]);
   const nextFrame = useMemo(
     () => useSyntheticTrackMotion
       ? buildSyntheticFrame(rawNextFrame, replay.trackPath, rawNextFrame?.t ?? currentTime + 4, estimatedLapDuration)
       : rawNextFrame,
     [currentTime, estimatedLapDuration, rawNextFrame, replay.trackPath, useSyntheticTrackMotion],
   );
-  const trackStatus = currentFrame?.trackStatus || "GREEN";
+  const trackStatus = normalizeTrackStatus(currentFrame?.trackStatus || "GREEN");
   const currentLap = currentFrame?.lap || null;
   const replayFocus = getFocusPoint(focusId);
   const trackLabel = formatSlugLabel(replay.trackId);
@@ -302,31 +347,63 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
 
     return Object.values(currentFrame.drivers)
       .filter((driver) => driver.position > 0)
-      .sort((left, right) => left.position - right.position)
       .map((driver) => {
-        const info = driverInfoByCode.get(driver.driverCode);
-        const lastLapLabel = previousLapLabelByDriverLap.get(`${driver.driverCode}:${driver.lap || 0}`) ?? null;
+        const projectedDistance = trackGeometry && driver.x !== null && driver.y !== null
+          ? trackGeometry.project({ x: driver.x, y: driver.y }).distance
+          : null;
+        const progress = projectedDistance !== null && trackGeometry?.totalLength
+          ? Math.max(0, (driver.lap ?? currentFrame.lap ?? 1) - 1) * trackGeometry.totalLength + projectedDistance
+          : null;
+        return { driver, progress };
+      })
+      .sort((left, right) => {
+        if (left.progress !== null && right.progress !== null && Math.abs(left.progress - right.progress) > 1) {
+          return right.progress - left.progress;
+        }
+        return left.driver.position - right.driver.position;
+      })
+      .map((driver) => {
+        const info = driverInfoByCode.get(driver.driver.driverCode);
+        const lastLapLabel = previousLapLabelByDriverLap.get(`${driver.driver.driverCode}:${driver.driver.lap || 0}`) ?? null;
 
         return {
-          abbr: driver.driverCode,
-          fullName: info?.fullName || driver.driverCode,
-          team: info?.team || driver.team,
+          abbr: driver.driver.driverCode,
+          fullName: info?.fullName || driver.driver.driverCode,
+          team: info?.team || driver.driver.team,
           color: info?.teamColor || "#9ca3af",
-          position: driver.position,
-          intervalLabel: intervalLabel(driver.interval),
-          compound: driver.tyreCompound,
-          tyreAge: driver.tyreAge,
-          lap: driver.lap,
-          speed: driver.speed,
-          throttle: driver.throttle,
-          brake: driver.brake,
-          gear: driver.gear,
-          rpm: driver.rpm,
-          drs: driver.drs,
+          position: driver.driver.position,
+          intervalLabel: intervalLabel(driver.driver.interval),
+          compound: driver.driver.tyreCompound,
+          tyreAge: driver.driver.tyreAge,
+          lap: driver.driver.lap,
+          speed: driver.driver.speed,
+          throttle: driver.driver.throttle,
+          brake: driver.driver.brake,
+          gear: driver.driver.gear,
+          rpm: driver.driver.rpm,
+          drs: driver.driver.drs,
           lastLapLabel,
         };
       });
-  }, [currentFrame, driverInfoByCode, previousLapLabelByDriverLap]);
+  }, [currentFrame, driverInfoByCode, previousLapLabelByDriverLap, trackGeometry]);
+
+  const replayEvents = useMemo(() => {
+    const events = (replay.raceControlMessages ?? []).map((message) => ({
+      t: message.t,
+      label: message.flag || message.category || message.message,
+      type: normalizeTrackStatus(message.flag || message.category || "event"),
+    }));
+    const statusEvents: Array<{ t: number; label: string; type: string }> = [];
+    let lastStatus = "";
+    for (const frame of replay.frames) {
+      const status = normalizeTrackStatus(frame.trackStatus);
+      if (status !== lastStatus && status !== "GREEN") {
+        statusEvents.push({ t: frame.t, label: status, type: status });
+      }
+      lastStatus = status;
+    }
+    return [...events, ...statusEvents].sort((left, right) => left.t - right.t);
+  }, [replay.frames, replay.raceControlMessages]);
 
   const fastestLap = useMemo(() => {
     if (replay.fastestLap) {
@@ -561,10 +638,14 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
       if (event.code === "Digit2") setPlaybackSpeed(1);
       if (event.code === "Digit3") setPlaybackSpeed(2);
       if (event.code === "Digit4") setPlaybackSpeed(4);
+      if (event.code === "Digit5") setPlaybackSpeed(8);
       if (event.code === "KeyR") {
         event.preventDefault();
         handleSeek(0);
       }
+      if (event.code === "KeyD") setShowDrsZones((value) => !value);
+      if (event.code === "KeyL") setShowDriverLabels((value) => !value);
+      if (event.code === "KeyB") setShowEvents((value) => !value);
     }
 
     window.addEventListener("keydown", onKeyDown);
@@ -610,8 +691,8 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
         <div className="replay-session-banner__footer">
           <p className="replay-session-banner__note">
             {useSyntheticTrackMotion
-              ? `Timing-first replay using a synthetic track map fallback · session key ${replay.sessionKey}`
-              : replay.note || `${replaySourceLabel} · session key ${replay.sessionKey}`}
+              ? "Timing-first replay using a synthetic track map fallback."
+              : replay.note || `${replaySourceLabel} replay data`}
           </p>
           <div className="replay-session-banner__actions">
             <a className="replay-session-banner__action replay-session-banner__action--primary" href="/replay">Replay library</a>
@@ -682,6 +763,8 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
               currentFrame={currentFrame}
               nextFrame={nextFrame}
               selectedDrivers={selectedDrivers}
+              showDriverLabels={showDriverLabels}
+              showDrsZones={showDrsZones}
               onDriverClick={handleDriverSelect}
             />
 
@@ -728,6 +811,13 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
             currentLap={currentLap}
             totalLaps={totalLaps}
             trackStatus={trackStatus}
+            events={replayEvents}
+            showDriverLabels={showDriverLabels}
+            showDrsZones={showDrsZones}
+            showEvents={showEvents}
+            onToggleLabels={() => setShowDriverLabels((value) => !value)}
+            onToggleDrsZones={() => setShowDrsZones((value) => !value)}
+            onToggleEvents={() => setShowEvents((value) => !value)}
             onSpeedChange={setPlaybackSpeed}
             onSeek={handleSeek}
             onSkipLap={handleSkipLap}

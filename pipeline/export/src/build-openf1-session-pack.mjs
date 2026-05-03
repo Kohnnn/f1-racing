@@ -83,6 +83,50 @@ function fastestLapByDriver(laps) {
   return map;
 }
 
+function globalFastestLap(laps) {
+  return laps
+    .filter((lap) => Number.isFinite(lap.lapTime) && lap.lapTime > 0)
+    .sort((left, right) => left.lapTime - right.lapTime)[0] ?? null;
+}
+
+function buildStintLookup(stints) {
+  const byDriver = new Map();
+
+  for (const stint of stints) {
+    const driverNumber = Number(stint.driver_number);
+    if (!byDriver.has(driverNumber)) {
+      byDriver.set(driverNumber, []);
+    }
+
+    byDriver.get(driverNumber).push({
+      stintNumber: Number(stint.stint_number ?? 0),
+      lapStart: Number(stint.lap_start ?? 0),
+      lapEnd: Number(stint.lap_end ?? 0),
+      compound: stint.compound ?? "UNKNOWN",
+      tyreAgeAtStart: Number(stint.tyre_age_at_start ?? 0),
+    });
+  }
+
+  for (const entries of byDriver.values()) {
+    entries.sort((left, right) => left.lapStart - right.lapStart);
+  }
+
+  return byDriver;
+}
+
+function findStintForLap(stintLookup, driverNumber, lapNumber) {
+  const entries = stintLookup.get(Number(driverNumber)) ?? [];
+  return entries.find((stint) => lapNumber >= stint.lapStart && lapNumber <= stint.lapEnd)
+    || entries.find((stint) => lapNumber <= stint.lapEnd)
+    || entries.at(-1)
+    || null;
+}
+
+function displayStintNumber(value) {
+  const numeric = Number(value ?? 0);
+  return numeric <= 0 ? 1 : numeric;
+}
+
 function isoToMs(value) {
   return value ? new Date(value).getTime() : 0;
 }
@@ -107,21 +151,33 @@ function buildDriverSummaries(drivers, laps, stints) {
   });
 }
 
-function buildLapRecords(laps, fastestByDriver) {
-  return laps
+function buildLapRecords(laps, fastestByDriver, stints) {
+  const stintLookup = buildStintLookup(stints);
+  const records = laps
     .filter((lap) => Number.isFinite(lap.lap_duration))
-    .map((lap) => ({
-      driverCode: "",
-      driverNumber: lap.driver_number,
-      lapNumber: lap.lap_number,
-      lapTime: Number(lap.lap_duration),
-      sector1: Number(lap.duration_sector_1 ?? 0),
-      sector2: Number(lap.duration_sector_2 ?? 0),
-      sector3: Number(lap.duration_sector_3 ?? 0),
-      compound: lap.compound ?? "UNKNOWN",
-      stint: Number(lap.stint_number ?? 0),
-      isFastest: fastestByDriver.get(lap.driver_number)?.lap_number === lap.lap_number,
-    }));
+    .map((lap) => {
+      const lapNumber = Number(lap.lap_number);
+      const stint = findStintForLap(stintLookup, lap.driver_number, lapNumber);
+
+      return {
+        driverCode: "",
+        driverNumber: lap.driver_number,
+        lapNumber,
+        lapTime: Number(lap.lap_duration),
+        sector1: Number(lap.duration_sector_1 ?? 0),
+        sector2: Number(lap.duration_sector_2 ?? 0),
+        sector3: Number(lap.duration_sector_3 ?? 0),
+        compound: lap.compound ?? stint?.compound ?? "UNKNOWN",
+        stint: displayStintNumber(lap.stint_number ?? stint?.stintNumber),
+        isFastest: fastestByDriver.get(lap.driver_number)?.lap_number === lap.lap_number,
+      };
+    });
+
+  const fastest = globalFastestLap(records);
+  return records.map((lap) => ({
+    ...lap,
+    isFastest: !!fastest && lap.driverNumber === fastest.driverNumber && lap.lapNumber === fastest.lapNumber,
+  }));
 }
 
 function attachDriverCodes(lapRecords, drivers) {
@@ -323,7 +379,7 @@ function buildStrategyPack(trackId, stints, weatherSummary) {
   const recommendedWindows = stints.slice(0, 3).map((stint) => ({
     lapStart: Number(stint.lap_start),
     lapEnd: Number(stint.lap_end),
-    reason: `${stint.compound} stint with tyre age ${stint.tyre_age_at_start ?? 0}`,
+    reason: `${stint.compound ?? "UNKNOWN"} window from lap ${stint.lap_start} to ${stint.lap_end}`,
   }));
 
   return {
@@ -365,7 +421,7 @@ function buildStintPack(trackId, sessionKey, drivers, stints, lapRecords) {
               : 0;
 
             return {
-              stintNumber: Number(stint.stint_number ?? 0),
+              stintNumber: displayStintNumber(stint.stint_number),
               compound: stint.compound ?? "UNKNOWN",
               lapStart: Number(stint.lap_start ?? 0),
               lapEnd: Number(stint.lap_end ?? 0),
@@ -480,7 +536,7 @@ async function main() {
   const weatherSummary = summarizeWeather(weatherRaw);
   const drivers = buildDriverSummaries(driversRaw, lapsRaw, stintsRaw);
   const fastestByDriver = fastestLapByDriver(lapsRaw);
-  const lapRecords = attachDriverCodes(buildLapRecords(lapsRaw, fastestByDriver), drivers);
+  const lapRecords = attachDriverCodes(buildLapRecords(lapsRaw, fastestByDriver, stintsRaw), drivers);
   const compare = buildComparePack(drivers, lapRecords, sessionResultRaw);
   const strategy = buildStrategyPack(ref.trackId, stintsRaw, weatherSummary);
   const stintPack = buildStintPack(ref.trackId, ref.sessionKey, drivers, stintsRaw, lapRecords);

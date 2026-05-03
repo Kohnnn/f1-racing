@@ -1188,6 +1188,23 @@ code {
   display: block;
 }
 
+.car-viewer-loading {
+  position: absolute;
+  left: 18px;
+  bottom: 18px;
+  z-index: 5;
+  padding: 10px 14px;
+  border: 1px solid rgba(8, 13, 24, 0.12);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  box-shadow: 0 14px 36px rgba(8, 13, 24, 0.12);
+}
+
 .airflow-overlay {
   position: absolute;
   inset: 0;
@@ -2663,9 +2680,26 @@ code {
   text-overflow: ellipsis;
 }
 
+.replay-leaderboard__identity em {
+  color: rgba(231, 237, 247, 0.42);
+  font-size: 0.64rem;
+  font-style: normal;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .replay-leaderboard__gap {
+  display: grid;
+  gap: 2px;
   color: rgba(231, 237, 247, 0.72);
   font-size: 0.74rem;
+}
+
+.replay-leaderboard__gap em {
+  color: rgba(231, 237, 247, 0.42);
+  font-size: 0.62rem;
+  font-style: normal;
 }
 
 .replay-leaderboard__tyre {
@@ -2687,6 +2721,15 @@ code {
   font-style: normal;
   color: rgba(231, 237, 247, 0.58);
   font-size: 0.72rem;
+}
+
+.replay-leaderboard__tyre strong {
+  padding: 2px 5px;
+  border: 1px solid rgba(34, 197, 94, 0.28);
+  border-radius: 999px;
+  color: #bbf7d0;
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
 }
 
 .replay-telemetry-panel {
@@ -2894,6 +2937,35 @@ code {
   overflow: hidden;
 }
 
+.replay-controls-v2__event {
+  position: absolute;
+  top: 50%;
+  width: 9px;
+  height: 18px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.52);
+  border-radius: 999px;
+  background: #94a3b8;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  z-index: 3;
+}
+
+.replay-controls-v2__event--sc,
+.replay-controls-v2__event--vsc,
+.replay-controls-v2__event--safety-car {
+  background: #ff9d00;
+}
+
+.replay-controls-v2__event--yellow,
+.replay-controls-v2__event--double-yellow {
+  background: #facc15;
+}
+
+.replay-controls-v2__event--red {
+  background: #ef4444;
+}
+
 .replay-controls-v2__buffer-fill {
   position: absolute;
   inset: 0 auto 0 0;
@@ -2992,6 +3064,44 @@ code {
   color: rgba(231, 237, 247, 0.68);
   font-size: 0.76rem;
   margin-left: auto;
+}
+
+.replay-controls-v2__footer {
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  color: rgba(231, 237, 247, 0.54);
+  font-size: 0.72rem;
+}
+
+.replay-controls-v2__footer p {
+  margin: 0;
+}
+
+.replay-controls-v2__toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.replay-controls-v2__toggles button {
+  padding: 7px 10px;
+  border: 1px solid rgba(167, 189, 219, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(231, 237, 247, 0.72);
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.replay-controls-v2__toggles button.is-active {
+  border-color: rgba(255, 122, 26, 0.34);
+  background: rgba(255, 122, 26, 0.14);
+  color: #fff2e8;
 }
 
 @keyframes airflow-drift {

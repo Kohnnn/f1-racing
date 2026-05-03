@@ -56,6 +56,13 @@ function buildPackUrl(route: SessionRouteClientProps["route"], fileName: string)
   return staticPath;
 }
 
+function formatSlugLabel(value: string) {
+  return value
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 async function fetchJson<T>(url: string): Promise<T> {
   const response = await fetch(url);
   if (!response.ok) {
@@ -135,17 +142,17 @@ export function SessionRouteClient({ manifest, summary, route }: SessionRouteCli
     return (
       <div className="page-stack">
         <section className="hero hero--compact">
-          <p className="eyebrow">Sample session</p>
+          <p className="eyebrow">Session summary</p>
           <h1>
             {summary.grandPrix} · {summary.session}
           </h1>
           <p className="lead">
-            Session summary stays static, while driver cards, laps, compare, and strategy now hydrate from route packs
-            after first paint so the session page behaves more like the reference replay shell.
+            Driver cards, representative laps, compare, and strategy hydrate from route packs so the page stays fast
+            while preserving the race data needed for analysis.
           </p>
           <div className="metric-grid">
             <MetricChip label="Fastest lap" value={fastestLap ? `${fastestLap.driverCode} · ${formatLapTime(fastestLap.lapTime)}` : "-"} />
-            <MetricChip label="Track" value={summary.trackId} />
+            <MetricChip label="Track" value={formatSlugLabel(summary.trackId)} />
             <MetricChip label="Air / track" value={`${summary.weatherSummary.airTempC}C / ${summary.weatherSummary.trackTempC}C`} />
             <MetricChip label="Rain risk" value={`${summary.weatherSummary.rainRiskPct}%`} />
           </div>
@@ -182,7 +189,7 @@ export function SessionRouteClient({ manifest, summary, route }: SessionRouteCli
   return (
     <div className="page-stack">
       <section className="hero hero--compact">
-        <p className="eyebrow">Sample session</p>
+          <p className="eyebrow">Session summary</p>
         <h1>
           {summary.grandPrix} · {summary.session}
         </h1>
@@ -213,7 +220,7 @@ export function SessionRouteClient({ manifest, summary, route }: SessionRouteCli
         <p>
           {state.status === "error"
             ? state.message
-            : `Preparing session key ${summary.sessionKey} for ${route.season} ${summary.grandPrix}.`}
+            : `Preparing ${route.season} ${summary.grandPrix} ${summary.session.toLowerCase()} data.`}
         </p>
       </section>
     </div>

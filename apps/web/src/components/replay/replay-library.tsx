@@ -4,6 +4,20 @@ interface ReplayLibraryProps {
   aliasMode?: boolean;
 }
 
+function buildCoverageLabel(sessionCount: number) {
+  if (sessionCount >= 2) {
+    return `${sessionCount} sessions available`;
+  }
+  return "Limited coverage";
+}
+
+function buildSessionMeta(season: number, sessionName: string) {
+  if (season > 2025) {
+    return "2026 replay pack";
+  }
+  return `${sessionName} replay`;
+}
+
 export async function ReplayLibrary({ aliasMode = false }: ReplayLibraryProps) {
   const [latestManifest, index] = await Promise.all([
     getLatestManifest(),
@@ -49,7 +63,7 @@ export async function ReplayLibrary({ aliasMode = false }: ReplayLibraryProps) {
               {season.grandsPrix.map((grandPrix) => (
                 <article className="panel panel--nested replay-session-cluster" key={grandPrix.grandPrixSlug}>
                   <div>
-                    <p className="eyebrow">Grand Prix</p>
+                    <p className="eyebrow">{buildCoverageLabel(grandPrix.sessions.length)}</p>
                     <h3>{grandPrix.grandPrixName}</h3>
                   </div>
                   <div className="replay-session-links">
@@ -60,7 +74,7 @@ export async function ReplayLibrary({ aliasMode = false }: ReplayLibraryProps) {
                         href={`/replay/${session.season}/${session.grandPrixSlug}/${session.sessionSlug}`}
                       >
                         <strong>{session.sessionName}</strong>
-                        <span>Session key {session.sessionKey}</span>
+                        <span>{buildSessionMeta(session.season, session.sessionName)}</span>
                       </a>
                     ))}
                   </div>

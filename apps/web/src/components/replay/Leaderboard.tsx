@@ -41,6 +41,11 @@ function tyreShort(compound: string | null) {
   }
 }
 
+function tyreTitle(compound: string | null, age: number | null) {
+  const label = compound || "Unknown compound";
+  return age === null ? label : `${label}, ${age} lap${age === 1 ? "" : "s"}`;
+}
+
 function tyreColor(compound: string | null) {
   if (!compound) {
     return "#6b7280";
@@ -53,6 +58,17 @@ function tyreColor(compound: string | null) {
     case "WET": return "#3b82f6";
     default: return "#6b7280";
   }
+}
+
+function formatSpeed(speed: number | null) {
+  if (speed === null) {
+    return "-";
+  }
+  return `${Math.round(speed)} km/h`;
+}
+
+function isDrsActive(drs: number | null | undefined) {
+  return Number(drs ?? 0) >= 10;
 }
 
 export function Leaderboard({ drivers, selectedDrivers, onDriverSelect }: LeaderboardProps) {
@@ -141,12 +157,13 @@ export function Leaderboard({ drivers, selectedDrivers, onDriverSelect }: Leader
       <div className="replay-leaderboard__rows">
         {visibleDrivers.length ? visibleDrivers.map((driver) => {
           const isSelected = selectedDrivers.includes(driver.abbr);
+          const drsActive = isDrsActive(driver.drs);
           return (
             <button
               key={driver.abbr}
               type="button"
               className={`replay-leaderboard__row${isSelected ? " replay-leaderboard__row--selected" : ""}`}
-              title={`${driver.fullName} · ${driver.team}`}
+              title={`${driver.fullName} · ${driver.team} · ${formatSpeed(driver.speed)}`}
               onClick={(event) => onDriverSelect(driver.abbr, event.shiftKey || event.metaKey || event.ctrlKey)}
             >
               <span className="replay-leaderboard__position">{driver.position ?? "-"}</span>
@@ -155,13 +172,18 @@ export function Leaderboard({ drivers, selectedDrivers, onDriverSelect }: Leader
                 <span className="replay-leaderboard__identity">
                   <strong>{driver.abbr}</strong>
                   <span>{driver.fullName}</span>
+                  <em>{driver.team}</em>
                 </span>
               </span>
-              <span className="replay-leaderboard__gap">{driver.intervalLabel}</span>
-              <span className="replay-leaderboard__tyre" title={driver.compound || undefined}>
+              <span className="replay-leaderboard__gap">
+                {driver.intervalLabel}
+                <em>{driver.lastLapLabel ? `Last ${driver.lastLapLabel}` : formatSpeed(driver.speed)}</em>
+              </span>
+              <span className="replay-leaderboard__tyre" title={tyreTitle(driver.compound, driver.tyreAge)} aria-label={tyreTitle(driver.compound, driver.tyreAge)}>
                 <span className="replay-leaderboard__tyre-dot" style={{ backgroundColor: tyreColor(driver.compound) }} />
                 {tyreShort(driver.compound)}
-                {driver.tyreAge !== null ? <em>{driver.tyreAge}</em> : null}
+                {driver.tyreAge !== null ? <em>{driver.tyreAge} laps</em> : null}
+                {drsActive ? <strong>DRS</strong> : null}
               </span>
             </button>
           );

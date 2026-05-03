@@ -33,13 +33,13 @@ export default function LearnPage() {
       <section className="panel">
         <div className="section-header">
           <div>
-            <p className="eyebrow">Concept source</p>
-            <h2>Current explainer reference</h2>
+            <p className="eyebrow">How to use Learn</p>
+            <h2>Move between replay, model, and explanation.</h2>
           </div>
         </div>
         <p>
-          The concept source still lives at <code>interactive-explanation/formula-1-racing/</code>, but this product
-          treats each subsystem as its own chapter so users can move from the model to the explanation without losing context.
+          Each chapter is designed to pair with the 3D model and replay workspace: inspect a part, watch how it affects
+          the car on track, then return here for the engineering context.
         </p>
       </section>
     </div>

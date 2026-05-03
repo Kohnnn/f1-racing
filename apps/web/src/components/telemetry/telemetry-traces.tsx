@@ -105,7 +105,7 @@ export function TelemetryTraces({ compare }: TelemetryTracesProps) {
         <article className="panel panel--nested">
           <p className="eyebrow">Quick signal</p>
           <h3>End-of-lap speed delta</h3>
-          <p>{formatDeltaMs(speedDelta * 10)} equivalent at the final segment. Replace this with real corner or sector summaries next.</p>
+          <p>{formatDeltaMs(speedDelta * 10)} equivalent at the final segment. Use the sector bands above to see where the lap delta was created.</p>
         </article>
         <article className="panel panel--nested">
           <p className="eyebrow">Engine state</p>

@@ -130,6 +130,7 @@ function writeSelectionToUrl(season: number, constructorSlug: string, focusId: s
 export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserProps) {
   const searchParams = useSearchParams();
   const viewerRef = useRef<ModelViewerElement | null>(null);
+  const [modelReady, setModelReady] = useState(false);
 
   const seasons = useMemo(
     () => Array.from(new Set(catalog.models.map((m) => m.season))).sort((a, b) => b - a),
@@ -212,6 +213,10 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
   const selected = catalog.models.find(
     (m) => m.season === season && m.constructorSlug === constructorSlug,
   );
+
+  useEffect(() => {
+    setModelReady(false);
+  }, [selected?.id]);
 
   if (!selected) {
     return <div className="panel">No models available.</div>;
@@ -297,6 +302,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
             {createElement(
               "model-viewer",
               {
+                key: selected.id,
                 ref: viewerRef,
                 src: selected.file,
                 alt: selected.displayName,
@@ -311,6 +317,8 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
                 "touch-action": "pan-y",
                 "interaction-prompt": "auto",
                 "environment-image": "neutral",
+                onLoad: () => setModelReady(true),
+                onError: () => setModelReady(true),
                 style: {
                   width: "100%",
                   height: "min(68vh, 680px)",
@@ -338,6 +346,12 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
                 );
               }),
             )}
+
+            {!modelReady ? (
+              <div className="car-viewer-loading" role="status" aria-live="polite">
+                Loading {selected.displayName} · {selected.sizeLabel}
+              </div>
+            ) : null}
 
             <AirflowOverlay mode={activeFlowId} />
 
@@ -412,7 +426,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
               ))}
             </div>
             <p className="car-inspector-note">
-              Visual guide only. This overlay is for explanation and orientation, not CFD or race-team analysis.
+              Visual guide only. This overlay is for explanation and orientation, not a measured aerodynamic result.
             </p>
           </article>
 

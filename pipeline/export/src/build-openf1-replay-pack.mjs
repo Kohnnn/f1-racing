@@ -73,6 +73,44 @@ function isoToMs(value) {
   return value ? new Date(value).getTime() : 0;
 }
 
+function getReplayStartTime(ref, lapsRaw, carDataByDriver, positionData) {
+  const lapStartCandidates = [];
+  const fallbackCandidates = [];
+
+  for (const lap of lapsRaw) {
+    const lapNumber = Number(lap.lap_number ?? 0);
+    const startMs = isoToMs(lap.date_start);
+    if (lapNumber >= 1 && startMs > 0) {
+      lapStartCandidates.push(startMs);
+    }
+  }
+
+  if (lapStartCandidates.length) {
+    return Math.min(...lapStartCandidates);
+  }
+
+  for (const samples of carDataByDriver.values()) {
+    const firstMovingSample = samples
+      .filter((point) => Number(point.speed ?? 0) > 20)
+      .sort((left, right) => isoToMs(left.date) - isoToMs(right.date))[0];
+    if (firstMovingSample) {
+      fallbackCandidates.push(isoToMs(firstMovingSample.date));
+    }
+  }
+
+  for (const data of positionData) {
+    const firstPosition = data.positions
+      .slice()
+      .sort((left, right) => isoToMs(left.date) - isoToMs(right.date))[0];
+    if (firstPosition) {
+      fallbackCandidates.push(isoToMs(firstPosition.date));
+    }
+  }
+
+  const fallback = isoToMs(ref.startDate);
+  return Math.min(...fallbackCandidates.filter((value) => value > 0), fallback || Date.now());
+}
+
 function summarizeWeather(samples) {
   if (!samples.length) {
     return {
@@ -158,6 +196,32 @@ function buildLapTimelines(lapsRaw) {
   }
 
   return byDriver;
+}
+
+function getStintForLap(stintTimeline, lapNumber) {
+  if (!stintTimeline?.length) {
+    return null;
+  }
+
+  return stintTimeline.find((stint) => lapNumber >= stint.lapStart && lapNumber <= stint.lapEnd)
+    || stintTimeline.find((stint) => lapNumber <= stint.lapEnd)
+    || stintTimeline.at(-1)
+    || null;
+}
+
+function enrichReplayLapsWithStints(replayLaps, drivers, stintTimelines) {
+  const numberByCode = new Map(drivers.map((driver) => [driver.driverCode, driver.driverNumber]));
+
+  return replayLaps.map((lap) => {
+    const driverNumber = numberByCode.get(lap.driverCode);
+    const stint = getStintForLap(stintTimelines.get(driverNumber), lap.lapNumber);
+
+    return {
+      ...lap,
+      compound: stint?.compound ?? lap.compound ?? null,
+      stintNumber: stint ? Math.max(1, stint.stintNumber + (stint.stintNumber === 0 ? 1 : 0)) : null,
+    };
+  });
 }
 
 function buildStintTimelines(stintsRaw) {
@@ -494,6 +558,7 @@ function generateTrackPath(trackId) {
     miami: generateMiamiPath(),
     singapore: generateSingaporePath(),
     baku: generateBakuPath(),
+    "yas-marina-circuit": generateYasMarinaPath(),
     default: generateOvalPath(900, 600, 12),
   };
 
@@ -832,6 +897,33 @@ function generateBakuPath() {
   return smoothPath(points);
 }
 
+function generateYasMarinaPath() {
+  const points = [
+    [-480, -105],
+    [-300, -185],
+    [-90, -210],
+    [120, -170],
+    [365, -120],
+    [500, -25],
+    [470, 72],
+    [300, 88],
+    [130, 60],
+    [18, 112],
+    [115, 188],
+    [330, 210],
+    [420, 138],
+    [310, 20],
+    [82, -12],
+    [-110, 34],
+    [-262, 122],
+    [-430, 98],
+    [-510, 8],
+    [-480, -105],
+  ];
+
+  return smoothPath(points);
+}
+
 function smoothPath(points) {
   if (points.length < 3) return points;
 
@@ -946,13 +1038,13 @@ async function buildReplayPack(sessionKey, drivers, ref) {
 
   const trackPath = generateTrackPath(ref.trackId);
 
-  const sessionStartTime = new Date(ref.startDate).getTime();
+  const sessionStartTime = getReplayStartTime(ref, lapsRaw, carDataByDriver, allPositionData);
   const lapTimelines = buildLapTimelines(lapsRaw);
   const stintTimelines = buildStintTimelines(stintsRaw);
   const raceControlTimeline = buildRaceControlTimeline(raceControlMessages, sessionStartTime);
   const weatherSummary = summarizeWeather(weatherRaw);
   const weatherTimeline = buildWeatherTimeline(weatherRaw, sessionStartTime);
-  const replayLaps = buildReplayLaps(lapsRaw, drivers);
+  const replayLaps = enrichReplayLapsWithStints(buildReplayLaps(lapsRaw, drivers), drivers, stintTimelines);
 
   const telemetryByDriver = new Map();
   carDataByDriver.forEach((data, driverNumber) => {
@@ -1020,16 +1112,18 @@ async function buildReplayPack(sessionKey, drivers, ref) {
     for (const driver of drivers) {
       const positionHistory = positionByDriverTime.get(driver.driverCode) || [];
       const positionIndex = positionHistory.length ? findLatestIndex(positionHistory, t, (entry) => entry.t) : -1;
+      const fallbackPosition = drivers.indexOf(driver) + 1;
       const racePosition = positionIndex >= 0
         ? positionHistory[positionIndex].position
-        : drivers.indexOf(driver) + 1;
+        : fallbackPosition;
 
       const telemetrySamples = telemetryByDriver.get(driver.driverNumber) || [];
       const telemetryIndex = telemetrySamples.length ? findLatestIndex(telemetrySamples, t, (entry) => entry.t) : -1;
       const telemetry = telemetryIndex >= 0 ? telemetrySamples[telemetryIndex] : null;
       const lapState = getLapState(lapTimelines.get(driver.driverNumber), sessionStartTime + t);
       const tyreState = getTyreState(stintTimelines.get(driver.driverNumber), lapState.lapNumber, lapState.compound);
-      const trackRatio = lapState.lapProgress;
+      const startSpacing = Math.max(0, fallbackPosition - 1) * 0.006;
+      const trackRatio = (lapState.lapProgress - startSpacing + 1) % 1;
       const [baseX, baseY] = interpolatePosition(trackPath, trackRatio);
       const laneOffset = ((driver.driverNumber % 5) - 2) * 1.8;
       const x = baseX + laneOffset;

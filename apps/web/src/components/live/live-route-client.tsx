@@ -703,11 +703,11 @@ export function LiveRouteClient({
         </div>
         <div className="replay-session-banner__footer">
           <p className="replay-session-banner__note">
-            Simulated live from session key {summary.sessionKey} · speed {speed.toFixed(1)}x
+            Simulated from the latest {activeSession.sessionName.toLowerCase()} replay · speed {speed.toFixed(1)}x
           </p>
           <div className="replay-session-banner__actions">
             <a className="replay-session-banner__action replay-session-banner__action--primary" href={`/replay/${activeSession.season}/${activeSession.grandPrix}/${activeSession.session}`}>Replay route</a>
-            <a className="replay-session-banner__action" href={`/sessions/${activeSession.season}/${activeSession.grandPrix}/${activeSession.session}`}>Session summary</a>
+            <a className="replay-session-banner__action" href={`/sessions/${activeSession.season}/${activeSession.grandPrix}/${activeSession.session}`}>{activeSession.grandPrixName} summary</a>
             <a className="replay-session-banner__action" href="/cars/current-spec">Modelview</a>
             <a className="replay-session-banner__action" href="/learn">Learn</a>
           </div>

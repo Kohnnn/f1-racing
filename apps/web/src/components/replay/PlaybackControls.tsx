@@ -1,7 +1,7 @@
 "use client";
 
-const SPEEDS = [0.5, 1, 2, 4];
-const SKIPS = [10, 60];
+const SPEEDS = [0.1, 0.2, 0.5, 1, 2, 4, 8, 16, 20];
+const SKIPS = [5, 30, 60, 300];
 
 interface PlaybackControlsProps {
   isPlaying: boolean;
@@ -18,6 +18,17 @@ interface PlaybackControlsProps {
   onSeek: (time: number) => void;
   onSkipLap: (delta: number) => void;
   onSkipTime: (delta: number) => void;
+  onToggleLabels: () => void;
+  onToggleDrsZones: () => void;
+  onToggleEvents: () => void;
+  showDriverLabels: boolean;
+  showDrsZones: boolean;
+  showEvents: boolean;
+  events: Array<{
+    t: number;
+    label: string;
+    type: string;
+  }>;
 }
 
 function formatTime(seconds: number) {
@@ -54,7 +65,7 @@ function getBufferState(currentTime: number, loadedTime: number, totalTime: numb
   }
 
   return {
-    label: `Ready +${formatTime(bufferedAhead)}`,
+    label: `Buffered to ${formatTime(loadedTime)}`,
     className: "replay-controls-v2__status replay-controls-v2__status--ready",
   };
 }
@@ -74,6 +85,13 @@ export function PlaybackControls({
   onSeek,
   onSkipLap,
   onSkipTime,
+  onToggleLabels,
+  onToggleDrsZones,
+  onToggleEvents,
+  showDriverLabels,
+  showDrsZones,
+  showEvents,
+  events,
 }: PlaybackControlsProps) {
   const progress = totalTime > 0 ? (currentTime / totalTime) * 100 : 0;
   const loadedProgress = totalTime > 0 ? (loadedTime / totalTime) * 100 : 0;
@@ -88,6 +106,23 @@ export function PlaybackControls({
       }}>
         <div className="replay-controls-v2__buffer-fill" style={{ width: `${loadedProgress}%` }} />
         <div className="replay-controls-v2__progress-fill" style={{ width: `${progress}%` }} />
+        {showEvents ? events.slice(0, 80).map((event) => {
+          const left = totalTime > 0 ? Math.max(0, Math.min(100, (event.t / totalTime) * 100)) : 0;
+          return (
+            <button
+              key={`${event.t}-${event.label}`}
+              type="button"
+              className={`replay-controls-v2__event replay-controls-v2__event--${event.type.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
+              style={{ left: `${left}%` }}
+              title={`${formatTime(event.t)} · ${event.label}`}
+              onClick={(clickEvent) => {
+                clickEvent.stopPropagation();
+                onSeek(event.t);
+              }}
+              aria-label={`Jump to ${event.label} at ${formatTime(event.t)}`}
+            />
+          );
+        }) : null}
       </div>
 
       <div className="replay-controls-v2__main">
@@ -134,6 +169,14 @@ export function PlaybackControls({
             </button>
           ))}
         </div>
+      </div>
+      <div className="replay-controls-v2__footer">
+        <div className="replay-controls-v2__toggles">
+          <button type="button" className={showDriverLabels ? "is-active" : ""} onClick={onToggleLabels}>Labels L</button>
+          <button type="button" className={showDrsZones ? "is-active" : ""} onClick={onToggleDrsZones}>DRS D</button>
+          <button type="button" className={showEvents ? "is-active" : ""} onClick={onToggleEvents}>Events B</button>
+        </div>
+        <p>Space play/pause · arrows seek · Shift+arrows 30s · [ ] laps · R restart · 1-5 speed presets</p>
       </div>
     </section>
   );
