@@ -98,6 +98,14 @@ function interpolateTrack(points: TrackPoint[], targetCount = DEFAULT_DENSE_POIN
   const densePoints: DenseTrackPoint[] = [];
   const count = Math.max(points.length, targetCount);
 
+  let signedArea = 0;
+  for (let index = 0; index < points.length; index += 1) {
+    const current = points[index];
+    const next = points[(index + 1) % points.length];
+    signedArea += current.x * next.y - next.x * current.y;
+  }
+  const normalDirection = signedArea > 0 ? -1 : 1;
+
   for (let sample = 0; sample < count; sample += 1) {
     const distance = (sample / (count - 1)) * totalLength;
     let segmentIndex = 0;
@@ -117,8 +125,8 @@ function interpolateTrack(points: TrackPoint[], targetCount = DEFAULT_DENSE_POIN
       x: start.x + dx * ratio,
       y: start.y + dy * ratio,
       distance,
-      nx: -dy / length,
-      ny: dx / length,
+      nx: (-dy / length) * normalDirection,
+      ny: (dx / length) * normalDirection,
     });
   }
 

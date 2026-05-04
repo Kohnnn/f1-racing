@@ -36,17 +36,35 @@ export async function ReplayLibrary({ aliasMode = false }: ReplayLibraryProps) {
   return (
     <div className="page-stack">
       <section className="hero hero--compact replay-hero">
-        <p className="eyebrow">Replay library</p>
-        <h1>Track playback for exported F1 sessions.</h1>
+        <p className="eyebrow">Discover and replay</p>
+        <h1>Find an exported F1 session and open the race workspace.</h1>
         <p className="lead">
           {aliasMode
-            ? "Sessions has been folded into replay. Use this library to choose a pack, then stay inside the replay workspace for the rest of the flow."
-            : "Choose a session pack, open the replay workspace, and keep the track map, leaderboard, and driver telemetry in one place."}
+            ? "Sessions has been folded into Discover and Replay. Choose a pack here, then stay inside the replay workspace for track map, leaderboard, telemetry, and strategy context."
+            : "Choose a session pack, open the replay workspace, and keep the track map, leaderboard, telemetry, race-control context, and driver analysis in one place."}
         </p>
         <div className="hero-actions">
           <a className="button" href={latestReplayHref}>Open latest replay</a>
-          <a className="button button--secondary" href="/cars/current-spec">Open modelview</a>
+          <a className="button button--secondary" href="/live">Open live feed</a>
+          <a className="button button--ghost" href="/cars/current-spec">Open modelview</a>
           <a className="button button--ghost" href="/learn">Open learn</a>
+        </div>
+        <div className="discover-action-grid" aria-label="Discover shortcuts">
+          <a className="discover-action-card" href={latestReplayHref}>
+            <span>Latest Pack</span>
+            <strong>{latestManifest.latest.grandPrixName}</strong>
+            <small>{latestManifest.latest.sessionName} replay workspace</small>
+          </a>
+          <a className="discover-action-card" href="/live">
+            <span>Live Desk</span>
+            <strong>Socket or simulator</strong>
+            <small>Use the OCI feed when available, with static fallback.</small>
+          </a>
+          <a className="discover-action-card" href="/cars/current-spec">
+            <span>Modelview</span>
+            <strong>Current-spec cars</strong>
+            <small>Inspect local GLB race models and focus overlays.</small>
+          </a>
         </div>
         <div className="replay-meta-row">
           <span className="replay-meta-pill">{latestManifest.latest.season} season pack</span>

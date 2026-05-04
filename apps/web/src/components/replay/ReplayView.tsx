@@ -128,6 +128,39 @@ function buildSyntheticFrame(
   };
 }
 
+function getProjectedProgress(
+  driver: ReplayPack["frames"][number]["drivers"][string],
+  frame: ReplayPack["frames"][number],
+  trackGeometry: ReturnType<typeof buildTrackGeometry>,
+  estimatedLapDuration: number,
+  forceIntervalProjection: boolean,
+) {
+  if (!trackGeometry || driver.x === null || driver.y === null) {
+    return null;
+  }
+
+  const lapOffset = Math.max(0, (driver.lap ?? frame.lap ?? 1) - 1) * trackGeometry.totalLength;
+
+  if (!forceIntervalProjection || driver.position <= 1) {
+    return lapOffset + trackGeometry.project({ x: driver.x, y: driver.y }).distance;
+  }
+
+  const leader = Object.values(frame.drivers)
+    .filter((candidate) => candidate.x !== null && candidate.y !== null)
+    .sort((left, right) => left.position - right.position)[0];
+
+  if (!leader || leader.x === null || leader.y === null) {
+    return lapOffset + trackGeometry.project({ x: driver.x, y: driver.y }).distance;
+  }
+
+  const leaderProjection = trackGeometry.project({ x: leader.x, y: leader.y });
+  const intervalDistance = driver.interval !== null
+    ? (driver.interval / Math.max(55, estimatedLapDuration)) * trackGeometry.totalLength
+    : Math.max(0, driver.position - 1) * trackGeometry.totalLength * 0.012;
+
+  return lapOffset + leaderProjection.distance - intervalDistance;
+}
+
 function formatSeconds(seconds: number) {
   const hours = Math.floor(seconds / 3600);
   const minutes = Math.floor((seconds % 3600) / 60);
@@ -348,12 +381,13 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
     return Object.values(currentFrame.drivers)
       .filter((driver) => driver.position > 0)
       .map((driver) => {
-        const projectedDistance = trackGeometry && driver.x !== null && driver.y !== null
-          ? trackGeometry.project({ x: driver.x, y: driver.y }).distance
-          : null;
-        const progress = projectedDistance !== null && trackGeometry?.totalLength
-          ? Math.max(0, (driver.lap ?? currentFrame.lap ?? 1) - 1) * trackGeometry.totalLength + projectedDistance
-          : null;
+        const progress = getProjectedProgress(
+          driver,
+          currentFrame,
+          trackGeometry,
+          estimatedLapDuration,
+          useSyntheticTrackMotion || replay.source === "openf1",
+        );
         return { driver, progress };
       })
       .sort((left, right) => {
@@ -385,7 +419,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
           lastLapLabel,
         };
       });
-  }, [currentFrame, driverInfoByCode, previousLapLabelByDriverLap, trackGeometry]);
+  }, [currentFrame, driverInfoByCode, estimatedLapDuration, previousLapLabelByDriverLap, replay.source, trackGeometry, useSyntheticTrackMotion]);
 
   const replayEvents = useMemo(() => {
     const events = (replay.raceControlMessages ?? []).map((message) => ({
