@@ -41,6 +41,8 @@ interface LiveFeedState {
   frame: ReplayFrame | null;
   rcMessages: ReplayRaceControlMessage[];
   error: string | null;
+  lastFrameAt: number | null;
+  isSimulated: boolean;
 }
 
 interface LiveRouteClientProps {
@@ -245,9 +247,13 @@ export function LiveRouteClient({
     frame: initialFrame,
     rcMessages: [],
     error: null,
+    lastFrameAt: initialFrame ? Date.now() : null,
+    isSimulated: !apiOrigin,
   });
   const [selectedDrivers, setSelectedDrivers] = useState<string[]>([]);
   const [reloadKey, setReloadKey] = useState(0);
+  const [delaySeconds, setDelaySeconds] = useState(0);
+  const [frameAgeMs, setFrameAgeMs] = useState<number | null>(null);
   const timerRef = useRef<number | null>(null);
   const speed = initialSpeed;
   const initialSessionId = `${initialSession.season}:${initialSession.grandPrix}:${initialSession.session}`;
@@ -396,6 +402,7 @@ export function LiveRouteClient({
             ...previous,
             frame,
             rcMessages: visibleMessages.slice(-6),
+            lastFrameAt: Date.now(),
           }));
 
           if (index >= frames.length - 1) {
@@ -476,6 +483,8 @@ export function LiveRouteClient({
             loading: false,
             frame: message.frame || null,
             rcMessages: message.rcMessages || [],
+            lastFrameAt: Date.now(),
+            isSimulated: false,
           }));
           return;
         }
@@ -509,6 +518,18 @@ export function LiveRouteClient({
       socket?.close();
     };
   }, [activeSession, apiOrigin, closeTimer, speed]);
+
+  // Tick the displayed frame age (used in the Feed tile) once per second.
+  useEffect(() => {
+    if (!feed.lastFrameAt) {
+      setFrameAgeMs(null);
+      return;
+    }
+    const update = () => setFrameAgeMs(Date.now() - (feed.lastFrameAt ?? Date.now()));
+    update();
+    const interval = window.setInterval(update, 1000);
+    return () => window.clearInterval(interval);
+  }, [feed.lastFrameAt]);
 
   const currentFrame = feed.frame;
   const currentTime = currentFrame?.t ?? 0;
@@ -610,6 +631,20 @@ export function LiveRouteClient({
     ? selectedTelemetryDrivers.map((driver) => driver.abbr).join(" · ")
     : "No drivers selected";
 
+  // Esc clears the live selection.
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      const tag = target?.tagName ?? "";
+      if (target?.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(tag)) return;
+      if (event.code === "Escape") {
+        setSelectedDrivers([]);
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
   function handleDriverSelect(driverCode: string | null, append: boolean) {
     if (!driverCode) {
       setSelectedDrivers([]);
@@ -679,10 +714,21 @@ export function LiveRouteClient({
           <article className="replay-session-banner__fact">
             <span>Feed</span>
             <strong>{feed.sourceLabel}</strong>
+            {frameAgeMs !== null ? <small className="replay-session-banner__sub">Last frame {Math.max(0, Math.round(frameAgeMs / 1000))}s ago</small> : null}
           </article>
           <article className="replay-session-banner__fact">
             <span>Status</span>
-                <strong>{feed.finished ? "Finished" : feed.connected ? "LIVE" : currentFrame ? "Live - synced" : "Connecting"}</strong>
+            <strong>
+              {feed.finished
+                ? "Finished"
+                : feed.isSimulated
+                  ? <span className="replay-session-banner__pill replay-session-banner__pill--simulated">SIMULATED</span>
+                  : feed.connected
+                    ? <span className="replay-session-banner__pill replay-session-banner__pill--live">LIVE</span>
+                    : currentFrame
+                      ? <span className="replay-session-banner__pill replay-session-banner__pill--syncing">Syncing</span>
+                      : <span className="replay-session-banner__pill replay-session-banner__pill--syncing">Connecting</span>}
+            </strong>
           </article>
           <article className="replay-session-banner__fact">
             <span>Replay clock</span>
@@ -703,7 +749,9 @@ export function LiveRouteClient({
         </div>
         <div className="replay-session-banner__footer">
           <p className="replay-session-banner__note">
-            Simulated from the latest {activeSession.sessionName.toLowerCase()} replay · speed {speed.toFixed(1)}x
+            {feed.isSimulated
+              ? `Simulated from the latest ${activeSession.sessionName.toLowerCase()} replay · speed ${speed.toFixed(1)}x`
+              : `Live OCI feed · speed ${speed.toFixed(1)}x · displayed delay ${delaySeconds}s`}
           </p>
           <div className="replay-session-banner__actions">
             <a className="replay-session-banner__action replay-session-banner__action--primary" href={`/replay/${activeSession.season}/${activeSession.grandPrix}/${activeSession.session}`}>Replay route</a>
@@ -711,6 +759,27 @@ export function LiveRouteClient({
             <a className="replay-session-banner__action" href="/cars/current-spec">Modelview</a>
             <a className="replay-session-banner__action" href="/learn">Learn</a>
           </div>
+        </div>
+
+        <div className="live-controls-strip">
+          <label className="live-controls-strip__label">
+            <span>Display delay</span>
+            <input
+              type="range"
+              min={0}
+              max={60}
+              step={5}
+              value={delaySeconds}
+              onChange={(event) => setDelaySeconds(Number(event.target.value))}
+              aria-label="Live feed display delay"
+            />
+            <strong>{delaySeconds}s</strong>
+          </label>
+          <p className="live-controls-strip__hints">
+            <span><kbd>Click</kbd> driver to inspect</span>
+            <span><kbd>Shift</kbd>+click to pin compare</span>
+            <span><kbd>Esc</kbd> clears selection</span>
+          </p>
         </div>
       </section>
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
-import type { ComparePack, ReplayFrameChunk, ReplayLap, ReplayPack, ReplayRaceControlMessage, SessionManifest, SessionSummary, StintPack } from "@/lib/data";
+import type { ComparePack, DriverSummary, LapRecord, ReplayFrameChunk, ReplayLap, ReplayPack, ReplayRaceControlMessage, SessionManifest, SessionSummary, StintPack, StrategyPack } from "@/lib/data";
 import { buildClientDataUrl, buildClientWebSocketUrl } from "@/lib/client-data";
 import { ReplayView } from "./ReplayView";
 
@@ -32,6 +32,9 @@ type ReplayRouteState =
 interface ReplayInsightsState {
   compare: ComparePack | null;
   stintPack: StintPack | null;
+  driverSummaries: DriverSummary[] | null;
+  lapRecords: LapRecord[] | null;
+  strategy: StrategyPack | null;
 }
 
 const BUFFER_LOOKAHEAD_CHUNKS = 2;
@@ -135,7 +138,7 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
     status: "ready",
     replay: initialReplay,
   });
-  const [insights, setInsights] = useState<ReplayInsightsState>({ compare: null, stintPack: null });
+  const [insights, setInsights] = useState<ReplayInsightsState>({ compare: null, stintPack: null, driverSummaries: null, lapRecords: null, strategy: null });
   const [reloadKey, setReloadKey] = useState(0);
   const chunkEntriesRef = useRef<NonNullable<ReplayPack["frameChunkIndex"]>>([]);
   const loadedChunksRef = useRef<Set<number>>(new Set());
@@ -336,7 +339,7 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
       status: "ready",
       replay: initialReplay,
     });
-    setInsights({ compare: null, stintPack: null });
+    setInsights({ compare: null, stintPack: null, driverSummaries: null, lapRecords: null, strategy: null });
   }, [ensureChunkLoaded, initialReplay]);
 
   useEffect(() => {
@@ -348,13 +351,16 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
         Promise.all([
           compareFile ? fetchJson<ComparePack>(buildPackUrl(route, compareFile)).catch(() => null) : Promise.resolve(null),
           manifest.stints ? fetchJson<StintPack>(buildPackUrl(route, manifest.stints)).catch(() => null) : Promise.resolve(null),
-        ]).then(([compare, stintPack]) => {
+          manifest.drivers ? fetchJson<DriverSummary[]>(buildPackUrl(route, manifest.drivers)).catch(() => null) : Promise.resolve(null),
+          manifest.laps ? fetchJson<LapRecord[]>(buildPackUrl(route, manifest.laps)).catch(() => null) : Promise.resolve(null),
+          manifest.strategy ? fetchJson<StrategyPack>(buildPackUrl(route, manifest.strategy)).catch(() => null) : Promise.resolve(null),
+        ]).then(([compare, stintPack, driverSummaries, lapRecords, strategy]) => {
           if (cancelled) {
             return;
           }
 
           startTransition(() => {
-            setInsights({ compare, stintPack });
+            setInsights({ compare, stintPack, driverSummaries, lapRecords, strategy });
           });
         });
 
@@ -409,6 +415,9 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
           compare={insights.compare}
           route={route}
           stintPack={insights.stintPack}
+          driverSummaries={insights.driverSummaries}
+          lapRecords={insights.lapRecords}
+          strategy={insights.strategy}
           onEnsureTimeLoaded={ensureTimeLoaded}
         />
       );

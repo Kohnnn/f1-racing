@@ -19,6 +19,7 @@ interface ReplayLeaderboardRow {
   rpm?: number | null;
   drs?: number | null;
   lastLapLabel: string | null;
+  status?: "FINISHED" | "DNF" | "DNS" | "DSQ" | "LAPPED";
 }
 
 interface LeaderboardProps {
@@ -67,6 +68,15 @@ function formatSpeed(speed: number | null) {
   return `${Math.round(speed)} km/h`;
 }
 
+function statusGapLabel(status?: ReplayLeaderboardRow["status"]) {
+  switch (status) {
+    case "DNF": return "DNF";
+    case "DNS": return "DNS";
+    case "DSQ": return "DSQ";
+    default: return null;
+  }
+}
+
 function isDrsActive(drs: number | null | undefined) {
   return Number(drs ?? 0) >= 10;
 }
@@ -106,8 +116,8 @@ export function Leaderboard({ drivers, selectedDrivers, onDriverSelect }: Leader
   const toolbarLabel = comparePinned
     ? `${visibleDrivers.length || selectedDrivers.length} pinned`
     : selectedDrivers.length
-      ? `${selectedDrivers.length} selected`
-      : "Click to inspect";
+      ? `${selectedDrivers.length} selected (Shift-click to add)`
+      : "Click to inspect · Shift-click for compare";
 
   return (
     <div className="replay-leaderboard">
@@ -158,12 +168,14 @@ export function Leaderboard({ drivers, selectedDrivers, onDriverSelect }: Leader
         {visibleDrivers.length ? visibleDrivers.map((driver) => {
           const isSelected = selectedDrivers.includes(driver.abbr);
           const drsActive = isDrsActive(driver.drs);
+          const retired = driver.status === "DNF" || driver.status === "DNS" || driver.status === "DSQ";
+          const overrideGap = statusGapLabel(driver.status);
           return (
             <button
               key={driver.abbr}
               type="button"
-              className={`replay-leaderboard__row${isSelected ? " replay-leaderboard__row--selected" : ""}`}
-              title={`${driver.fullName} · ${driver.team} · ${formatSpeed(driver.speed)}`}
+              className={`replay-leaderboard__row${isSelected ? " replay-leaderboard__row--selected" : ""}${retired ? " replay-leaderboard__row--retired" : ""}`}
+              title={`${driver.fullName} · ${driver.team}${retired ? ` · ${driver.status}` : ` · ${formatSpeed(driver.speed)}`}`}
               onClick={(event) => onDriverSelect(driver.abbr, event.shiftKey || event.metaKey || event.ctrlKey)}
             >
               <span className="replay-leaderboard__position">{driver.position ?? "-"}</span>
@@ -176,8 +188,14 @@ export function Leaderboard({ drivers, selectedDrivers, onDriverSelect }: Leader
                 </span>
               </span>
               <span className="replay-leaderboard__gap">
-                {driver.intervalLabel}
-                <em>{driver.lastLapLabel ? `Last ${driver.lastLapLabel}` : formatSpeed(driver.speed)}</em>
+                {overrideGap ? <span className="replay-leaderboard__status-pill">{overrideGap}</span> : driver.intervalLabel}
+                <em>
+                  {retired
+                    ? "Out of session"
+                    : driver.lastLapLabel
+                      ? `Last ${driver.lastLapLabel}`
+                      : formatSpeed(driver.speed)}
+                </em>
               </span>
               <span className="replay-leaderboard__tyre" title={tyreTitle(driver.compound, driver.tyreAge)} aria-label={tyreTitle(driver.compound, driver.tyreAge)}>
                 <span className="replay-leaderboard__tyre-dot" style={{ backgroundColor: tyreColor(driver.compound) }} />
@@ -192,6 +210,14 @@ export function Leaderboard({ drivers, selectedDrivers, onDriverSelect }: Leader
             No drivers match <strong>{searchTerm}</strong>.
           </div>
         )}
+      </div>
+
+      <div className="replay-leaderboard__legend" aria-label="Tyre compound legend">
+        <span><span className="replay-leaderboard__tyre-dot" style={{ backgroundColor: "#ff3333" }} /> S Soft</span>
+        <span><span className="replay-leaderboard__tyre-dot" style={{ backgroundColor: "#ffd700" }} /> M Medium</span>
+        <span><span className="replay-leaderboard__tyre-dot" style={{ backgroundColor: "#ffffff" }} /> H Hard</span>
+        <span><span className="replay-leaderboard__tyre-dot" style={{ backgroundColor: "#33ff33" }} /> I Inter</span>
+        <span><span className="replay-leaderboard__tyre-dot" style={{ backgroundColor: "#3b82f6" }} /> W Wet</span>
       </div>
     </div>
   );

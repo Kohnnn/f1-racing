@@ -4,6 +4,7 @@ import { createElement, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { CarModelCatalog } from "@/lib/data";
 import { focusPoints, getFocusPoint, type FlowOverlayId } from "./focus-points";
+import { CanvasWindTunnel } from "@/components/wind/canvas-wind-tunnel";
 
 interface CarModelBrowserProps {
   catalog: CarModelCatalog;
@@ -270,6 +271,10 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
           </label>
         </div>
 
+        <p className="car-viewer-availability">
+          Coming soon: Williams, Racing Bulls, Haas, Kick Sauber. Drop a GLB into <code>glb_model/</code> to ingest a constructor.
+        </p>
+
         <div className="camera-preset-row" aria-label="Camera presets">
           {CAMERA_PRESETS.map((preset) => (
             <button
@@ -472,6 +477,10 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
             </div>
           </article>
         </aside>
+      </div>
+
+      <div className="car-wind-tunnel-host">
+        <CanvasWindTunnel modelTitle={selected.displayName} />
       </div>
     </section>
   );

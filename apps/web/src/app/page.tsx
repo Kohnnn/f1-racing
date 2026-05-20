@@ -3,8 +3,10 @@ import { LandingStage } from "@/components/story/landing-stage";
 import { learnModules } from "./learn/modules";
 
 export const metadata = {
-  title: "Home",
-  description: "Replay-first Formula 1 viewer with track map, leaderboard, telemetry, and modelview.",
+  title: {
+    absolute: "F1 Racing — Replay-first F1 viewer",
+  },
+  description: "Replay-first Formula 1 viewer with track map, leaderboard, telemetry, modelview, and a wind-tunnel sketch.",
 };
 
 export default async function HomePage() {

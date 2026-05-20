@@ -57,12 +57,12 @@ export async function generateMetadata({ params }: SessionPageProps) {
   try {
     const summary = await getSessionSummary(season, grandPrix, session);
     return {
-      title: `${summary.grandPrix} · ${summary.session} · F1 Racing`,
+      title: `${summary.grandPrix} · ${summary.session}`,
       description: `Session summary, lap times, and replay shortcut for ${summary.grandPrix} ${summary.session}.`,
     };
   } catch {
     return {
-      title: `${grandPrix} · ${session} · F1 Racing`,
+      title: `${grandPrix} · ${session}`,
     };
   }
 }

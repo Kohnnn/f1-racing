@@ -2,18 +2,18 @@
 
 import { formatLapTime } from "@f1-racing/telemetry-utils";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ComparePack, ReplayPack, SessionManifest, SessionSummary, StintPack } from "@/lib/data";
+import type { ComparePack, DriverSummary, LapRecord, ReplayPack, SessionManifest, SessionSummary, StintPack, StrategyPack } from "@/lib/data";
 import { getFocusPoint } from "@/components/model-viewer/focus-points";
 import { Leaderboard, type ReplayLeaderboardRow } from "./Leaderboard";
 import { PlaybackControls } from "./PlaybackControls";
-import { ReplayComparePanel, ReplayStintPanel } from "./replay-insights";
+import { ReplayComparePanel, ReplayStintPanel, ReplayStrategyPanel, ReplayTrackInfoPanel } from "./replay-insights";
 import { ReplayTelemetryStrip } from "./replay-telemetry-strip";
 import { TrackCanvas } from "./TrackCanvas";
 import { buildTrackGeometry } from "./track-geometry";
 
 const UI_SYNC_INTERVAL_MS = 180;
 
-type AnalysisTab = "telemetry" | "compare" | "stints";
+type AnalysisTab = "telemetry" | "compare" | "stints" | "strategy" | "track" | "racecontrol";
 
 interface ReplayViewProps {
   replay: ReplayPack;
@@ -26,6 +26,9 @@ interface ReplayViewProps {
     session: string;
   };
   stintPack: StintPack | null;
+  driverSummaries?: DriverSummary[] | null;
+  lapRecords?: LapRecord[] | null;
+  strategy?: StrategyPack | null;
   onEnsureTimeLoaded?: (time: number) => void;
 }
 
@@ -229,6 +232,28 @@ function formatReplaySource(source: ReplayPack["source"]) {
   }
 }
 
+type RaceControlCategoryId = "all" | "flag" | "drs" | "safety-car" | "penalty" | "investigation" | "other";
+
+const RACE_CONTROL_FILTERS: Array<{ id: RaceControlCategoryId; label: string }> = [
+  { id: "all", label: "All" },
+  { id: "flag", label: "Flags" },
+  { id: "drs", label: "DRS" },
+  { id: "safety-car", label: "SC / VSC" },
+  { id: "penalty", label: "Penalties" },
+  { id: "investigation", label: "Investigations" },
+  { id: "other", label: "Other" },
+];
+
+function categorizeRaceControlMessage(message: { category?: string | null; flag?: string | null; message?: string | null }): RaceControlCategoryId {
+  const text = `${message.category ?? ""} ${message.flag ?? ""} ${message.message ?? ""}`.toLowerCase();
+  if (text.includes("safety car") || text.includes("vsc") || text.includes("virtual safety")) return "safety-car";
+  if (text.includes("drs")) return "drs";
+  if (text.includes("penalty") || text.includes("penalties") || text.includes("time penalty") || text.includes("stop/go")) return "penalty";
+  if (text.includes("investigat") || text.includes("noted") || text.includes("under review")) return "investigation";
+  if (text.includes("flag") || text.includes("yellow") || text.includes("red") || text.includes("green") || text.includes("chequered") || text.includes("checkered") || text.includes("white")) return "flag";
+  return "other";
+}
+
 function findLastIndexBeforeOrAt(time: number, values: number[]) {
   let left = 0;
   let right = values.length - 1;
@@ -247,7 +272,7 @@ function findLastIndexBeforeOrAt(time: number, values: number[]) {
   return result;
 }
 
-export function ReplayView({ replay, manifest, summary, compare, route, stintPack, onEnsureTimeLoaded }: ReplayViewProps) {
+export function ReplayView({ replay, manifest, summary, compare, route, stintPack, driverSummaries, lapRecords, strategy, onEnsureTimeLoaded }: ReplayViewProps) {
   const initialTime = replay.frames[0]?.t || 0;
   const defaultAnalysisTab = compare ? "compare" as const : stintPack ? "stints" as const : "telemetry" as const;
   const [playbackState, setPlaybackState] = useState(() => ({
@@ -257,7 +282,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [selectedDrivers, setSelectedDrivers] = useState<string[]>([]);
-  const [analysisTab, setAnalysisTab] = useState<"telemetry" | "compare" | "stints">(defaultAnalysisTab);
+  const [analysisTab, setAnalysisTab] = useState<AnalysisTab>(defaultAnalysisTab);
   const [focusId, setFocusId] = useState<string | null>(null);
   const [showDriverLabels, setShowDriverLabels] = useState(false);
   const [showDrsZones, setShowDrsZones] = useState(true);
@@ -362,6 +387,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
   const replaySourceLabel = formatReplaySource(replay.source);
   const cleanReplayNote = useMemo(() => sanitizeReplayNote(replay.note), [replay.note]);
   const [showMessageList, setShowMessageList] = useState(false);
+  const [raceControlFilter, setRaceControlFilter] = useState<RaceControlCategoryId>("all");
   const replayBannerNote = useSyntheticTrackMotion
     ? `${replaySourceLabel} timing replay. Track motion is projected onto the circuit polyline.`
     : cleanReplayNote || `${replaySourceLabel} replay data`;
@@ -375,6 +401,18 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
     () => new Map(replay.drivers.map((driver) => [driver.driverCode, driver])),
     [replay.drivers],
   );
+
+  const driverStatusByCode = useMemo(() => {
+    const map = new Map<string, NonNullable<DriverSummary["status"]>>();
+    if (driverSummaries) {
+      for (const summary of driverSummaries) {
+        if (summary.status) {
+          map.set(summary.driverCode, summary.status);
+        }
+      }
+    }
+    return map;
+  }, [driverSummaries]);
 
   const lapHistoryByDriver = useMemo(() => {
     const history = new Map<string, typeof replay.laps>();
@@ -431,6 +469,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
       .map((driver) => {
         const info = driverInfoByCode.get(driver.driver.driverCode);
         const lastLapLabel = previousLapLabelByDriverLap.get(`${driver.driver.driverCode}:${driver.driver.lap || 0}`) ?? null;
+        const status = driverStatusByCode.get(driver.driver.driverCode);
 
         return {
           abbr: driver.driver.driverCode,
@@ -449,9 +488,10 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
           rpm: driver.driver.rpm,
           drs: driver.driver.drs,
           lastLapLabel,
+          status,
         };
       });
-  }, [currentFrame, driverInfoByCode, estimatedLapDuration, previousLapLabelByDriverLap, projectMarkers, trackGeometry]);
+  }, [currentFrame, driverInfoByCode, driverStatusByCode, estimatedLapDuration, previousLapLabelByDriverLap, projectMarkers, trackGeometry]);
 
   const replayEvents = useMemo(() => {
     const events = (replay.raceControlMessages ?? []).map((message) => ({
@@ -504,6 +544,8 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
   }, [replayFocus, selectedDrivers.length, suggestedDriver]);
 
   const selectedTelemetryDrivers = displayedDrivers.filter((driver) => selectedDrivers.includes(driver.abbr));
+
+  // Recent message strip: shows the last few messages whose time has elapsed.
   const activeRaceControlMessages = useMemo(() => {
     if (!replay.raceControlMessages?.length) {
       return [];
@@ -514,9 +556,25 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
       return [];
     }
 
-    const window = showMessageList ? 16 : 3;
-    return replay.raceControlMessages.slice(Math.max(0, lastIndex - window), lastIndex + 1).reverse();
-  }, [currentTime, raceControlTimes, replay.raceControlMessages, showMessageList]);
+    return replay.raceControlMessages.slice(Math.max(0, lastIndex - 3), lastIndex + 1).reverse();
+  }, [currentTime, raceControlTimes, replay.raceControlMessages]);
+
+  // Total race-control messages (for the popover button counter).
+  const totalRaceControlMessages = replay.raceControlMessages?.length ?? 0;
+  const lastElapsedRcIndex = useMemo(
+    () => findLastIndexBeforeOrAt(currentTime, raceControlTimes),
+    [currentTime, raceControlTimes],
+  );
+
+  // Filtered, ordered list for the expanded panel (newest first).
+  const filteredRaceControlMessages = useMemo(() => {
+    if (!replay.raceControlMessages?.length) return [];
+    const filtered = replay.raceControlMessages
+      .map((message, index) => ({ message, index, category: categorizeRaceControlMessage(message) }))
+      .filter((entry) => raceControlFilter === "all" || entry.category === raceControlFilter)
+      .sort((left, right) => right.index - left.index);
+    return filtered;
+  }, [raceControlFilter, replay.raceControlMessages]);
   const currentWeather = currentFrame?.weather || null;
   const weatherLabel = currentWeather
     ? `${currentWeather.airTempC}C air · ${currentWeather.trackTempC}C track`
@@ -536,16 +594,68 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
     : null;
   const featuredStintHref = manifest.stints ? `/stints/${route.season}/${route.grandPrix}/${route.session}` : null;
 
+  // When two or more drivers are pinned, build a live compare pack from their fastest laps in
+  // the loaded laps list. Falls back to the static manifest compare otherwise.
+  const dynamicCompare = useMemo<ComparePack | null>(() => {
+    if (selectedDrivers.length < 2 || !lapRecords?.length) return null;
+    const [leftCode, rightCode] = selectedDrivers.slice(0, 2);
+
+    const fastestFor = (code: string) =>
+      lapRecords
+        .filter((lap) => lap.driverCode === code && Number.isFinite(lap.lapTime) && lap.lapTime > 0)
+        .sort((a, b) => a.lapTime - b.lapTime)[0] ?? null;
+    const leftLap = fastestFor(leftCode);
+    const rightLap = fastestFor(rightCode);
+    if (!leftLap || !rightLap) return null;
+
+    const leftSectors = [leftLap.sector1, leftLap.sector2, leftLap.sector3];
+    const rightSectors = [rightLap.sector1, rightLap.sector2, rightLap.sector3];
+    const sectorEnds = [
+      leftLap.sector1 / leftLap.lapTime,
+      (leftLap.sector1 + leftLap.sector2) / leftLap.lapTime,
+      1,
+    ];
+    const deltaSections = leftSectors.map((sector, index) => {
+      const rival = rightSectors[index];
+      return {
+        from: index === 0 ? 0 : sectorEnds[index - 1],
+        to: sectorEnds[index],
+        leader: sector <= rival ? leftCode : rightCode,
+        deltaMs: Math.round(Math.abs(sector - rival) * 1000),
+      };
+    });
+    const events = deltaSections.map((section, index) => {
+      const note = section.leader === leftCode
+        ? `${section.leader} faster through sector ${index + 1} by ${section.deltaMs} ms.`
+        : `${section.leader} responds in sector ${index + 1} by ${section.deltaMs} ms.`;
+      return {
+        type: section.leader === leftCode ? "sector_gain" : "sector_response",
+        driver: section.leader,
+        corner: `S${index + 1}`,
+        note,
+      };
+    });
+    return {
+      trackId: replay.trackId,
+      drivers: [leftCode, rightCode] as [string, string],
+      laps: [leftLap.lapNumber, rightLap.lapNumber] as [number, number],
+      deltaSections,
+      events,
+    };
+  }, [lapRecords, replay.trackId, selectedDrivers]);
+
+  const activeCompare = dynamicCompare ?? compare;
+
   useEffect(() => {
-    if (analysisTab === "compare" && !compare) {
+    if (analysisTab === "compare" && !activeCompare) {
       setAnalysisTab(stintPack ? "stints" : "telemetry");
       return;
     }
 
     if (analysisTab === "stints" && !stintPack) {
-      setAnalysisTab(compare ? "compare" : "telemetry");
+      setAnalysisTab(activeCompare ? "compare" : "telemetry");
     }
-  }, [analysisTab, compare, stintPack]);
+  }, [activeCompare, analysisTab, stintPack]);
 
   const syncPlaybackState = useCallback((time: number, frameIndex: number) => {
     playheadTimeRef.current = time;
@@ -816,10 +926,10 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
                 onClick={() => setShowMessageList((value) => !value)}
                 aria-expanded={showMessageList}
                 aria-label="Toggle race control messages"
-                disabled={!activeRaceControlMessages.length}
+                disabled={totalRaceControlMessages === 0}
               >
                 <span>Messages</span>
-                <strong>{activeRaceControlMessages.length || 0}</strong>
+                <strong>{totalRaceControlMessages}</strong>
               </button>
             </div>
           </div>
@@ -845,11 +955,61 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
               onDriverClick={handleDriverSelect}
             />
 
-            {activeRaceControlMessages.length ? (
-              <div className={`replay-race-control${showMessageList ? " replay-race-control--expanded" : ""}`}>
+            {(showMessageList && totalRaceControlMessages > 0) ? (
+              <div className="replay-race-control replay-race-control--expanded">
+                <div className="replay-race-control__header">
+                  <p>Race control · {totalRaceControlMessages}</p>
+                  <button
+                    type="button"
+                    className="replay-race-control__close"
+                    onClick={() => setShowMessageList(false)}
+                    aria-label="Close race control feed"
+                  >
+                    Close
+                  </button>
+                </div>
+                <div className="replay-race-control__filters" role="tablist" aria-label="Filter race control messages">
+                  {RACE_CONTROL_FILTERS.map((filter) => (
+                    <button
+                      key={filter.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={raceControlFilter === filter.id}
+                      className={`replay-race-control__filter${raceControlFilter === filter.id ? " replay-race-control__filter--active" : ""}`}
+                      onClick={() => setRaceControlFilter(filter.id)}
+                    >
+                      {filter.label}
+                    </button>
+                  ))}
+                </div>
+                <ul>
+                  {filteredRaceControlMessages.length ? filteredRaceControlMessages.map((entry) => {
+                    const elapsed = entry.index <= lastElapsedRcIndex;
+                    return (
+                      <li key={`${entry.message.t}-${entry.index}`}>
+                        <button
+                          type="button"
+                          className={`replay-race-control__row${elapsed ? "" : " replay-race-control__row--upcoming"}`}
+                          onClick={() => handleSeek(entry.message.t)}
+                          title={`Seek to T+${Math.floor(entry.message.t)}s`}
+                        >
+                          <strong>{entry.message.flag || entry.message.category || "MSG"}</strong>
+                          <span>
+                            T+{Math.floor(entry.message.t)}s{entry.message.lapNumber ? ` · Lap ${entry.message.lapNumber}` : ""} · {entry.message.message}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  }) : (
+                    <li className="replay-race-control__empty">No messages match this filter.</li>
+                  )}
+                </ul>
+              </div>
+            ) : activeRaceControlMessages.length ? (
+              <div className="replay-race-control">
                 <p>Race control</p>
                 <ul>
-                  {(showMessageList ? activeRaceControlMessages.slice(0, 16) : activeRaceControlMessages).map((message) => (
+                  {activeRaceControlMessages.map((message) => (
                     <li key={`${message.t}-${message.message}`}>
                       <button
                         type="button"
@@ -961,8 +1121,14 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
                   ? "Selected telemetry strips"
                   : "Select drivers from the leaderboard"
                 : analysisTab === "compare"
-                  ? `${compare?.drivers[0]} vs ${compare?.drivers[1]}`
-                  : "Tyre window snapshot"}
+                  ? activeCompare ? `${activeCompare.drivers[0]} vs ${activeCompare.drivers[1]}` : "Compare"
+                  : analysisTab === "stints"
+                    ? "Tyre window snapshot"
+                    : analysisTab === "strategy"
+                      ? "Strategy desk"
+                      : analysisTab === "track"
+                        ? "Track read"
+                        : "Race control"}
             </h2>
           </div>
           <div className="replay-support-panel__tabs">
@@ -973,13 +1139,13 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
             >
               Telemetry {selectedTelemetryDrivers.length ? `· ${selectedTelemetryDrivers.length}` : ""}
             </button>
-            {compare ? (
+            {activeCompare ? (
               <button
                 type="button"
                 className={`replay-support-panel__tab${analysisTab === "compare" ? " replay-support-panel__tab--active" : ""}`}
                 onClick={() => setAnalysisTab("compare")}
               >
-                Compare
+                Compare {dynamicCompare ? "· live" : ""}
               </button>
             ) : null}
             {stintPack ? (
@@ -989,6 +1155,31 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
                 onClick={() => setAnalysisTab("stints")}
               >
                 Stints
+              </button>
+            ) : null}
+            {(strategy || stintPack) ? (
+              <button
+                type="button"
+                className={`replay-support-panel__tab${analysisTab === "strategy" ? " replay-support-panel__tab--active" : ""}`}
+                onClick={() => setAnalysisTab("strategy")}
+              >
+                Strategy
+              </button>
+            ) : null}
+            <button
+              type="button"
+              className={`replay-support-panel__tab${analysisTab === "track" ? " replay-support-panel__tab--active" : ""}`}
+              onClick={() => setAnalysisTab("track")}
+            >
+              Track
+            </button>
+            {totalRaceControlMessages > 0 ? (
+              <button
+                type="button"
+                className={`replay-support-panel__tab${analysisTab === "racecontrol" ? " replay-support-panel__tab--active" : ""}`}
+                onClick={() => setAnalysisTab("racecontrol")}
+              >
+                Race control · {totalRaceControlMessages}
               </button>
             ) : null}
           </div>
@@ -1023,12 +1214,60 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
           </>
         ) : null}
 
-        {analysisTab === "compare" && compare ? (
-          <ReplayComparePanel compare={compare} legacyHref={featuredCompareHref} embedded />
+        {analysisTab === "compare" && activeCompare ? (
+          <ReplayComparePanel compare={activeCompare} legacyHref={featuredCompareHref} embedded />
         ) : null}
 
         {analysisTab === "stints" && stintPack ? (
           <ReplayStintPanel stintPack={stintPack} legacyHref={featuredStintHref} embedded />
+        ) : null}
+
+        {analysisTab === "strategy" ? (
+          <ReplayStrategyPanel strategy={strategy ?? null} stintPack={stintPack} selectedDrivers={selectedDrivers} />
+        ) : null}
+
+        {analysisTab === "track" ? (
+          <ReplayTrackInfoPanel replay={replay} trackId={replay.trackId} />
+        ) : null}
+
+        {analysisTab === "racecontrol" ? (
+          <section className="replay-insight-panel replay-insight-panel--embedded replay-rc-panel">
+            <div className="replay-race-control__filters" role="tablist" aria-label="Filter race control messages">
+              {RACE_CONTROL_FILTERS.map((filter) => (
+                <button
+                  key={filter.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={raceControlFilter === filter.id}
+                  className={`replay-race-control__filter${raceControlFilter === filter.id ? " replay-race-control__filter--active" : ""}`}
+                  onClick={() => setRaceControlFilter(filter.id)}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+            <ul className="replay-rc-panel__list">
+              {filteredRaceControlMessages.length ? filteredRaceControlMessages.map((entry) => {
+                const elapsed = entry.index <= lastElapsedRcIndex;
+                return (
+                  <li key={`rc-${entry.index}`}>
+                    <button
+                      type="button"
+                      className={`replay-race-control__row${elapsed ? "" : " replay-race-control__row--upcoming"}`}
+                      onClick={() => handleSeek(entry.message.t)}
+                    >
+                      <strong>{entry.message.flag || entry.message.category || "MSG"}</strong>
+                      <span>
+                        T+{Math.floor(entry.message.t)}s{entry.message.lapNumber ? ` · Lap ${entry.message.lapNumber}` : ""} · {entry.message.message}
+                      </span>
+                    </button>
+                  </li>
+                );
+              }) : (
+                <li className="replay-race-control__empty">No messages match this filter.</li>
+              )}
+            </ul>
+          </section>
         ) : null}
       </section>
     </div>

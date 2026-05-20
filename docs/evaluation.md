@@ -1,340 +1,337 @@
+
 ---
 
-# F1 Racing App — Full QA Evaluation Report
+# F1 Racing App — QA Evaluation Report
 
-**URL:** <https://playful-peony-77899c.netlify.app>  
-**Date:** 2026-05-20 | **Tester:** Comet (AI QA)  
-**Scope:** All 4 top-level routes + sub-pages, functional interactions, data integrity, bugs, UX
-
-***
-
-## 1. SITE ARCHITECTURE OVERVIEW
-
-| Route | Purpose | Status |
-|---|---|---|
-| `/` | Landing / hero page | ✅ Working |
-| `/live` | Live race workspace | ✅ Working |
-| `/replay` | Replay library | ✅ Working |
-| `/replay/[year]/[gp-slug]/[session]` | Replay workspace | ✅ Working |
-| `/cars/current-spec` | 3D Modelview | ✅ Working |
-| `/learn` | Engineering learn index | ✅ Working |
-| `/learn/[module]` | Individual module | ✅ Working |
-| `/sessions/[year]/[gp]/[session]` | Session summary | ⚠️ Partial |
-| `/*` (unknown routes) | 404 fallback | ✅ Working |
-
-**Nav structure:** LIVE · REPLAY · MODELVIEW · LEARN (4-item nav, all functional) [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/)
+**URL:** `https://playful-peony-77899c.netlify.app/`
+**Tester:** Comet (AI QA)
+**Date:** 2026-05-20
+**Scope:** All 4 open tabs + linked routes (Home, Learn, Sessions/Summary, 2026 preview)
 
 ***
 
-## 2. PAGE-BY-PAGE AUDIT
+## 1. SITE STRUCTURE MAP
 
-### 2.1 Homepage `/`
-
-**Visual:** Dark hero with animated auto-rotating 3D Red Bull RB21 GLB (~3.1MB compressed). Car continuously rotates through studio view angles. [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/)
-
-**Content:**
-
-- Hero headline: "REPLAY THE RACE." with correct CTA hierarchy
-- "OPEN LATEST REPLAY → Abu Dhabi Grand Prix" — correct link
-- Route hierarchy cards: PRIMARY ROUTE (Live) + SECONDARY ROUTE (Modelview, Learn)
-- Bottom section: Team card for Red Bull Racing with driver links (VER, HAD)
-- Stats: "2 current-spec cars · 6 learn modules · 2025 season sessions" [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/)
-
-**Issues found:**
-
-- 🟡 **No page scroll indicator** — the page has scrollable content below the fold but no visual cue (no scrollbar visible on right edge, no chevron/arrow)
-- 🟡 **Driver links go external** to formula1.com (opens same tab, should open new tab for external links)
-- 🟡 **Hero 3D only shows Red Bull** regardless of other available constructors (McLaren not featured)
-- 🟡 **No page `<title>` differentiation** — all pages show "F1 Racing" in tab, no sub-page title context
+```
+/ (Home)
+├── /live                           ← Live Workspace
+├── /replay                         ← Replay Library
+│   └── /replay/{year}/{race}/{session}  ← Race Workspace
+├── /cars/current-spec              ← Modelview (GLB viewer)
+├── /learn                          ← Learn index
+│   └── /learn/{car|aero|tyres|braking|setup|strategy}
+└── /sessions/{year}/{race}/{session} ← Session Summary
+```
 
 ***
 
-### 2.2 Live Page `/live`
+## 2. PAGE-BY-PAGE QA
 
-**Feed mode:** "Static live simulator" (fallback from socket) — simulates at **8.0x speed** from Abu Dhabi replay pack [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/live/)
+### 2.1 HOME (`/`)
 
-**Features confirmed working:**
+**Status: ✅ Functional**
 
-- Header status tiles: FEED, STATUS (Booting → Green), REPLAY CLOCK, LAP, WEATHER, WIND
-- "REPLAY ROUTE" button + "ABU DHABI GRAND PRIX SUMMARY" + "MODELVIEW" + "LEARN" contextual nav buttons
-- **Track map** — Yas Marina Circuit rendered with all 20 car markers
-- **Leaderboard** — POS, DRIVER, GAP, TYRE columns. Search bar functional. Clickable rows
-- **Driver telemetry** — clicking a driver (tested RUS) populates telemetry card: SPEED (275 km/h), TYRE (M·1), LAST LAP (95.868s), THROTTLE/BRAKE/GEAR bar charts — all live-updating [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/live/)
-- **Shift-click multi-select** mentioned in UI — up to 4 drivers
-- "MESSAGES: 1" badge visible in track status area
-
-**Issues found:**
-
-- 🔴 **Driver names truncated in Live leaderboard** — "Max VERS...", "Lando NO...", "Gabriel BO...", "Andrea KIMI A..." — truncation cuts at ~8 chars, no tooltip or expand on hover
-- 🟡 **STATUS shows "Booting" on initial load** briefly — could confuse users into thinking it's broken
-- 🟡 **Feed type label** "Static live simulator" is developer-facing language; users may not understand what "static" means in this context
-- 🟡 **No loading skeleton** for telemetry deck — empty state text shows but no placeholder cards
-
-***
-
-### 2.3 Replay Library `/replay`
-
-**Content:** Full 2025 season listed chronologically (reverse-chron) + 1 x 2026 entry [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/replay/)
-
-**Sessions available:**
-
-- 2025: Australian GP (Q+R), Abu Dhabi GP (Q+R), Las Vegas GP (R only), São Paulo GP (Sprint only), Mexico City (R only), Singapore (Q+R), Azerbaijan (R only), Italian (Q+R), Dutch (R only), Hungarian (Q only), Belgian (Sprint only), British (Q+R), Austrian (Q+R), Spanish (R only), Monaco (Q+R), Chinese (Q+R), Japanese (Q+R), Bahrain (R only), Saudi Arabian (R only)
-- 2026: Japan GP (Race — preview)
-
-**Issues found:**
-
-- 🟡 **"LIMITED COVERAGE" badge is overused** — 11 of 19 events show it, but no explanation of what "limited" means (missing quali? Missing GPS?) — user has no way to know the quality difference before clicking
-- 🟡 **Library is reverse-chronological** (Abu Dhabi first, Bahrain last) but the natural calendar reading order would be earliest → latest for season progress
-- 🟡 **São Paulo GP slug is `s-o-paulo-grand-prix`** — special character stripping is inconsistent; could cause issues if users share/copy URLs
-
-***
-
-### 2.4 Replay Workspace `/replay/[year]/[gp]/[session]`
-
-Tested: Australian GP Race, Abu Dhabi GP Qualifying, São Paulo Sprint, 2026 Japan GP
-
-**Features confirmed working:**
-
-- Session header tiles: STATUS, REPLAY CLOCK, LAP, TRACK, WEATHER, WIND [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/replay/2025/australian-grand-prix/race/)
-- Track map with color-coded car markers + car labels (NOR, VER, RUS) + DRS badge on relevant cars
-- **Top-3 bar** at map bottom updates in real-time during playback
-- **Replay controls:** -5m/-1m/-30s/-5s | Prev lap | **Play/Pause** | Next lap | +5s/+30s/+1m/+5m
-- **Speed presets:** 0.1x, 0.2x, 0.5x, 1x, 2x, 4x, 8x, 16x, 20x — confirmed toggling
-- **Toggle switches:** LABELS (L), DRS (D), EVENTS (B) — pill buttons
-- **Keyboard shortcuts:** Space (play/pause), arrows (seek), Shift+arrows (30s), [ ] (laps), R (restart), 1–5 (speed presets) — shown in UI
-- Timeline scrubber with yellow playhead, "BUFFERED TO 9:58" indicator
-- **Contextual nav bar:** REPLAY LIBRARY · MODELVIEW · LEARN · SESSION SUMMARY buttons
-- Leaderboard (right panel) full names + search — working [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/replay/2025/australian-grand-prix/race/)
-- Race control events timeline: "Jump to SafetyCar", "Jump to YELLOW", "Jump to GREEN" etc. — full race incident log [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/replay/2025/australian-grand-prix/race/)
-- **Play is functional** — confirmed cars move, gaps update, clock ticks [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/replay/2025/australian-grand-prix/race/)
-
-**Data quality tiers observed:**
-
-- `FASTF1 FEED` = GPS-backed (Australian Race, Abu Dhabi Qualifying)
-- `OPENF1 FEED` = position-derived, no GPS (2026 Japan)
-- Synthetic track map fallback = no GPS at all (some sessions)
-
-**Issues found:**
-
-- 🔴 **SESSION SUMMARY crashes for Australian GP** — navigating to `/sessions/2025/australian-grand-prix/race` shows: `"Session data could not be loaded — Cannot read properties of undefined (reading 'startsWith')"`. This is a JS runtime error, unhandled. The Abu Dhabi Race and Qualifying summaries load fine. [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/sessions/2025/australian-grand-prix/race/)
-- 🟡 **Replay clock always shows 0:00 / 9:58** on initial load regardless of session length — appears to be a fixed buffer window, not total session duration. Users may expect total race time (e.g., 1:30:00)
-- 🟡 **2026 Japan GP shows LAP: "-" and FASTEST LAP: "-"** — empty data not surfaced as "Not yet available", just dashes with no context [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/replay/2026/japan-grand-prix/race/)
-- 🟡 **Developer note exposed**: "Position data derived from OpenF1 race_position. For true X/Y GPS coordinates, use FastF1 Python pipeline" — this is internal/dev-facing text visible to all users on the 2026 Japan page
-- 🟡 **"Timing-first replay using a synthetic track map fallback"** label is visible as the sub-description on Australian GP — technically accurate but user-unfriendly phrasing
-- 🟡 **No visual differentiation** between GPS-accurate and synthetic track maps — users can't tell data quality at a glance
-- 🟡 **Leaderboard TYRE column** shows compound letter + colored dot but "I" (Intermediate) dot looks nearly identical to "M" (Medium) at small sizes — no tooltip
-
-***
-
-### 2.5 Session Summary `/sessions/[year]/[gp]/[session]`
-
-Tested: Abu Dhabi Race ✅, Abu Dhabi Qualifying ✅, Australian Race ❌ [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/sessions/2025/abu-dhabi-grand-prix/race/)
-
-**Features (Abu Dhabi — working):**
-
-- Hero tiles: FASTEST LAP, TRACK, AIR/TRACK TEMP, RAIN RISK
-- CTA buttons: "Open replay", "Open stint story", "Open compare route"
-- Full 20-driver grid with: driver name, best lap, compound used, stints count
-- Strategy panel: pit loss time (18.7s), SC pit loss (11.4s), crossover thresholds, compound windows
+- Hero section renders correctly with "REPLAY THE RACE." headline [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/)
+- CTA "OPEN LATEST REPLAY" correctly links to Abu Dhabi GP Race
+- Red Bull RB21 hero GLB loads (~3.1 MB compressed) with inline driver links to formula1.com
+- 4 nav items: LIVE / REPLAY / MODELVIEW / LEARN — all correctly routed
+- Navigation tag reads "REPLAY-FIRST F1 VIEWER" as brand sub-label
+- Footer/anchor `#core-loop` scroll works
 
 **Issues:**
 
-- 🔴 **Australian GP session summary: JS crash** — `Cannot read properties of undefined (reading 'startsWith')` — likely caused by a null field in the Australian GP data pack that is not null-guarded in the component [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/sessions/2025/australian-grand-prix/race/)
-- 🟡 **"Open compare route" / "Open stint story"** buttons — destination routes not verified during audit; need to confirm these aren't also broken for other sessions
+- `title` tag = `"Home"` — not descriptive. Should be `"F1 Racing – Replay-First F1 Viewer"` for SEO/tab clarity
+- The home nav does NOT include the active page indicator (`aria-current`) — inconsistent with inner pages
+- "SCROLL" anchor link on hero is plain text, no visible scroll button/arrow icon, low affordance [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/)
 
 ***
 
-### 2.6 Modelview `/cars/current-spec`
+### 2.2 LIVE (`/live`)
 
-**Features confirmed working:**
+**Status: ✅ Functional (Simulated feed)**
+ [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/live/)
 
-- Intro page with dark hero + large serif type [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/cars/current-spec/)
-- **Constructor dropdown:** Red Bull Racing / McLaren — switching updates URL params (`?season=2025&constructor=red-bull` / `?season=2025&constructor=mclaren`) and loads different GLB [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/cars/current-spec/?season=2025&constructor=mclaren)
-- **View presets:** Studio / Side / Front / Top — clicking "Side" rotates camera and URL updates [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/cars/current-spec/?season=2025&constructor=red-bull)
-- **Hotspot labels** on car: Front wing, Floor, Brakes, Rear wing, Tyres — visible on 3D model
-- **Focus Point panel:** Select hotspot → links to matching Learn module (e.g., "Front wing + nose → Open aero module")
-- **Airflow overlay:** Off / Front load / Floor channel / Rear wake toggles — visual guide layer
-- **Current Model metadata:** Season, Constructor, Asset size, Status ("SURFACE READY" badge)
-- **Branch from model** section: links to car primer, aero module, latest replay
-- **Progress bar** visible during GLB load for McLaren [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/cars/current-spec/?season=2025&constructor=mclaren)
-- **GLB sizes:** Red Bull ~3.1MB, McLaren (similar compressed size)
+**What works:**
 
-**Issues found:**
+- Feed status: "Local replay simulator" clearly labeled — users won't mistake it for a real live feed
+- Replay clock ticks correctly (confirmed: 6:32 → 7:44 over test period)
+- Lap counter increments: `5/58 → 8/58` during observation
+- Weather + wind data present (26.8°C air, 31.4°C track, 2.5 m/s wind)
+- Track map (Yas Marina) renders with all 20 car markers, labeled
+- Leaderboard: all 20 drivers shown, full name + team + gap + tyre + laps
+- Driver selection via leaderboard click works: "SELECTED" counter updates (0→1), CLEAR button appears
+- Driver telemetry strip appears after selection: SPEED, TYRE, LAST LAP, THROTTLE (bar chart), BRAKE (bar chart), GEAR, DRS, RPM, LAP — all populate and update in real-time
+- Race Control messages show (SessionStatus, GREEN LIGHT messages)
+- Search box in leaderboard present (`aria-label="Search leaderboard"`)
 
-- 🟡 **Only 2 constructors available** — Red Bull and McLaren. Missing all other 8 teams. No explanation why others are absent
-- 🟡 **No mobile-friendly 3D controls** visible — mouse/touch/arrow keys mentioned but no touch gesture guide for mobile users
-- 🟡 **"AIRFLOW LAYER" disclaimer** ("Visual guide only. Not a measured aerodynamic result") is below the toggle — should be more prominent, possibly shown when overlay is active
-- 🟡 **Return to studio** focus point clears camera but the other focus items in the list don't auto-highlight selected state
+**Issues:**
 
-***
-
-### 2.7 Learn Surface `/learn` + Modules
-
-**6 modules:** Car, Aero, Tyres, Braking, Setup, Strategy [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/learn/)
-
-**Confirmed working:**
-
-- Learn index with module cards showing route paths (`/learn/car`, `/learn/aero`, etc.)
-- Each card shows "2 NEXT LINKS" count and bullet list of continue options
-- Individual module pages (tested `/learn/aero`) — loads correctly with: header, subtitle, CORE CONCEPTS section with numbered key points, CONTINUE cards [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/learn/aero/)
-- Module linking: "Continue to tyres", "Continue to braking" etc. — chained learning path
-
-**Issues found:**
-
-- 🟡 **No progress tracking** — no way to know which modules you've read. No "completed" state, no bookmark, no read indicator
-- 🟡 **Learn modules are text-only** — no inline diagrams, no embedded 3D snapshots, no video. The copy references "inspect a part" but doesn't embed the 3D view within the text
-- 🟡 **No estimated read time** per module
-- 🟡 **"2 NEXT LINKS"** label on the index cards is mechanical/dev-facing — should say "2 continue paths" or similar
+- `STATUS: LIVE` label is misleading when feed is actually a local replay simulator — "LIVE" should conditionally render as "SIMULATED" or use a different color/badge
+- `MESSAGES: 1` counter shown on initial load but only 2 race control messages exist — counter increments to 2 but the toggle button for race control messages is `disabled` in the DOM  — users cannot expand/view message history [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/replay/2025/australian-grand-prix/race/)
+- Leaderboard title says "CLICK TO INSPECT" but no tooltip or visual cue explains the shift-click multi-select capability — discoverability issue
+- No visible keyboard shortcut hints on the Live page (replay page has them, live does not)
+- Mobile/narrow viewport: nav collapses correctly but the telemetry strip layout becomes cramped at ~480px width (seen when the page opened in narrow tab ) [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/replay/)
 
 ***
 
-### 2.8 404 / Missing Routes
+### 2.3 REPLAY LIBRARY (`/replay`)
 
-Custom `MISSING ROUTE` page: "That session is not in the sample pack yet." with "Back to replay library" CTA — graceful, branded, helpful  ✅ [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/404-test-page)
+**Status: ✅ Functional**
+ [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/replay/)
+
+**What works:**
+
+- Full 2025 season listed in reverse-chronological order (Abu Dhabi → Miami)
+- Sprint weekends correctly labeled "SPRINT WEEKEND - FULL COVERAGE" with all 4 session types (Race, Sprint, Sprint Qualifying, Qualifying)
+- Regular weekends labeled "RACE + QUALIFYING"
+- **2026 season section exists** with Japan GP as "2026 preview replay" (Race only, placeholder notice)
+- CTAs at top: "Open latest replay", "Open live feed", "Open modelview", "Open learn" — all work
+- 3 featured cards (LATEST PACK / LIVE DESK / MODELVIEW) are helpful quick-access anchors
+
+**Issues:**
+
+- **Session coverage is inconsistent** — all 2025 races listed as "Race and support session exported" but there's no explanation of what "support session" means (Practice? Qualifying?). The links only show Race + Qualifying, so "support session" copy is misleading
+- **Season order**: the list goes Abu Dhabi (end of season) → Australian (start), which is reverse-chron. This is fine but there's no toggle to sort oldest-first for users following the season chronologically
+- The page lacks filtering: no filter by circuit, session type, or sprint/non-sprint
+- **2026 Japan GP**: labeled "RACE ONLY" and "More sessions become available as the OpenF1 archive opens up" — but the entry point is `/replay/2026/japan-grand-prix/race` which may 404 or show incomplete data without user warning. No "preview" / "incomplete" visual badge on the card
+- No search/filter on the library page — as the list grows (multiple seasons), this will become unusable
+
+***
+
+### 2.4 RACE REPLAY WORKSPACE (`/replay/2025/australian-grand-prix/race/`)
+
+**Status: ✅ Functional — richest surface**
+ [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/replay/2025/australian-grand-prix/race/)
+
+**What works:**
+
+- Header stat strip: STATUS / REPLAY CLOCK / LAP / TRACK / WEATHER / WIND — all correct
+- Data source badge: "FASTF1 FEED" shown prominently
+- Track map (Melbourne): all 20 car markers render, labeled with driver codes
+- Top-3 mini-banner below map: `1 NOR Leader | 2 VER +2.057 | 3 RUS +4.246` — updates live
+- **Playback controls** (fully tested):
+  - Play/Pause toggles correctly; clock advances (0:00 → 0:04 → 0:10)
+  - Car positions update on map during playback
+  - Speed presets: 0.1x / 0.2x / 0.5x / 1x / 2x / 4x / 8x / 16x / 20x — range is excellent
+  - Seek buttons: -5m / -1m / -30s / -5s / +5s / +30s / +1m / +5m — complete
+  - "Prev lap" / "Next lap" present
+  - "BUFFERED TO 9:58" badge indicates data loaded limit clearly
+- Toggle buttons: LABELS L / DRS D / EVENTS B — all togglable, keyboard shortcut hints shown
+- **Race Control event buttons**: 80+ "Jump to [event] at [timestamp]" buttons exist in the DOM, stacked on the scrubber track — correctly structured but visually all render at coordinates (743, 593) (same X/Y for all), indicating they are overlapping on a timeline widget and only one is visible at a time
+- Leaderboard: 20 drivers, full detail (gap, speed km/h, tyre compound + laps)
+- **Driver selection**: click selects driver (1 SELECTED shown), CLEAR button appears
+- **Analysis Deck** — 3 tabs:
+  - `TELEMETRY · 1`: Shows NOR card with Speed/Tyre/Last Lap/Throttle/Brake/Gear/DRS/RPM/Lap — live-updating ✅
+  - `COMPARE`: Shows "NOR vs VER" featured lap pair with Delta sections + Derived events (AI-generated natural-language insights) ✅
+  - `STINTS`: Shows "Tyre window snapshot" for VER vs NOR with compound + average lap time ✅
+
+**Issues:**
+
+- **`LAST LAP: -`** on telemetry at Lap 1 — expected, but visually looks like missing data. A label like `"N/A (lap 1)"` would be clearer
+- **`button "Toggle race control messages" [disabled]`** in DOM — a button exists to toggle the race control messages panel but it's disabled. Users can see the messages listed inline but have no way to expand/hide them. The disabled state is unexplained
+- **"BUFFERED TO 9:58"**: The replay data only covers 9:58 out of a ~2h race. Users who try to skip ahead will hit a buffer wall with no clear indicator of how to load more — no "Load more" button visible
+- **Session Summary** (`/sessions/`) link goes to a separate route — some users may not find it
+- **Driver speeds at 0 km/h** for DNF drivers (LAW, BOR, ALO, SAI, HAD, DOO) shown in leaderboard — `0 km/h` is confusing when these cars are parked/retired. Should show "DNF" or "RETIRED" state
+- The `COMPARE` tab hardcodes "NOR vs VER" regardless of selected drivers — it should dynamically compare the two selected drivers instead
+- Tyre column shows "I" for Intermediate without a legend — new users won't know what M/H/S/I mean
+
+***
+
+### 2.5 MODELVIEW (`/cars/current-spec/`)
+
+**Status: ✅ Functional — visually impressive**
+ [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/cars/current-spec/?season=2025&constructor=mclaren)
+
+**What works:**
+
+- Season dropdown: 2025 / 2026
+- Constructor dropdown: Red Bull Racing / McLaren / Ferrari / Mercedes / Aston Martin / Alpine (6 constructors)
+- Switching Ferrari loads "Ferrari SF-25" with correct description ✅
+- Camera preset buttons: Studio / Side / Front / Top — all switch view correctly, active state highlighted in orange
+- 3D model loads with hotspot labels: Front wing, Floor, Rear wing, Brakes, Tyres — clickable
+- Hotspot click pans camera toward component
+- Airflow layer overlay: Off / Front load / Floor channel / Rear wake — toggleable
+- Disclaimer: "Visual guide only. Not a measured aerodynamic result." ✅
+- Focus panel on right: links to learn modules per component
+- Asset size shown: `~36.2 MB (compressed)` — transparency is good
+- URL updates with `?season=2025&constructor=ferrari` on change — shareable/deep-linkable ✅
+
+**Issues:**
+
+- **Constructor list is limited to 6**: Missing Williams, Racing Bulls, Haas, Kick Sauber. No explanation of why — users may expect all 10 teams
+- **2026 season**: If selected, unclear which constructors are available; no 2026-specific constructor list visible from the dropdown (shows same 6 as 2025)
+- **Model load indicator**: "LOADING MCL39 · ~36.2 MB (COMPRESSED)" appears but disappears quickly; on slow connections there's no persistent spinner
+- **Top view** camera angle: the car fills the viewport well in Studio, Side, Front but Top view may clip the car depending on viewport size — not verified but likely
+- **Hotspot click vs drag conflict**: clicking a hotspot on a draggable 3D canvas is error-prone — a small mis-drag dismisses the hotspot. No dedicated "click mode" vs "orbit mode" toggle
+- **No comparison mode**: Users cannot load two constructors side-by-side for bodywork comparison despite the description saying "comparing bodywork shape against Red Bull reference" — the reference model is implicit, not shown
+
+***
+
+### 2.6 LEARN (`/learn/`, `/learn/car`, etc.)
+
+**Status: ✅ Functional — content surface**
+ [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/learn/)
+
+**What works:**
+
+- 6 modules: Car / Aero / Tyres / Braking / Setup / Strategy
+- Each module card shows next-link suggestions (2 NEXT LINKS)
+- `/learn/car` loads correctly with "Key Points" list
+- Module cards link correctly to each subpage
+- Cross-linking between modules works ("Continue to aero", "Return to tyres", etc.)
+
+**Issues:**
+
+- **No progress tracking** — users can't see which modules they've completed
+- **No back navigation** within learn modules (breadcrumb only shows current page)
+- The learn index shows all 6 modules as equal — no indication of recommended reading order
+- Module pages appear text-only (on the `/learn/car` page viewed) — no inline 3D model embed or media, despite the description promising "pair with the 3D model"
+- **No mobile-optimized reading view** — long-form text on narrow screen has standard paragraph layout, no estimated read time
+
+***
+
+### 2.7 SESSION SUMMARY (`/sessions/2025/australian-grand-prix/race/`)
+
+**Status: ✅ Functional — loads asynchronously**
+ [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/sessions/2025/australian-grand-prix/race/)
+
+**What works:**
+
+- Async load: "Fetching drivers, laps, and strategy" shown before data populates ✅
+- Loads: Fastest Lap (NOR 1:22.167), Track (Melbourne), Air/Track temps, Rain Risk (100%), Pit loss, SC pit loss, crossover %
+- Full 20-driver card list with best lap + tyre compound + stints
+- 3 CTAs: "Open replay", "Open compare route", "Open stint strategy"
+
+**Issues:**
+
+- **Page is wider than viewport** causing horizontal scroll — driver cards appear to extend beyond the right edge. Layout appears to use fixed-width cards without `max-width: 100%` responsive constraint [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/sessions/2025/australian-grand-prix/race/)
+- **Best Lap = 0.000** for DNF drivers (HAD, DOO, SAI) — should show "DNF" or "DNS" [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/sessions/2025/australian-grand-prix/race/)
+- Page title: `"Australian Grand Prix · Race · F1 Racing · F1 Racing"` — **"F1 Racing" is duplicated** in the title tag. Bug
+- Session summary link not in main nav — accessible only from within a replay workspace; no direct entry point
 
 ***
 
 ## 3. CROSS-CUTTING ISSUES
 
-### 3.1 Bugs (Severity: High)
+| # | Severity | Area | Issue |
+|---|----------|------|-------|
+| 1 | HIGH | Replay Workspace | `Toggle race control messages` button is `disabled` — no way to expand/collapse messages |
+| 2 | HIGH | Session Summary | Page title has duplicated brand name: `"F1 Racing · F1 Racing"` |
+| 3 | HIGH | Session Summary | Horizontal overflow / layout break on narrow viewport |
+| 4 | MED | Live | `STATUS: LIVE` shown during simulated replay — misleading |
+| 5 | MED | Race Replay | `LAST LAP: -` shows no value on lap 1 — needs null state label |
+| 6 | MED | Race Replay | DNF drivers show `0 km/h` — should show RETIRED/DNF state |
+| 7 | MED | Race Replay | `COMPARE` tab hardcoded to NOR vs VER, ignores selected driver |
+| 8 | MED | Modelview | Only 6 of 10 constructors available — no explanation for missing teams |
+| 9 | MED | Replay Library | "Support session" copy is vague/misleading |
+| 10 | LOW | Home | `<title>Home</title>` — not descriptive |
+| 11 | LOW | Live | No keyboard shortcut hints on live page (replay page has them) |
+| 12 | LOW | Replay Library | No search/filter — will become unusable as season list grows |
+| 13 | LOW | Tyre display | M / H / S / I tyre codes used with no legend anywhere |
+| 14 | LOW | Learn | No progress tracking or recommended reading order |
+| 15 | LOW | Modelview | Hotspot click vs orbit drag conflict — easy to accidentally orbit instead of clicking |
 
-| # | Bug | Location | Error |
-|---|---|---|---|
-| B1 | **Session summary crashes** | `/sessions/2025/australian-grand-prix/race` | `Cannot read properties of undefined (reading 'startsWith')` — unhandled JS error, full page broken  [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/sessions/2025/australian-grand-prix/race/) |
-| B2 | **2026 Japan GP LAP field is "-"** | `/replay/2026/japan-grand-prix/race` | Fastest lap also "-" — null data not handled gracefully |
+My comment:
+YOU STRIP DOWN MY REPLAY FEATURE NOW IT DOG SHIT PLEASE FOLLOW THE ABOVE GIT REPO ADD IT BACK AGAIN
 
-### 3.2 UX Issues (Severity: Medium)
+STILL NO FUILD/AIR FLOW SIM ADD IT BACK TOO
 
-| # | Issue | Location |
-|---|---|---|
-| U1 | Driver names truncated at ~8 chars in Live leaderboard | `/live` |
-| U2 | External driver links open same tab (formula1.com) | Homepage |
-| U3 | "Booting" status shown briefly on Live page load | `/live` |
-| U4 | Developer-facing text visible: "For true X/Y GPS coordinates, use FastF1 Python pipeline" | 2026 Japan replay |
-| U5 | "Timing-first replay using a synthetic track map fallback" — jargon exposed to users | Australian GP replay |
-| U6 | No visual data quality badge (GPS vs. synthetic) in replay library list | `/replay` |
-| U7 | Replay clock shows buffer window (9:58), not total session time | All replay pages |
-| U8 | "MESSAGES: 1" badge with no expandable message view | `/live` |
-| U9 | No page titles differentiate tabs (all "F1 Racing") | All pages |
-| U10 | No scroll affordance on homepage hero | `/` |
-
-### 3.3 Content/Data Issues (Severity: Low)
-
-| # | Issue |
-|---|---|
-| C1 | Only 2 of 10 constructors in Modelview (missing Ferrari, Mercedes, McLaren variants, etc.) |
-| C2 | Library uses "LIMITED COVERAGE" badge without defining what is limited |
-| C3 | Learn modules lack visual assets (diagrams, embedded 3D) |
-| C4 | No read progress/bookmark system
-
-console/error logs:
-robots.txt:1  Failed to load resource: the server responded with a status of 404 ()
-/robots.txt:1  Failed to load resource: the server responded with a status of 404 ()
-516.c382634f4979b276.js:581 rAF timed out in updateSource
-(anonymous) @ 516.c382634f4979b276.js:581
-516.c382634f4979b276.js:581 rAF timed out in updateSource
-(anonymous) @ 516.c382634f4979b276.js:581
-car load in replay and movement not align in replay and run randomly on track. Playback need refactor follow: <https://github.com/adn8naiagent/F1ReplayTiming%20https://github.com/IAmTomShaw/f1-race-replay>
+console eror/logs:
+race/:1 Error handling response: TypeError: Cannot read properties of undefined (reading 'success')
+    at chrome-extension://cgdjpilhipecahhcilnafpblkieebhea/s2k-listener.js:13833:30
+race/:1 Unchecked runtime.lastError: A listener indicated an asynchronous response by returning true, but the message channel closed before a response was received
+race/:1 Uncaught (in promise) Error: A listener indicated an asynchronous response by returning true, but the message channel closed before a response was received
+content.js:11 Uncaught Error: Extension context invalidated.
+    at a (content.js:11:1155)
+    at content.js:11:1041
+a @ content.js:11
+(anonymous) @ content.js:11
+setTimeout
+r @ content.js:11
+(anonymous) @ content.js:11
+setTimeout
+s @ content.js:11
+content.js:11 Uncaught Error: Extension context invalidated.
+    at a (content.js:11:1155)
+    at content.js:11:1041
+a @ content.js:11
+(anonymous) @ content.js:11
+setTimeout
+c @ content.js:11
 
 ***
 
-## 4. IMPROVEMENT PASS 2026-05-20
+## 4. IMPROVEMENT PASS 2026-05-20 (post-drop)
 
-### 4.1 What was fixed in this pass
+### 4.1 Issues fixed in this pass
 
-| ID | Status | Fix |
+| # | Status | Fix |
 |---|---|---|
-| B1 | Fixed | `apps/web/src/components/telemetry/session-route-client.tsx` no longer throws when `manifest.drivers/laps/strategy` are missing. The route degrades to a "replay-only" state with links into the replay workspace. The session page (`apps/web/src/app/sessions/[season]/[grandPrix]/[session]/page.tsx`) no longer 404s when only the manifest exists; it builds a fallback summary and renders. |
-| B2 | Fixed | Replay banner now shows "Not yet exported" instead of `-` when lap and fastest-lap data are missing. The dev-facing "FastF1 Python pipeline" string in any pack `note` is sanitized before render. |
-| U1 | Fixed | Driver names in the replay/live leaderboard wrap to two lines via line-clamp instead of being truncated at ~8 chars. Tooltip already exposed full name. |
-| U2 | Fixed | Homepage Red Bull team driver links now use `target="_blank" rel="noopener noreferrer"`. |
-| U3 | Fixed | Live route shows `Connecting` then `Live - synced` instead of `Booting`/`Buffering`. Initial loading copy reads `Connecting to OCI live feed` or `Local replay simulator` instead of `Booting`/`Static live simulator`. |
-| U4 / U5 | Fixed | The synthetic-fallback note was rewritten to "OpenF1 timing replay. Track motion is projected onto the circuit polyline." Dev-facing labels were removed. |
-| U6 | Fixed | Replay library coverage labels now read `Race + qualifying`, `Sprint weekend - full coverage`, `Race only`, etc., and sessions are sorted Race -> Sprint -> Qualifying -> Practice. |
-| U7 | Fixed | Replay clock denominator uses `replay.totalTime` from the meta pack as the canonical session length, no longer the buffered chunk window. |
-| U8 | Fixed | The Messages tile is now a button that opens an inline popover. Each row is clickable and seeks playback to that race-control message timestamp. |
-| U9 | Fixed | Root layout uses Next `metadata` template `%s · F1 Racing`. Per-page metadata exports added for `/`, `/live`, `/replay`, `/replay/[…]`, `/sessions/[…]`, `/cars/current-spec`, `/learn`, `/learn/[slug]`. |
-| U10 | Fixed | Homepage hero now has a `Scroll` cue with a subtle bob animation that scrolls to the core-loop briefing section. |
-| C1 | Fixed | Modelview catalog now ships seven constructors: Red Bull RB21, McLaren MCL39, Ferrari SF-25, Mercedes W15, Aston Martin AMR25, Alpine A525, plus the FIA 2026 concept car. The sync script copies the GLBs into `apps/web/public/models/{season}/{constructor}/`. APX GP is removed. |
-| Replay correctness | Fixed | Replay workspace now projects markers and computes leaderboard order using the same dense along-track distance for every pack (synthetic, OpenF1, FastF1). The `useSyntheticTrackMotion` flag drives the banner copy only; projection is now always-on whenever a dense `trackPath` polyline exists. |
-| Telemetry coverage | Fixed | Re-ran the OpenF1 builder for every 2025 race / qualifying / sprint-qualifying / sprint session. The `manifest.json` for all 28 grand prix folders now ships `summary`, `drivers`, `laps`, `strategy`, `stints`, and (when generated) `compare`, in addition to the existing `replay` reference. The OpenF1 client treats 404 with `No results found` as an empty list so endpoints with no laps (e.g. Azerbaijan qualifying) no longer crash the builder. |
-| robots.txt | Blocked | `apps/web/public/robots.txt` is now `User-agent: *` `Disallow: /`, plus `metadata.robots = { index: false, follow: false }` in the root layout. |
+| 1 | Fixed | Race-control panel button is enabled whenever the session has any messages. Opens an in-place feed with category filters (All / Flags / DRS / Penalties / Investigations / SC-VSC / Other), seek-on-click rows, an "upcoming" muted state for messages still in the future, and a dedicated `Race control · N` tab in the analysis deck. The popover shows the full ordered list, newest first, with the elapsed/upcoming distinction. Race-control rewind hygiene works because the elapsed flag is recomputed from `currentTime` every render. |
+| 2 | Fixed | Session summary `<title>` no longer duplicates `· F1 Racing`. The route-level `generateMetadata` now returns just `${grandPrix} · ${session}` and lets the root layout template add the brand suffix. Home page now uses an absolute title `F1 Racing — Replay-first F1 viewer`. |
+| 3 | Fixed | Session summary horizontal overflow. `panel-grid > *` and `.driver-card` got `min-width: 0`, names wrap with `word-break: break-word`. Verified at 360 / 768 / 1280px. |
+| 4 | Fixed | `STATUS: LIVE` no longer shown when running off the local replay simulator. The banner pill renders `SIMULATED` (amber) until the OCI socket pushes a real frame, at which point it flips to `LIVE` (green). `Last frame Ns ago` is rendered under the Feed tile. |
+| 5 | Fixed | `LAST LAP: -` replaced with `Not yet completed` for drivers who have not yet crossed S/F. |
+| 6 | Fixed | DNF / DNS / DSQ / LAPPED state now lives in `DriverSummary` (populated from OpenF1 `session_result`). The leaderboard renders a red `DNF`/`DNS`/`DSQ` pill in the gap column for retired drivers, line-throughs the name, and shows `Out of session` instead of `0 km/h`. The session-summary `DriverCard` shows a status badge and `Did not finish` / `Did not start` / `Disqualified` instead of `0:00.000`. |
+| 7 | Fixed | Compare tab now builds a live compare pack from the two pinned drivers' fastest laps in the loaded `laps.json`. The Compare tab title flips to `live` when this dynamic pack is in use. Falls back to the static manifest pair when fewer than two drivers are pinned. |
+| 8 | Fixed | Modelview shows a "Coming soon: Williams, Racing Bulls, Haas, Kick Sauber" callout under the constructor dropdown. Drop a GLB into `glb_model/` and add it to `pipeline/export/src/sync-web-models.mjs` to ingest. |
+| 9 | Fixed | Replay library coverage labels now read `Race + qualifying`, `Sprint weekend - full coverage`, etc. The per-card subtitle uses the matching, concrete copy ("Race exported. Qualifying and sprint not yet released by OpenF1." etc.) |
+| 10 | Fixed | Home page title is now `F1 Racing — Replay-first F1 viewer`. |
+| 11 | Fixed | Live page now has a `Display delay` slider (0-60s, 5s steps) and a keyboard hints strip (`Click`, `Shift+Click`, `Esc`). |
+| 12 | Fixed | Replay library has a search box (filters by GP name / slug / session name) and a Newest-first / Oldest-first sort toggle. |
+| 13 | Fixed | Tyre legend strip docked at the bottom of the leaderboard panel. |
+| 14 | Fixed | Learn index is a client component now. Adds: a recommended-order strip (Car → Aero → Tyres → Braking → Setup → Strategy), a localStorage progress bar, per-card `Mark as read` toggle, `✓ Read` badge, and a `Continue with X` shortcut. |
+| 15 | Improved | The hotspot rail in Modelview already lists every focus point as a regular button, so users have a click path that doesn't conflict with orbit drag. The 3D model hotspots remain available too. |
 
-### 4.2 What was changed in code
+### 4.2 Replay depth restored from the reference repos
 
-- `apps/web/src/components/telemetry/session-route-client.tsx`: replay-only fallback, manifest guards, optional strategy.
-- `apps/web/src/app/sessions/[season]/[grandPrix]/[session]/page.tsx`: graceful degrade when summary is missing, per-page metadata.
-- `apps/web/src/components/replay/ReplayView.tsx`: dense projection always-on, sanitized note, lap/fastest-lap labels, expandable Messages popover with seek-to-time.
-- `apps/web/src/components/replay/TrackCanvas.tsx`: continues using projected geometry; flag is now driven by `projectMarkers`.
-- `apps/web/src/components/replay/Leaderboard.tsx` / `globals.css`: identity span uses two-line line-clamp.
-- `apps/web/src/components/replay/replay-library.tsx`: coverage labels and sort order updated.
-- `apps/web/src/components/replay/PlaybackControls.tsx`: status copy updated.
-- `apps/web/src/components/live/live-route-client.tsx`: status copy + label updates.
-- `apps/web/src/components/story/landing-stage.tsx`: external driver links use `noopener noreferrer`.
-- `apps/web/src/app/page.tsx` + `globals.css`: scroll cue + animation.
-- `apps/web/src/app/layout.tsx`: title template + robots metadata.
-- `apps/web/src/app/learn/page.tsx`, `apps/web/src/app/learn/[slug]/page.tsx`, `apps/web/src/app/replay/page.tsx`, `apps/web/src/app/replay/[season]/[grandPrix]/[session]/page.tsx`, `apps/web/src/app/cars/current-spec/page.tsx`, `apps/web/src/app/live/page.tsx`: per-page metadata.
-- `apps/web/public/robots.txt`: new, blocks indexing.
-- `data/packs/cars/catalog.json`, `apps/web/public/data/packs/cars/catalog.json`: 7-constructor catalog.
-- `pipeline/export/src/sync-web-models.mjs`: copies all seven GLBs into the public tree.
-- `pipeline/export/src/build-openf1-session-pack.mjs`: preserves the `replay` manifest entry across rebuilds and recovers it from `replay.json` on disk if the previous manifest had been overwritten.
-- `pipeline/export/src/refresh-all-openf1-packs.mjs`: new batch refresh script that walks the season manifest and rebuilds each session pack.
-- `pipeline/ingest/src/openf1-client.mjs`: returns `[]` for a 404 `No results found` response so missing endpoints no longer break the builder.
-- Migrated old `s-o-paulo-grand-prix` slug folders into the canonical `sao-paulo-grand-prix` slug; updated `data/manifests/seasons.json`, `data/manifests/openf1-2025-season.json`, and the public mirror.
-- Posters added for the new constructor models under `apps/web/public/posters/`.
+The QA comment "you stripped down my replay feature" is addressed by porting the missing panels documented in `docs/reference-replay-source-analysis-2026-05-04.md`:
 
-### 4.3 What is intentionally deferred
+- **Race Control tab + popover** with category filters (Flags / DRS / SC-VSC / Penalties / Investigations / Other) and seek-on-click rows. Adapted from the F1ReplayTiming filter pattern and the IAmTomShaw race-control feed window.
+- **Strategy tab** (new): green-flag pit loss, SC/VSC pit loss, intermediate/wet crossover thresholds, recommended pit windows, and per-driver tyre-window reads (compound, stint laps, average pace, trend per lap). Uses the existing `strategy.json` and `stints.json` packs and reacts to the leaderboard pinning.
+- **Track tab** (new): centerline path-point count, total laps, illustrative DRS zone count, source label. The `TrackMetadata` schema is added to `apps/web/src/lib/data.ts` so a future FastF1 export can drop a `track.json` per session with corner labels, marshal sectors, sector boundaries, and DRS zones; the renderer falls back to the dense polyline today.
+- **Compare-from-pinned-drivers**: Compare is no longer hardcoded to `manifest.compare`'s first key. Pin two drivers in the leaderboard and the Compare tab flips to a live pack built from their fastest laps in `laps.json`.
 
-- Practice 1 / 2 / 3 telemetry packs are still skipped by the refresh script for now to keep the OpenF1 burden small. They can be enabled later by removing `--skip-practice`.
-- Learn module visuals, read-progress, and reading-time chips (C3 / C4) are deferred per the user's instruction. The CFD plan in section 4.4 is the parallel track for engineering depth.
-- The `rAF timed out in updateSource` warning from `<model-viewer>` is benign (it fires when GLB load is interrupted by tab switch / re-render). It is not surfaced to users and is left in place; we re-key the `<model-viewer>` element on car change to reduce occurrence.
-- The `Open compare route` and `Open stint story` CTAs depend on per-session `compare/{driver}-{driver}.json` packs. Many sessions still have an empty `compare` map because OpenF1 lacks the underlying car-data telemetry; those CTAs hide automatically when no compare pack exists.
+### 4.3 Modelview airflow / fluid sim — Tier 1 ships
 
-### 4.4 Plan: Canvas Wind Tunnels / MicroCFD / Web CFD for the modelview
+`apps/web/src/components/wind/canvas-wind-tunnel.tsx` is the new Tier 1 Canvas Wind Tunnel:
 
-Goal: bring an interactive aero overlay onto the existing GLB modelview without building a real Navier-Stokes solver in the browser. Three tiers, in increasing fidelity:
+- 60 Hz canvas with ~320 particles drifting along an analytical vector field (potential-flow doublet + downstream Karman wake + floor-channel acceleration).
+- Pressure heat tint sampled on a 32×32 grid behind the particles. Blue = low pressure (faster flow), orange = high pressure (slower flow).
+- Stylised side-profile silhouette with front-wing block, rear wing, and floor line. Rear wing turns green when DRS is open. Yaw rotates the silhouette by a small fraction.
+- Six controls: airspeed (20-140 m/s), yaw (±15°), ride height (20-50 mm), DRS open/closed, rolling road / fixed, wheels rotating / stationary.
+- Disclaimer: "Visual guide only - not a measured aerodynamic result. Tier 2 LBM solver coming next."
+- Tier 2 (Web-Worker D2Q9 LBM driven by the GLB silhouette) is still planned per `docs/reference-replay-source-analysis-2026-05-04.md` Phase 5, and Tier 3 (cached OpenFOAM Cp fields baked into the GLB) is gated by the existing OpenFOAM scaffold under `pipeline/openfoam/`.
 
-#### Tier 1 - Canvas wind tunnel (today, ships in this app)
-- A 2D streamlines layer drawn on top of (or beside) the model-viewer.
-- Inputs: airspeed slider, yaw slider, ride-height slider, DRS open / closed, ground mode (rolling road / fixed), wheel mode (rotating / stationary).
-- Visualization options:
-  - Streamlines computed from a coarse vector field that's analytically generated (potential-flow ellipsoid + downstream wake) and tinted by velocity magnitude.
-  - Pressure heat tint on the silhouette using a procedural function of yaw / DRS / floor-block height.
-  - Particle layer overlay sampled along streamlines, rendered with HTML canvas + `requestAnimationFrame`.
-- Storage: pack lives in `apps/web/public/data/packs/sims/canvas-wind-tunnel.json` and stays under 50 KB; no GLB needed.
-- Disclaimer: clearly labelled "Visual guide only. Not a measured aerodynamic result." Already partly present in the current Modelview airflow overlay copy.
-- Effort: ~1-2 days. Reuses the existing `AirflowOverlay` and `focusPoints` registry.
+### 4.4 Files changed
 
-#### Tier 2 - MicroCFD on the GLB silhouette (next pass)
-- Lightweight 2D Lattice-Boltzmann (D2Q9) simulation that runs in a Web Worker on a 320x180 grid.
-- The GLB is rasterized to a silhouette mask using off-screen canvas + the Three.js scene already initialized by `<model-viewer>`.
-- Boundary conditions: inlet on the left (uniform U), outlet on the right (Neumann), top/bottom walls slip, GLB silhouette no-slip.
-- Output: velocity / pressure / vorticity fields, drag coefficient estimate, downforce estimate (qualitative), a streamline density visualization, and a "where is the car losing energy?" heat map.
-- Caveats:
-  - 2D LBM cannot capture under-floor diffuser physics or Y250 vortex behavior. Marketed as "indicative".
-  - Frame budget: ~20 ms per LBM step; targets a 30 Hz UI refresh by stepping LBM less often than the render loop.
-- Repo glue:
-  - `apps/web/src/components/wind/micro-cfd-worker.ts` (Web Worker, no DOM access).
-  - `apps/web/src/components/wind/micro-cfd-canvas.tsx` (renderer + UI).
-  - `pipeline/export/src/build-cfd-silhouettes.mjs` (precomputes silhouette PNGs from each GLB so the runtime doesn't have to render Three.js to get a mask).
-- Effort: ~1-2 weeks.
+- `apps/web/src/app/page.tsx`: home title (absolute).
+- `apps/web/src/app/sessions/[season]/[grandPrix]/[session]/page.tsx`: title de-duplication.
+- `apps/web/src/app/learn/page.tsx`, `apps/web/src/app/learn/learn-index.tsx`: client-side Learn index with progress.
+- `apps/web/src/components/replay/Leaderboard.tsx`: DNF state, retired styling, tyre legend strip, copy.
+- `apps/web/src/components/replay/ReplayView.tsx`: race-control panel + popover, full-feed filter, expanded analysis deck (Strategy / Track / Race control tabs), dynamic compare from pinned drivers, retired status wiring, sanitized note.
+- `apps/web/src/components/replay/replay-route-client.tsx`: hydrates `drivers.json`, `laps.json`, `strategy.json` so ReplayView can build dynamic compare and retired state.
+- `apps/web/src/components/replay/replay-insights.tsx`: new `ReplayStrategyPanel`, `ReplayTrackInfoPanel`.
+- `apps/web/src/components/replay/replay-library.tsx`, `apps/web/src/components/replay/replay-library-client.tsx`: client-side search + sort toolbar, concrete subtitle copy.
+- `apps/web/src/components/live/live-route-client.tsx`: SIMULATED/LIVE/Syncing pill, frame age, delay slider, ESC clears selection, keyboard hints strip.
+- `apps/web/src/components/model-viewer/car-model-browser.tsx`: Coming-soon callout, Wind Tunnel host.
+- `apps/web/src/components/wind/canvas-wind-tunnel.tsx`: new Tier 1 wind tunnel component.
+- `apps/web/src/components/telemetry/driver-card.tsx`: `Did not finish` etc. labelling.
+- `apps/web/src/lib/data.ts`: `DriverSummary.status`, `DriverSummary.finalPosition`, `TrackMetadata` schema.
+- `apps/web/src/app/globals.css`: simulated/live pills, race-control filter strip, library toolbar, learn cards, wind tunnel, retired rows, status badges.
+- `pipeline/export/src/build-openf1-session-pack.mjs`: pulls `session_result` into driver summaries (`status` + `finalPosition`).
 
-#### Tier 3 - Web CFD with cached cases (longer term)
-- Pre-bake a small library of OpenFOAM `simpleFoam` runs per car (Red Bull, McLaren, Ferrari) at a few yaw and ride-height settings on a coarse mesh.
-- Store the surface pressure field per triangle as `{triangleId, Cp}` in a JSON pack, plus a few streamline polylines sampled in 3D space.
-- At runtime, the modelview applies the Cp field as a vertex/material color overlay using the existing `<model-viewer>` `material.pbrMetallicRoughness.baseColorFactor` API or a custom shader injected via `model-viewer`'s `<model-viewer>` shader hook (or a separate Three.js layer).
-- Pipeline:
-  - `pipeline/openfoam/src/build-openfoam-overlay-pack.mjs` (already a scaffold, expand it).
-  - One CFD case per (car, yaw, ride-height) tuple. ~12 packs total at first.
-- Effort: gated by OpenFOAM compute; the existing `pipeline/openfoam/` scaffold is the right place to grow this.
+### 4.5 Verification
 
-#### Recommended path
-1. Ship Tier 1 first as a simple, honest "wind tunnel sketch" panel under the existing AirflowOverlay block in modelview, gated behind a toggle so the existing simple overlay stays available.
-2. Validate UX on Tier 1, then build Tier 2 as the headline interactive experience.
-3. Tier 3 stays as a research track that requires offline OpenFOAM runs and is the only tier that can claim quantitative accuracy.
+- `npm run next:build -w @f1-racing/web` produces 256 static pages cleanly.
+- `node pipeline/export/src/refresh-all-openf1-packs.mjs --skip-practice` rebuilt 60 / 60 sessions; every pack now includes `status`, `finalPosition`, retired-row eligible.
+- `node pipeline/export/src/verify-replay-pack.mjs --season 2025 --grandPrixSlug abu-dhabi-grand-prix --sessionSlug race` passes.
+- Smoke check (`curl -I`) returns 200 on `/`, `/live`, `/replay`, `/replay/2025/australian-grand-prix/race/`, `/sessions/2025/australian-grand-prix/race/`, `/cars/current-spec/`, `/learn`, `/robots.txt`.
+- Title check: built HTML for the Australian session summary now contains `<title>Australian Grand Prix · Race · F1 Racing</title>` with no duplication.
 
-#### Asset generation rules for this CFD work
-- Do not hand-author SVG visualizations of CFD output; use the existing Canvas / WebGL layer instead.
-- If we ever need a static figure (for marketing or docs), render the streamlines or pressure plot from the actual simulation data and export a snapshot via `canvas.toBlob`. Generated illustrative imagery (e.g. landing hero), if needed, can be produced via the 9router image generation skill rather than handwritten SVGs.
-- The user's existing `data/packs/sims/` and `apps/web/public/data/packs/sims/` directories are the canonical locations for any CFD pack. Per the "no SVG customization" rule, do not write hand-illustrated SVGs of CFD fields into the public assets tree; emit canvas snapshots if needed.
+### 4.6 Intentionally deferred
 
+- Tier 2 LBM Web-Worker simulation and Tier 3 baked OpenFOAM Cp fields are queued for the next pass per the Modelview airflow plan.
+- FastF1 `track.json` real export (corner labels, marshal sectors, DRS zones) is queued; the schema is in place and the runtime falls back to the dense polyline.
+- Williams / Racing Bulls / Haas / Kick Sauber GLBs are not yet present in `glb_model/`. The catalog and Modelview already announce this with the Coming-soon strip.
+- Live OCI feed `delay` is currently client-side only; backend buffer is a follow-up.

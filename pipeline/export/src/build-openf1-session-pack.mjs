@@ -131,12 +131,27 @@ function isoToMs(value) {
   return value ? new Date(value).getTime() : 0;
 }
 
-function buildDriverSummaries(drivers, laps, stints) {
+function buildDriverSummaries(drivers, laps, stints, sessionResult = []) {
   const fastestByDriver = fastestLapByDriver(laps);
+  const resultByDriverNumber = new Map(
+    sessionResult.map((row) => [Number(row.driver_number), row]),
+  );
 
   return drivers.map((driver) => {
     const fastest = fastestByDriver.get(driver.driver_number);
     const driverStints = stints.filter((item) => item.driver_number === driver.driver_number);
+    const result = resultByDriverNumber.get(Number(driver.driver_number));
+
+    let status;
+    let finalPosition = null;
+    if (result) {
+      finalPosition = result.position == null ? null : Number(result.position);
+      if (result.dsq) status = "DSQ";
+      else if (result.dns) status = "DNS";
+      else if (result.dnf) status = "DNF";
+      else if (typeof result.gap_to_leader === "string" && /lap/i.test(result.gap_to_leader)) status = "LAPPED";
+      else status = "FINISHED";
+    }
 
     return {
       driverCode: driver.name_acronym,
@@ -147,6 +162,8 @@ function buildDriverSummaries(drivers, laps, stints) {
       bestLapTime: Number(fastest?.lap_duration ?? 0),
       tyreCompound: fastest?.compound ?? driverStints.at(-1)?.compound ?? "UNKNOWN",
       stintCount: driverStints.length,
+      ...(status ? { status } : {}),
+      ...(finalPosition !== null ? { finalPosition } : {}),
     };
   });
 }
@@ -541,7 +558,7 @@ async function main() {
   const stintsRaw = await fetchStints({ sessionKey: ref.sessionKey });
 
   const weatherSummary = summarizeWeather(weatherRaw);
-  const drivers = buildDriverSummaries(driversRaw, lapsRaw, stintsRaw);
+  const drivers = buildDriverSummaries(driversRaw, lapsRaw, stintsRaw, sessionResultRaw);
   const fastestByDriver = fastestLapByDriver(lapsRaw);
   const lapRecords = attachDriverCodes(buildLapRecords(lapsRaw, fastestByDriver, stintsRaw), drivers);
   const compare = buildComparePack(drivers, lapRecords, sessionResultRaw);

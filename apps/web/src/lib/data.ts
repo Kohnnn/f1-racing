@@ -55,6 +55,10 @@ export interface DriverSummary {
   bestLapTime: number;
   tyreCompound: string;
   stintCount: number;
+  /** Final classification status from session_result, when available. */
+  status?: "FINISHED" | "DNF" | "DNS" | "DSQ" | "LAPPED";
+  /** Final position from session_result. */
+  finalPosition?: number | null;
 }
 
 export interface LapRecord {
@@ -585,6 +589,25 @@ export interface ReplayFrameChunk {
   fromTime: number;
   toTime: number;
   frames: ReplayFrame[];
+}
+
+/**
+ * Optional richer track metadata exported per session by the FastF1 pipeline.
+ * Existing OpenF1 packs do not provide this; the renderer falls back to the
+ * dense polyline already in the replay pack.
+ */
+export interface TrackMetadata {
+  trackId: string;
+  rotationDeg?: number;
+  centerline?: [number, number][];
+  innerEdge?: [number, number][];
+  outerEdge?: [number, number][];
+  corners?: Array<{ number: number; name?: string; distance: number }>;
+  marshalSectors?: Array<{ index: number; fromDistance: number; toDistance: number; flag?: string | null }>;
+  sectorBoundaries?: Array<{ sector: number; distance: number }>;
+  drsZones?: Array<{ id: string; startDistance: number; endDistance: number }>;
+  pitEntryDistance?: number;
+  pitExitDistance?: number;
 }
 
 export async function getReplayPack(season: number | string, grandPrix: string, session: string) {
