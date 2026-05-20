@@ -2,6 +2,11 @@ import { notFound } from "next/navigation";
 import { LiveRouteClient, type LiveSessionRef } from "@/components/live/live-route-client";
 import { getLatestManifest, getReplayFrameChunk, getReplayMetaPack, getReplayPack, getSessionSummary } from "@/lib/data";
 
+export const metadata = {
+  title: "Live",
+  description: "Live race workspace with track map, leaderboard, and driver telemetry.",
+};
+
 export default async function LivePage() {
   try {
     const latest = (await getLatestManifest()).latest;

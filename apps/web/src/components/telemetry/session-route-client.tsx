@@ -26,14 +26,21 @@ type SessionRouteState =
       status: "ready";
       drivers: DriverSummary[];
       laps: LapRecord[];
-      strategy: StrategyPack;
+      strategy: StrategyPack | null;
+    }
+  | {
+      status: "replay-only";
+      missing: string[];
     }
   | {
       status: "error";
       message: string;
     };
 
-function buildPackUrl(route: SessionRouteClientProps["route"], fileName: string) {
+function buildPackUrl(route: SessionRouteClientProps["route"], fileName: string | undefined | null) {
+  if (typeof fileName !== "string" || !fileName.length) {
+    return null;
+  }
   const staticPath = `/data/packs/seasons/${route.season}/${route.grandPrix}/${route.session}/${fileName}`;
 
   if (fileName === "drivers.json") {
@@ -94,11 +101,34 @@ export function SessionRouteClient({ manifest, summary, route }: SessionRouteCli
       setState({ status: "loading" });
       setCompare(null);
 
+      const missing: string[] = [];
+      if (!manifest.drivers) missing.push("drivers");
+      if (!manifest.laps) missing.push("laps");
+      if (!manifest.strategy) missing.push("strategy");
+
+      if (missing.length) {
+        if (!cancelled) {
+          setState({ status: "replay-only", missing });
+        }
+        return;
+      }
+
+      const driversUrl = buildPackUrl(route, manifest.drivers);
+      const lapsUrl = buildPackUrl(route, manifest.laps);
+      const strategyUrl = buildPackUrl(route, manifest.strategy);
+
+      if (!driversUrl || !lapsUrl) {
+        if (!cancelled) {
+          setState({ status: "replay-only", missing: ["drivers", "laps"] });
+        }
+        return;
+      }
+
       try {
         const [drivers, laps, strategy] = await Promise.all([
-          fetchJson<DriverSummary[]>(buildPackUrl(route, manifest.drivers)),
-          fetchJson<LapRecord[]>(buildPackUrl(route, manifest.laps)),
-          fetchJson<StrategyPack>(buildPackUrl(route, manifest.strategy)),
+          fetchJson<DriverSummary[]>(driversUrl),
+          fetchJson<LapRecord[]>(lapsUrl),
+          strategyUrl ? fetchJson<StrategyPack>(strategyUrl).catch(() => null) : Promise.resolve(null),
         ]);
 
         if (!cancelled) {
@@ -106,13 +136,16 @@ export function SessionRouteClient({ manifest, summary, route }: SessionRouteCli
         }
 
         if (compareEntry) {
-          fetchJson<ComparePack>(buildPackUrl(route, compareEntry[1]))
-            .then((payload) => {
-              if (!cancelled) {
-                startTransition(() => setCompare(payload));
-              }
-            })
-            .catch(() => {});
+          const compareUrl = buildPackUrl(route, compareEntry[1]);
+          if (compareUrl) {
+            fetchJson<ComparePack>(compareUrl)
+              .then((payload) => {
+                if (!cancelled) {
+                  startTransition(() => setCompare(payload));
+                }
+              })
+              .catch(() => {});
+          }
         }
       } catch (error) {
         if (!cancelled) {
@@ -195,7 +228,55 @@ export function SessionRouteClient({ manifest, summary, route }: SessionRouteCli
 
         <LapTable laps={state.laps} />
         {compare ? <CompareSummary compare={compare} /> : null}
-        <StrategySummary strategy={state.strategy} />
+        {state.strategy ? <StrategySummary strategy={state.strategy} /> : null}
+      </div>
+    );
+  }
+
+  if (state.status === "replay-only") {
+    return (
+      <div className="page-stack">
+        <section className="hero hero--compact">
+          <p className="eyebrow">Session summary</p>
+          <h1>
+            {summary.grandPrix} · {summary.session}
+          </h1>
+          <p className="lead">
+            Telemetry packs for this session have not been exported yet. The replay workspace is fully available with
+            track map, leaderboard, race-control, and projected motion.
+          </p>
+          <div className="metric-grid">
+            <MetricChip label="Track" value={formatSlugLabel(summary.trackId)} />
+            <MetricChip label="Air / track" value={`${summary.weatherSummary.airTempC}C / ${summary.weatherSummary.trackTempC}C`} />
+            <MetricChip label="Rain risk" value={`${summary.weatherSummary.rainRiskPct}%`} />
+            <MetricChip label="Drivers" value={`${summary.drivers.length}`} />
+          </div>
+          <div className="hero-actions">
+            <a className="button" href={`/replay/${route.season}/${route.grandPrix}/${route.session}`}>
+              Open replay workspace
+            </a>
+            <a className="button button--secondary" href="/replay">
+              Replay library
+            </a>
+            <a className="button button--ghost" href="/cars/current-spec">
+              Modelview
+            </a>
+          </div>
+        </section>
+
+        <section className="panel">
+          <div className="section-header">
+            <div>
+              <p className="eyebrow">Why is this empty</p>
+              <h2>Lap, driver, and strategy packs are not exported for this session</h2>
+            </div>
+          </div>
+          <p>
+            Replay continues to work because it loads from the timing replay pack. Lap-by-lap analysis, stints,
+            compare, and strategy require an OpenF1 session pack export. Run the OpenF1 session pack pipeline to
+            populate this view.
+          </p>
+        </section>
       </div>
     );
   }

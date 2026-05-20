@@ -3,8 +3,15 @@ import type { ReactNode } from "react";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "F1 Racing",
+  title: {
+    default: "F1 Racing",
+    template: "%s · F1 Racing",
+  },
   description: "Formula 1 replay, modelview, and engineering learning built on static race packs.",
+  robots: {
+    index: false,
+    follow: false,
+  },
   icons: {
     icon: "/favicon.svg",
   },

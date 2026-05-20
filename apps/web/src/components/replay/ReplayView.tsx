@@ -29,38 +29,46 @@ interface ReplayViewProps {
   onEnsureTimeLoaded?: (time: number) => void;
 }
 
-function hasStaticTrackCoordinates(frames: ReplayPack["frames"]) {
-  if (frames.length < 2) {
+function hasMovingTrackCoordinates(frames: ReplayPack["frames"]) {
+  if (frames.length < 4) {
     return false;
   }
 
-  const firstFrame = frames[0];
-  const sampleCodes = Object.keys(firstFrame.drivers).slice(0, 6);
+  const sampleCodes = Object.keys(frames[0].drivers).slice(0, 6);
   if (!sampleCodes.length) {
     return false;
   }
 
   const sampleIndexes = Array.from(new Set([
-    1,
     Math.floor(frames.length * 0.2),
-    Math.floor(frames.length * 0.4),
-    Math.floor(frames.length * 0.6),
-    Math.floor(frames.length * 0.8),
+    Math.floor(frames.length * 0.45),
+    Math.floor(frames.length * 0.7),
     frames.length - 1,
   ].filter((index) => index > 0 && index < frames.length)));
 
-  const sampleFrames = sampleIndexes.map((index) => frames[index]);
-  return sampleCodes.every((driverCode) => {
-    const baseline = firstFrame.drivers[driverCode];
+  if (!sampleIndexes.length) {
+    return false;
+  }
+
+  return sampleCodes.some((driverCode) => {
+    const baseline = frames[0].drivers[driverCode];
     if (!baseline || baseline.x === null || baseline.y === null) {
       return false;
     }
-
-    return sampleFrames.every((frame) => {
-      const current = frame.drivers[driverCode];
-      return !!current && current.x === baseline.x && current.y === baseline.y;
+    const baselineX = baseline.x;
+    const baselineY = baseline.y;
+    return sampleIndexes.some((index) => {
+      const sample = frames[index].drivers[driverCode];
+      if (!sample || sample.x === null || sample.y === null) {
+        return false;
+      }
+      return Math.hypot(sample.x - baselineX, sample.y - baselineY) > 0.5;
     });
   });
+}
+
+function hasStaticTrackCoordinates(frames: ReplayPack["frames"]) {
+  return !hasMovingTrackCoordinates(frames);
 }
 
 function getTrackPointAndNormal(trackPath: ReplayPack["trackPath"], ratio: number) {
@@ -199,6 +207,17 @@ function formatSlugLabel(value: string) {
     .join(" ");
 }
 
+function sanitizeReplayNote(note: string | undefined | null) {
+  if (!note) {
+    return null;
+  }
+  const lower = note.toLowerCase();
+  if (lower.includes("fastf1 python") || lower.includes("python pipeline")) {
+    return null;
+  }
+  return note;
+}
+
 function formatReplaySource(source: ReplayPack["source"]) {
   switch (source) {
     case "fastf1":
@@ -263,6 +282,9 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
   const totalLaps = replay.totalLaps ?? computedTotalLaps;
   const useSyntheticTrackMotion = useMemo(() => hasStaticTrackCoordinates(replay.frames), [replay.frames]);
   const trackGeometry = useMemo(() => buildTrackGeometry(replay.trackPath, 920, 610), [replay.trackPath]);
+  // Projection is always-on whenever we have a dense polyline. This keeps marker placement,
+  // leaderboard order, and progress aligned regardless of upstream coordinate quality.
+  const projectMarkers = useMemo(() => Boolean(trackGeometry && replay.trackPath && replay.trackPath.length >= 16), [replay.trackPath, trackGeometry]);
   const estimatedLapDuration = useMemo(() => {
     if (totalLaps > 0 && totalTime > 0) {
       return Math.max(55, totalTime / totalLaps);
@@ -338,6 +360,16 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
   const replayFocus = getFocusPoint(focusId);
   const trackLabel = formatSlugLabel(replay.trackId);
   const replaySourceLabel = formatReplaySource(replay.source);
+  const cleanReplayNote = useMemo(() => sanitizeReplayNote(replay.note), [replay.note]);
+  const [showMessageList, setShowMessageList] = useState(false);
+  const replayBannerNote = useSyntheticTrackMotion
+    ? `${replaySourceLabel} timing replay. Track motion is projected onto the circuit polyline.`
+    : cleanReplayNote || `${replaySourceLabel} replay data`;
+  const lapLabel = currentLap
+    ? `${currentLap}${totalLaps ? ` / ${totalLaps}` : ""}`
+    : totalLaps
+      ? `- / ${totalLaps}`
+      : "Not yet exported";
 
   const driverInfoByCode = useMemo(
     () => new Map(replay.drivers.map((driver) => [driver.driverCode, driver])),
@@ -386,7 +418,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
           currentFrame,
           trackGeometry,
           estimatedLapDuration,
-          useSyntheticTrackMotion || replay.source === "openf1",
+          projectMarkers,
         );
         return { driver, progress };
       })
@@ -419,7 +451,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
           lastLapLabel,
         };
       });
-  }, [currentFrame, driverInfoByCode, estimatedLapDuration, previousLapLabelByDriverLap, replay.source, trackGeometry, useSyntheticTrackMotion]);
+  }, [currentFrame, driverInfoByCode, estimatedLapDuration, previousLapLabelByDriverLap, projectMarkers, trackGeometry]);
 
   const replayEvents = useMemo(() => {
     const events = (replay.raceControlMessages ?? []).map((message) => ({
@@ -458,6 +490,10 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
     return fastestLap?.driverCode ?? displayedDrivers[0]?.abbr ?? null;
   }, [displayedDrivers, fastestLap]);
 
+  const fastestLapLabel = fastestLap?.lapTime
+    ? `${fastestLap.driverCode} · ${formatLapTime(fastestLap.lapTime)}`
+    : "Not yet exported";
+
   useEffect(() => {
     if (selectedDrivers.length) {
       return;
@@ -478,8 +514,9 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
       return [];
     }
 
-    return replay.raceControlMessages.slice(Math.max(0, lastIndex - 3), lastIndex + 1).reverse();
-  }, [currentTime, raceControlTimes, replay.raceControlMessages]);
+    const window = showMessageList ? 16 : 3;
+    return replay.raceControlMessages.slice(Math.max(0, lastIndex - window), lastIndex + 1).reverse();
+  }, [currentTime, raceControlTimes, replay.raceControlMessages, showMessageList]);
   const currentWeather = currentFrame?.weather || null;
   const weatherLabel = currentWeather
     ? `${currentWeather.airTempC}C air · ${currentWeather.trackTempC}C track`
@@ -707,7 +744,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
           </article>
           <article className="replay-session-banner__fact">
             <span>Lap</span>
-            <strong>{currentLap ? `${currentLap}${totalLaps ? ` / ${totalLaps}` : ""}` : totalLaps ? `- / ${totalLaps}` : "-"}</strong>
+            <strong>{lapLabel}</strong>
           </article>
           <article className="replay-session-banner__fact">
             <span>Track</span>
@@ -724,9 +761,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
         </div>
         <div className="replay-session-banner__footer">
           <p className="replay-session-banner__note">
-            {useSyntheticTrackMotion
-              ? "Timing-first replay using a synthetic track map fallback."
-              : replay.note || `${replaySourceLabel} replay data`}
+            {replayBannerNote}
           </p>
           <div className="replay-session-banner__actions">
             <a className="replay-session-banner__action replay-session-banner__action--primary" href="/replay">Replay library</a>
@@ -775,10 +810,17 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
                 <span>Selected</span>
                 <strong>{selectedDrivers.length || 0}</strong>
               </div>
-              <div>
+              <button
+                type="button"
+                className={`replay-track-panel__messages-button${showMessageList ? " replay-track-panel__messages-button--open" : ""}`}
+                onClick={() => setShowMessageList((value) => !value)}
+                aria-expanded={showMessageList}
+                aria-label="Toggle race control messages"
+                disabled={!activeRaceControlMessages.length}
+              >
                 <span>Messages</span>
                 <strong>{activeRaceControlMessages.length || 0}</strong>
-              </div>
+              </button>
             </div>
           </div>
 
@@ -789,7 +831,6 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
             <span className="replay-track-chip">Selected {selectedDrivers.length || 0}</span>
             {replayFocus ? <span className="replay-track-chip">Focus {replayFocus.title}</span> : null}
           </div>
-
           <div className="replay-track-panel__canvas">
             <TrackCanvas
               trackPath={replay.trackPath}
@@ -799,21 +840,28 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
               selectedDrivers={selectedDrivers}
               showDriverLabels={showDriverLabels}
               showDrsZones={showDrsZones}
-              projectMarkersToTrack={useSyntheticTrackMotion || replay.source === "openf1"}
+              projectMarkersToTrack={projectMarkers}
               estimatedLapDuration={estimatedLapDuration}
               onDriverClick={handleDriverSelect}
             />
 
             {activeRaceControlMessages.length ? (
-              <div className="replay-race-control">
+              <div className={`replay-race-control${showMessageList ? " replay-race-control--expanded" : ""}`}>
                 <p>Race control</p>
                 <ul>
-                  {activeRaceControlMessages.map((message) => (
+                  {(showMessageList ? activeRaceControlMessages.slice(0, 16) : activeRaceControlMessages).map((message) => (
                     <li key={`${message.t}-${message.message}`}>
-                      <strong>{message.flag || message.category}</strong>
-                      <span>
-                        T+{Math.floor(message.t)}s{message.lapNumber ? ` · Lap ${message.lapNumber}` : ""} · {message.message}
-                      </span>
+                      <button
+                        type="button"
+                        className="replay-race-control__row"
+                        onClick={() => handleSeek(message.t)}
+                        title={`Seek to T+${Math.floor(message.t)}s`}
+                      >
+                        <strong>{message.flag || message.category}</strong>
+                        <span>
+                          T+{Math.floor(message.t)}s{message.lapNumber ? ` · Lap ${message.lapNumber}` : ""} · {message.message}
+                        </span>
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -882,7 +930,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
               </div>
               <div>
                 <dt>Fastest lap</dt>
-                <dd>{fastestLap?.lapTime ? `${fastestLap.driverCode} · ${formatLapTime(fastestLap.lapTime)}` : "-"}</dd>
+                <dd>{fastestLapLabel}</dd>
               </div>
               <div>
                 <dt>Selected</dt>

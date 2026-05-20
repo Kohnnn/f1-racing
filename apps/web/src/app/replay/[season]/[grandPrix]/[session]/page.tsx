@@ -25,6 +25,21 @@ export async function generateStaticParams() {
   );
 }
 
+export async function generateMetadata({ params }: ReplayPageProps) {
+  const { season, grandPrix, session } = await params;
+  try {
+    const summary = await getSessionSummary(season, grandPrix, session);
+    return {
+      title: `${summary.grandPrix} · ${summary.session} replay`,
+      description: `Replay workspace for ${summary.grandPrix} ${summary.session} with track map, leaderboard, and telemetry.`,
+    };
+  } catch {
+    return {
+      title: `${grandPrix} · ${session} replay`,
+    };
+  }
+}
+
 export default async function ReplayPage({ params }: ReplayPageProps) {
   const { season, grandPrix, session } = await params;
 

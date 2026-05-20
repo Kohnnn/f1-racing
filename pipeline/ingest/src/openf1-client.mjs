@@ -28,6 +28,20 @@ export async function openF1Fetch(endpoint, params = {}) {
       continue;
     }
 
+    // OpenF1 returns 404 for endpoints with no rows; treat as an empty list
+    // so the caller can decide how to handle missing data instead of throwing.
+    if (response.status === 404) {
+      try {
+        const body = await response.json();
+        if (body && typeof body.detail === "string" && /no results/i.test(body.detail)) {
+          return [];
+        }
+      } catch {
+        // body was not JSON; fall through to throw below.
+      }
+      return [];
+    }
+
     throw new Error(`OpenF1 request failed: ${response.status} ${response.statusText}`);
   }
 

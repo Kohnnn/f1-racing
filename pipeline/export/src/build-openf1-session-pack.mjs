@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -212,8 +212,15 @@ function buildComparePack(drivers, lapRecords, sessionResult) {
     return null;
   }
 
-  const leftLap = lapRecords.find((lap) => lap.driverCode === left.driverCode && lap.isFastest);
-  const rightLap = lapRecords.find((lap) => lap.driverCode === right.driverCode && lap.isFastest);
+  // For compare we want each driver's personal best lap, not just the global fastest.
+  function fastestLapFor(driverCode) {
+    return lapRecords
+      .filter((lap) => lap.driverCode === driverCode && Number.isFinite(lap.lapTime) && lap.lapTime > 0)
+      .sort((leftLap, rightLap) => leftLap.lapTime - rightLap.lapTime)[0] ?? null;
+  }
+
+  const leftLap = fastestLapFor(left.driverCode);
+  const rightLap = fastestLapFor(right.driverCode);
   if (!leftLap || !rightLap) {
     return null;
   }
@@ -587,7 +594,30 @@ async function main() {
     stints: "stints.json",
   };
 
+  // Preserve the replay manifest entry if a replay pack already exists for this session.
   const base = path.join("packs", "seasons", String(ref.season), ref.grandPrixSlug, ref.sessionSlug);
+  const existingManifestPath = path.join(dataRoot, base, "manifest.json");
+  let existingReplay = null;
+  try {
+    const existingRaw = await readFile(existingManifestPath, "utf-8");
+    const existing = JSON.parse(existingRaw);
+    if (existing.replay) {
+      existingReplay = existing.replay;
+    }
+  } catch {
+    // No previous manifest is fine.
+  }
+  if (!existingReplay) {
+    try {
+      await stat(path.join(dataRoot, base, "replay.json"));
+      existingReplay = "replay.json";
+    } catch {
+      // replay.json absent -- skip.
+    }
+  }
+  if (existingReplay) {
+    sessionManifest.replay = existingReplay;
+  }
   await writeJson(path.join(base, "manifest.json"), sessionManifest);
   await writeJson(path.join(base, "summary.json"), summary);
   await writeJson(path.join(base, "drivers.json"), drivers);

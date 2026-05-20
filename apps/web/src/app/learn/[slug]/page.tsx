@@ -12,6 +12,18 @@ export async function generateStaticParams() {
   return learnModules.map((module) => ({ slug: module.slug }));
 }
 
+export async function generateMetadata({ params }: LearnModulePageProps) {
+  const { slug } = await params;
+  const module = getLearnModule(slug);
+  if (!module) {
+    return { title: slug };
+  }
+  return {
+    title: module.title,
+    description: module.description,
+  };
+}
+
 export default async function LearnModulePage({ params }: LearnModulePageProps) {
   const { slug } = await params;
   const module = getLearnModule(slug);

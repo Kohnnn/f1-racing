@@ -1,14 +1,49 @@
-import { getLatestManifest, getSeasonIndex } from "@/lib/data";
+import { getLatestManifest, getSeasonIndex, type SessionRef } from "@/lib/data";
 
 interface ReplayLibraryProps {
   aliasMode?: boolean;
 }
 
-function buildCoverageLabel(sessionCount: number) {
-  if (sessionCount >= 2) {
-    return `${sessionCount} sessions available`;
+const SESSION_PRIORITY: Record<string, number> = {
+  Race: 0,
+  Sprint: 1,
+  "Sprint Qualifying": 2,
+  Qualifying: 3,
+  "Practice 3": 4,
+  "Practice 2": 5,
+  "Practice 1": 6,
+};
+
+function sortSessionNames<T extends { sessionName: string }>(sessions: T[]): T[] {
+  return [...sessions].sort((left, right) => {
+    const leftPriority = SESSION_PRIORITY[left.sessionName] ?? 99;
+    const rightPriority = SESSION_PRIORITY[right.sessionName] ?? 99;
+    return leftPriority - rightPriority;
+  });
+}
+
+function buildCoverageLabel(sessions: Array<{ sessionName: string }>) {
+  const present = new Set(sessions.map((session) => session.sessionName));
+  const has = (name: string) => present.has(name);
+  if (has("Race") && has("Qualifying") && (has("Sprint") || has("Sprint Qualifying"))) {
+    return "Sprint weekend - full coverage";
   }
-  return "Limited coverage";
+  if (has("Race") && has("Qualifying")) {
+    return "Race + qualifying";
+  }
+  if (has("Race") && (has("Sprint") || has("Sprint Qualifying"))) {
+    return "Race + sprint";
+  }
+  if (has("Race")) {
+    return "Race only";
+  }
+  if (has("Qualifying")) {
+    return "Qualifying only";
+  }
+  if (has("Sprint") || has("Sprint Qualifying")) {
+    return "Sprint only";
+  }
+  return `${sessions.length} session${sessions.length === 1 ? "" : "s"}`;
 }
 
 function buildSessionMeta(season: number, sessionName: string) {
@@ -18,11 +53,14 @@ function buildSessionMeta(season: number, sessionName: string) {
   return `${sessionName} replay`;
 }
 
-function buildCoverageNote(sessionCount: number) {
-  if (sessionCount >= 2) {
-    return "Race and support sessions exported.";
+function buildCoverageNote(sessionCount: number, label: string) {
+  if (label.includes("full coverage") || sessionCount >= 3) {
+    return "Race, qualifying, and sprint sessions exported.";
   }
-  return "Only exported sessions are shown; more sessions can be added when packs are generated.";
+  if (sessionCount >= 2) {
+    return "Race and support session exported.";
+  }
+  return "More sessions become available as the OpenF1 archive opens up.";
 }
 
 export async function ReplayLibrary({ aliasMode = false }: ReplayLibraryProps) {
@@ -86,27 +124,32 @@ export async function ReplayLibrary({ aliasMode = false }: ReplayLibraryProps) {
             </div>
 
             <div className="replay-session-grid">
-              {season.grandsPrix.map((grandPrix) => (
-                <article className="panel panel--nested replay-session-cluster" key={grandPrix.grandPrixSlug}>
-                  <div>
-                    <p className="eyebrow">{buildCoverageLabel(grandPrix.sessions.length)}</p>
-                    <h3>{grandPrix.grandPrixName}</h3>
-                    <p className="replay-session-cluster__note">{buildCoverageNote(grandPrix.sessions.length)}</p>
-                  </div>
-                  <div className="replay-session-links">
-                    {grandPrix.sessions.map((session) => (
-                      <a
-                        className="replay-session-link"
-                        key={session.sessionSlug}
-                        href={`/replay/${session.season}/${session.grandPrixSlug}/${session.sessionSlug}`}
-                      >
-                        <strong>{session.sessionName}</strong>
-                        <span>{buildSessionMeta(session.season, session.sessionName)}</span>
-                      </a>
-                    ))}
-                  </div>
-                </article>
-              ))}
+              {season.grandsPrix.map((grandPrix) => {
+                const sortedSessions = sortSessionNames(grandPrix.sessions);
+                const coverageLabel = buildCoverageLabel(grandPrix.sessions);
+                const coverageNote = buildCoverageNote(grandPrix.sessions.length, coverageLabel);
+                return (
+                  <article className="panel panel--nested replay-session-cluster" key={grandPrix.grandPrixSlug}>
+                    <div>
+                      <p className="eyebrow">{coverageLabel}</p>
+                      <h3>{grandPrix.grandPrixName}</h3>
+                      <p className="replay-session-cluster__note">{coverageNote}</p>
+                    </div>
+                    <div className="replay-session-links">
+                      {sortedSessions.map((session) => (
+                        <a
+                          className="replay-session-link"
+                          key={session.sessionSlug}
+                          href={`/replay/${session.season}/${session.grandPrixSlug}/${session.sessionSlug}`}
+                        >
+                          <strong>{session.sessionName}</strong>
+                          <span>{buildSessionMeta(session.season, session.sessionName)}</span>
+                        </a>
+                      ))}
+                    </div>
+                  </article>
+                );
+              })}
             </div>
           </section>
         ))}

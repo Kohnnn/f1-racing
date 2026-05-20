@@ -2,6 +2,11 @@ import { getCarModelCatalog, getLatestManifest, getTeamProfile } from "@/lib/dat
 import { LandingStage } from "@/components/story/landing-stage";
 import { learnModules } from "./learn/modules";
 
+export const metadata = {
+  title: "Home",
+  description: "Replay-first Formula 1 viewer with track map, leaderboard, telemetry, and modelview.",
+};
+
 export default async function HomePage() {
   const [manifest, catalog, redBullProfile] = await Promise.all([
     getLatestManifest(),
@@ -69,9 +74,16 @@ export default async function HomePage() {
             teamProfile={redBullProfile}
           />
         ) : null}
+
+        <a className="landing-cinematic__scroll-cue" href="#core-loop" aria-label="Scroll for more">
+          <span>Scroll</span>
+          <svg width="14" height="22" viewBox="0 0 14 22" aria-hidden="true">
+            <path d="M7 1v18m0 0L1 13m6 6 6-6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+          </svg>
+        </a>
       </section>
 
-      <section className="landing-briefing landing-briefing--replay-first">
+      <section className="landing-briefing landing-briefing--replay-first" id="core-loop">
         <div className="landing-briefing__copy">
           <p className="eyebrow">Core loop</p>
           <h2>Choose a pack. Watch the replay. Inspect only when needed.</h2>

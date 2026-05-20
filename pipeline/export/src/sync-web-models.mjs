@@ -13,6 +13,26 @@ const MODEL_MAPPINGS = [
     source: path.join(root, "glb_model", "f1_2025_mclaren_mcl39-compressed.glb"),
     destination: path.join(root, "apps", "web", "public", "models", "2025", "mclaren", "mcl39.glb"),
   },
+  {
+    source: path.join(root, "glb_model", "ferrari_sf-25.glb"),
+    destination: path.join(root, "apps", "web", "public", "models", "2025", "ferrari", "sf25.glb"),
+  },
+  {
+    source: path.join(root, "glb_model", "mercedes_w15.glb"),
+    destination: path.join(root, "apps", "web", "public", "models", "2025", "mercedes", "w15.glb"),
+  },
+  {
+    source: path.join(root, "glb_model", "aston_martin_aramco_amr25.glb"),
+    destination: path.join(root, "apps", "web", "public", "models", "2025", "aston-martin", "amr25.glb"),
+  },
+  {
+    source: path.join(root, "glb_model", "2025_alpine_a525.glb"),
+    destination: path.join(root, "apps", "web", "public", "models", "2025", "alpine", "a525.glb"),
+  },
+  {
+    source: path.join(root, "glb_model", "fia_f1_2026_car.glb"),
+    destination: path.join(root, "apps", "web", "public", "models", "2026", "fia-spec", "fia-2026.glb"),
+  },
 ];
 
 async function main() {

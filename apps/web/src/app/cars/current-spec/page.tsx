@@ -2,6 +2,11 @@ import { Suspense } from "react";
 import { CarModelBrowser } from "@/components/model-viewer/car-model-browser";
 import { getCarModelCatalog, getLatestManifest } from "@/lib/data";
 
+export const metadata = {
+  title: "Modelview",
+  description: "Inspect the current Formula 1 car GLBs in 3D.",
+};
+
 export default async function CarModelPage() {
   const [catalog, latestManifest] = await Promise.all([
     getCarModelCatalog(),

@@ -107,7 +107,7 @@ export function LandingStage({
           {teamProfile ? (
             <div className="landing-stage-v2__drivers">
               {teamProfile.drivers.map((driver) => (
-                <a key={driver.name} className="landing-stage-v2__driver" href={driver.profileUrl} target="_blank" rel="noreferrer">
+                <a key={driver.name} className="landing-stage-v2__driver" href={driver.profileUrl} target="_blank" rel="noopener noreferrer">
                   <img src={driver.image} alt={driver.name} />
                   <div>
                     <strong>{driver.name}</strong>

@@ -241,7 +241,7 @@ export function LiveRouteClient({
     loading: false,
     connected: false,
     finished: false,
-    sourceLabel: apiOrigin ? "Booting OCI live feed" : "Static live simulator",
+    sourceLabel: apiOrigin ? "Connecting to OCI live feed" : "Local replay simulator",
     frame: initialFrame,
     rcMessages: [],
     error: null,
@@ -345,7 +345,7 @@ export function LiveRouteClient({
       loading: previous.frame ? false : true,
       connected: false,
       finished: false,
-      sourceLabel: apiOrigin ? "OCI live feed" : "Static live simulator",
+      sourceLabel: apiOrigin ? "OCI live feed" : "Local replay simulator",
       error: null,
     }));
 
@@ -373,7 +373,7 @@ export function LiveRouteClient({
           ...previous,
           loading: false,
           connected: true,
-          sourceLabel: apiOrigin ? "Static fallback simulator" : "Static live simulator",
+          sourceLabel: apiOrigin ? "Local replay fallback" : "Local replay simulator",
         }));
 
         const tick = () => {
@@ -682,7 +682,7 @@ export function LiveRouteClient({
           </article>
           <article className="replay-session-banner__fact">
             <span>Status</span>
-                <strong>{feed.finished ? "Finished" : feed.connected ? "LIVE" : currentFrame ? "Booting" : "Buffering"}</strong>
+                <strong>{feed.finished ? "Finished" : feed.connected ? "LIVE" : currentFrame ? "Live - synced" : "Connecting"}</strong>
           </article>
           <article className="replay-session-banner__fact">
             <span>Replay clock</span>
