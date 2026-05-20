@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import type { ReplayDriver, ReplayFrame } from "@/lib/data";
-import { buildTrackGeometry } from "./track-geometry";
+import { buildTrackGeometry, type TrackGeometry } from "./track-geometry";
 import { drawDrivers, drawSafetyCar, drawTrack, type DriverMarker, type SafetyCarMarker } from "./track-renderer";
 
 interface TrackCanvasProps {
@@ -20,21 +20,24 @@ interface TrackCanvasProps {
   onDriverClick?: (driverCode: string | null, append: boolean) => void;
 }
 
-interface PositionTarget {
-  previousX: number;
-  previousY: number;
-  targetX: number;
-  targetY: number;
-  startTime: number;
-  duration: number;
+interface DriverTarget {
+  /** target along-track distance (cumulative, including lap offset) */
+  targetDistance: number;
+  /** smoothed displayed distance, advanced via easing */
+  displayDistance: number;
+  /** stable lateral offset assigned per driver to keep cars in their lane */
+  laneOffset: number;
   position: number | null;
   color: string;
   speed: number | null;
   drs: number | null;
+  lap: number | null;
 }
 
-const BASE_INTERPOLATION_MS = 340;
-const LANE_SPACING = 3.2;
+const LANE_SPACING = 2.4;
+// How fast the displayed distance catches up to the target distance.
+// 0.18 means ~18% of the gap is closed each animation frame.
+const SMOOTHING_FACTOR = 0.18;
 
 export function TrackCanvas({
   trackPath,
@@ -51,14 +54,16 @@ export function TrackCanvas({
   onDriverClick,
 }: TrackCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const renderedMarkersRef = useRef<DriverMarker[]>([]);
   const animationFrameRef = useRef<number | null>(null);
-  const positionTargetsRef = useRef<Map<string, PositionTarget>>(new Map());
+  const driverTargetsRef = useRef<Map<string, DriverTarget>>(new Map());
+  const laneAssignmentsRef = useRef<Map<string, number>>(new Map());
+  const lastSnappedFrameRef = useRef<ReplayFrame | null>(null);
   const trackStatusRef = useRef(currentFrame?.trackStatus || "GREEN");
   const selectedDriversRef = useRef(selectedDrivers);
   const showDriverLabelsRef = useRef(showDriverLabels);
   const showDrsZonesRef = useRef(showDrsZones);
   const safetyCarRef = useRef<SafetyCarMarker | null>(null);
+  const renderedMarkersRef = useRef<DriverMarker[]>([]);
 
   const driverColorByCode = useMemo(
     () => new Map(drivers.map((driver) => [driver.driverCode, driver.teamColor])),
@@ -67,100 +72,148 @@ export function TrackCanvas({
 
   const geometry = useMemo(() => buildTrackGeometry(trackPath, width, height), [trackPath, width, height]);
 
-  function buildProjectedTarget(driver: ReplayFrame["drivers"][string]) {
-    if (!geometry || !projectMarkersToTrack || driver.x === null || driver.y === null) {
-      return { x: driver.x ?? 0, y: driver.y ?? 0 };
+  // Stable per-driver lane offset, hashed from driver code so it does not change as positions swap.
+  function laneOffsetForDriver(driverCode: string) {
+    const cached = laneAssignmentsRef.current.get(driverCode);
+    if (cached !== undefined) return cached;
+    let hash = 0;
+    for (let i = 0; i < driverCode.length; i += 1) {
+      hash = (hash * 31 + driverCode.charCodeAt(i)) | 0;
     }
-
-    const leader = currentFrame
-      ? Object.values(currentFrame.drivers).slice().sort((left, right) => left.position - right.position)[0]
-      : null;
-    const leaderProjection = leader && leader.x !== null && leader.y !== null
-      ? geometry.project({ x: leader.x, y: leader.y })
-      : null;
-    const ownProjection = geometry.project({ x: driver.x, y: driver.y });
-    const lapOffset = Math.max(0, (driver.lap ?? currentFrame?.lap ?? 1) - 1) * geometry.totalLength;
-    const intervalDistance = driver.interval !== null
-      ? (driver.interval / Math.max(55, estimatedLapDuration)) * geometry.totalLength
-      : (Math.max(0, driver.position - 1) * geometry.totalLength * 0.012);
-    const baseDistance = leaderProjection && driver.position > 1
-      ? lapOffset + leaderProjection.distance - intervalDistance
-      : lapOffset + ownProjection.distance;
-    const trackPoint = geometry.pointAtDistance(baseDistance);
-    const laneOffset = ((driver.position % 5) - 2) * LANE_SPACING;
-
-    return {
-      x: trackPoint.x + trackPoint.nx * laneOffset,
-      y: trackPoint.y + trackPoint.ny * laneOffset,
-    };
+    const lane = ((Math.abs(hash) % 5) - 2) * LANE_SPACING * 0.4;
+    laneAssignmentsRef.current.set(driverCode, lane);
+    return lane;
   }
 
+  function computeTargetDistance(
+    driver: ReplayFrame["drivers"][string],
+    frame: ReplayFrame,
+    geom: TrackGeometry,
+  ): number {
+    const lapOffset = Math.max(0, (driver.lap ?? frame.lap ?? 1) - 1) * geom.totalLength;
+
+    if (!projectMarkersToTrack || driver.x === null || driver.y === null) {
+      if (driver.x !== null && driver.y !== null) {
+        return lapOffset + geom.project({ x: driver.x, y: driver.y }).distance;
+      }
+      // No coordinates at all: fall back to interval-derived position relative to the leader.
+      return computeIntervalDistance(driver, frame, geom, lapOffset);
+    }
+
+    // For non-leaders, prefer the leader's projected distance minus the gap so all cars stay
+    // anchored to the actual leader position rather than drifting on noisy raw coordinates.
+    if (driver.position > 1) {
+      return computeIntervalDistance(driver, frame, geom, lapOffset);
+    }
+    return lapOffset + geom.project({ x: driver.x, y: driver.y }).distance;
+  }
+
+  function computeIntervalDistance(
+    driver: ReplayFrame["drivers"][string],
+    frame: ReplayFrame,
+    geom: TrackGeometry,
+    lapOffset: number,
+  ): number {
+    const leader = Object.values(frame.drivers)
+      .filter((candidate) => candidate.x !== null && candidate.y !== null)
+      .sort((left, right) => left.position - right.position)[0];
+
+    let leaderDistance = 0;
+    if (leader && leader.x !== null && leader.y !== null) {
+      leaderDistance = geom.project({ x: leader.x, y: leader.y }).distance;
+    }
+
+    const intervalSeconds = driver.interval !== null
+      ? driver.interval
+      : Math.max(0, driver.position - 1) * 0.55;
+    const lapDuration = Math.max(55, estimatedLapDuration);
+    const intervalDistance = (intervalSeconds / lapDuration) * geom.totalLength;
+
+    return lapOffset + leaderDistance - intervalDistance;
+  }
+
+  // Snap targets to new frame data whenever the active frame changes.
   useEffect(() => {
     trackStatusRef.current = currentFrame?.trackStatus || "GREEN";
     selectedDriversRef.current = selectedDrivers;
     showDriverLabelsRef.current = showDriverLabels;
     showDrsZonesRef.current = showDrsZones;
+
     const safetyCar = currentFrame?.safetyCar;
     safetyCarRef.current = safetyCar && safetyCar.x !== null && safetyCar.y !== null && safetyCar.phase !== "none"
       ? { x: safetyCar.x, y: safetyCar.y, phase: safetyCar.phase }
       : null;
-  }, [currentFrame, nextFrame, selectedDrivers, showDriverLabels, showDrsZones]);
 
-  useEffect(() => {
-    if (!currentFrame) {
-      positionTargetsRef.current.clear();
-      renderedMarkersRef.current = [];
+    if (!currentFrame || !geometry) {
+      driverTargetsRef.current.clear();
+      lastSnappedFrameRef.current = null;
       return;
     }
 
-    const now = performance.now();
-    const frameDuration = Math.max(120, ((nextFrame?.t ?? currentFrame.t) - currentFrame.t) * 1000);
-    const targetDrivers = Object.values(currentFrame.drivers)
-      .filter((driver) => driver.x !== null && driver.y !== null)
-      .sort((left, right) => left.position - right.position);
+    if (lastSnappedFrameRef.current === currentFrame) {
+      // Same frame instance, just update reactive flags.
+      return;
+    }
+    lastSnappedFrameRef.current = currentFrame;
 
-    for (const driver of targetDrivers) {
-      const existing = positionTargetsRef.current.get(driver.driverCode);
-      const target = buildProjectedTarget(driver);
-      const previousX = existing
-        ? existing.previousX + (existing.targetX - existing.previousX) * Math.min((now - existing.startTime) / existing.duration, 1)
-        : target.x;
-      const previousY = existing
-        ? existing.previousY + (existing.targetY - existing.previousY) * Math.min((now - existing.startTime) / existing.duration, 1)
-        : target.y;
+    const seen = new Set<string>();
+    for (const driver of Object.values(currentFrame.drivers)) {
+      if (!driver) continue;
+      seen.add(driver.driverCode);
+      const targetDistance = computeTargetDistance(driver, currentFrame, geometry);
+      const lane = laneOffsetForDriver(driver.driverCode);
+      const existing = driverTargetsRef.current.get(driver.driverCode);
 
-      positionTargetsRef.current.set(driver.driverCode, {
-        previousX,
-        previousY,
-        targetX: target.x,
-        targetY: target.y,
-        startTime: now,
-        duration: Math.max(BASE_INTERPOLATION_MS, frameDuration * 1.35),
+      if (!existing) {
+        // First sighting: snap displayDistance directly so we don't get a startup sweep.
+        driverTargetsRef.current.set(driver.driverCode, {
+          targetDistance,
+          displayDistance: targetDistance,
+          laneOffset: lane,
+          position: driver.position,
+          color: driverColorByCode.get(driver.driverCode) || "#9ca3af",
+          speed: driver.speed,
+          drs: driver.drs,
+          lap: driver.lap,
+        });
+        continue;
+      }
+
+      // Detect a lap rollover: if the new target is very far behind the displayed value,
+      // assume the driver crossed the start/finish line and unwrap by adding a lap.
+      let nextTarget = targetDistance;
+      const wrapDelta = nextTarget - existing.displayDistance;
+      if (wrapDelta < -geometry.totalLength * 0.4) {
+        nextTarget += geometry.totalLength;
+      }
+
+      driverTargetsRef.current.set(driver.driverCode, {
+        ...existing,
+        targetDistance: nextTarget,
+        laneOffset: lane,
         position: driver.position,
-        color: driverColorByCode.get(driver.driverCode) || "#9ca3af",
+        color: driverColorByCode.get(driver.driverCode) || existing.color,
         speed: driver.speed,
         drs: driver.drs,
+        lap: driver.lap,
       });
     }
 
-    const activeDrivers = new Set(targetDrivers.map((driver) => driver.driverCode));
-    for (const key of positionTargetsRef.current.keys()) {
-      if (!activeDrivers.has(key)) {
-        positionTargetsRef.current.delete(key);
+    // Drop drivers no longer present in this frame.
+    for (const code of Array.from(driverTargetsRef.current.keys())) {
+      if (!seen.has(code)) {
+        driverTargetsRef.current.delete(code);
       }
     }
-  }, [currentFrame, driverColorByCode, geometry, nextFrame, projectMarkersToTrack, estimatedLapDuration]);
+  }, [currentFrame, nextFrame, selectedDrivers, showDriverLabels, showDrsZones, geometry, driverColorByCode, projectMarkersToTrack, estimatedLapDuration]);
 
+  // Continuous render loop. Display distance eases toward target distance every frame, and
+  // marker positions are read off the dense polyline so cars never cut across corners.
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) {
-      return;
-    }
-
+    if (!canvas) return;
     const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      return;
-    }
+    if (!ctx) return;
 
     const drawFrame = () => {
       const dpr = window.devicePixelRatio || 1;
@@ -189,15 +242,20 @@ export function TrackCanvas({
 
       drawTrack(ctx, geometry, trackStatusRef.current, showDrsZonesRef.current);
 
-      const now = performance.now();
-      const interpolatedMarkers: DriverMarker[] = [];
+      const interpolated: DriverMarker[] = [];
+      for (const [abbr, target] of driverTargetsRef.current.entries()) {
+        // Ease the displayed distance toward the target distance.
+        const delta = target.targetDistance - target.displayDistance;
+        const next = target.displayDistance + delta * SMOOTHING_FACTOR;
+        target.displayDistance = next;
 
-      for (const [abbr, target] of positionTargetsRef.current.entries()) {
-        const progress = Math.min((now - target.startTime) / target.duration, 1);
-        interpolatedMarkers.push({
+        // Resolve the screen position by reading the dense track polyline at the
+        // displayed distance, then offsetting laterally by the per-driver lane.
+        const trackPoint = geometry.pointAtDistance(next);
+        interpolated.push({
           abbr,
-          x: target.previousX + (target.targetX - target.previousX) * progress,
-          y: target.previousY + (target.targetY - target.previousY) * progress,
+          x: trackPoint.x + trackPoint.nx * target.laneOffset,
+          y: trackPoint.y + trackPoint.ny * target.laneOffset,
           color: target.color,
           position: target.position,
           speed: target.speed,
@@ -205,10 +263,14 @@ export function TrackCanvas({
         });
       }
 
-      interpolatedMarkers.sort((left, right) => (left.position ?? Number.MAX_SAFE_INTEGER) - (right.position ?? Number.MAX_SAFE_INTEGER));
+      interpolated.sort(
+        (left, right) =>
+          (left.position ?? Number.MAX_SAFE_INTEGER) - (right.position ?? Number.MAX_SAFE_INTEGER),
+      );
+
       drawSafetyCar(ctx, geometry, safetyCarRef.current);
-      drawDrivers(ctx, interpolatedMarkers, geometry, selectedDriversRef.current, showDriverLabelsRef.current);
-      renderedMarkersRef.current = interpolatedMarkers;
+      drawDrivers(ctx, interpolated, geometry, selectedDriversRef.current, showDriverLabelsRef.current);
+      renderedMarkersRef.current = interpolated;
       animationFrameRef.current = requestAnimationFrame(drawFrame);
     };
 
@@ -228,9 +290,7 @@ export function TrackCanvas({
     }
 
     const canvas = canvasRef.current;
-    if (!canvas) {
-      return;
-    }
+    if (!canvas) return;
 
     const rect = canvas.getBoundingClientRect();
     const x = event.clientX - rect.left;
@@ -245,7 +305,7 @@ export function TrackCanvas({
       }
     }
 
-    if (nearest && nearest.distance < 20) {
+    if (nearest && nearest.distance < 22) {
       onDriverClick(nearest.abbr, event.shiftKey || event.metaKey || event.ctrlKey);
       return;
     }
