@@ -314,6 +314,17 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
       return;
     }
 
+    // If the caller is asking for all-loaded (i.e. >= the last chunk's toTime), pull the
+    // remaining tail in one shot. Otherwise honor the lookahead buffer + cache trim window.
+    const lastEntry = chunkEntries.at(-1);
+    if (lastEntry && time >= lastEntry.toTime) {
+      for (const entry of chunkEntries) {
+        void ensureChunkLoaded(entry.index);
+      }
+      // Don't trim when we're loading the full race; let everything sit in memory.
+      return;
+    }
+
     for (let offset = 0; offset <= BUFFER_LOOKAHEAD_CHUNKS; offset += 1) {
       void ensureChunkLoaded(activeEntry.index + offset);
     }

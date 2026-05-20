@@ -1,5 +1,7 @@
 "use client";
 
+import { useRef, useState } from "react";
+
 const SPEEDS = [0.1, 0.2, 0.5, 1, 2, 4, 8, 16, 20];
 const SKIPS = [5, 30, 60, 300];
 
@@ -21,6 +23,7 @@ interface PlaybackControlsProps {
   onToggleLabels: () => void;
   onToggleDrsZones: () => void;
   onToggleEvents: () => void;
+  onLoadFullRace?: () => void;
   showDriverLabels: boolean;
   showDrsZones: boolean;
   showEvents: boolean;
@@ -29,6 +32,7 @@ interface PlaybackControlsProps {
     label: string;
     type: string;
   }>;
+  estimatedLapDuration?: number;
 }
 
 function formatTime(seconds: number) {
@@ -65,7 +69,7 @@ function getBufferState(currentTime: number, loadedTime: number, totalTime: numb
   }
 
   return {
-    label: `Buffered to ${formatTime(loadedTime)}`,
+    label: `Loaded to ${formatTime(loadedTime)}`,
     className: "replay-controls-v2__status replay-controls-v2__status--ready",
   };
 }
@@ -88,41 +92,80 @@ export function PlaybackControls({
   onToggleLabels,
   onToggleDrsZones,
   onToggleEvents,
+  onLoadFullRace,
   showDriverLabels,
   showDrsZones,
   showEvents,
   events,
+  estimatedLapDuration,
 }: PlaybackControlsProps) {
   const progress = totalTime > 0 ? (currentTime / totalTime) * 100 : 0;
   const loadedProgress = totalTime > 0 ? (loadedTime / totalTime) * 100 : 0;
   const bufferState = getBufferState(currentTime, loadedTime, totalTime);
+  const progressRef = useRef<HTMLDivElement | null>(null);
+  const [hover, setHover] = useState<{ leftPct: number; t: number } | null>(null);
+  const lapEstimate = estimatedLapDuration && estimatedLapDuration > 0 ? estimatedLapDuration : 95;
+  const showLoadMore = Boolean(onLoadFullRace) && totalTime - loadedTime > 30;
+
+  function handleProgressMove(event: React.MouseEvent<HTMLDivElement>) {
+    if (!progressRef.current || totalTime <= 0) {
+      setHover(null);
+      return;
+    }
+    const rect = progressRef.current.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+    setHover({ leftPct: ratio * 100, t: ratio * totalTime });
+  }
+
+  function handleProgressLeave() {
+    setHover(null);
+  }
 
   return (
     <section className="replay-controls-v2">
-      <div className="replay-controls-v2__progress" onClick={(event) => {
-        const rect = event.currentTarget.getBoundingClientRect();
-        const ratio = (event.clientX - rect.left) / rect.width;
-        onSeek(Math.max(0, Math.min(totalTime, ratio * totalTime)));
-      }}>
+      <div
+        ref={progressRef}
+        className="replay-controls-v2__progress"
+        onMouseMove={handleProgressMove}
+        onMouseLeave={handleProgressLeave}
+        onClick={(event) => {
+          const rect = event.currentTarget.getBoundingClientRect();
+          const ratio = (event.clientX - rect.left) / rect.width;
+          onSeek(Math.max(0, Math.min(totalTime, ratio * totalTime)));
+        }}
+      >
         <div className="replay-controls-v2__buffer-fill" style={{ width: `${loadedProgress}%` }} />
         <div className="replay-controls-v2__progress-fill" style={{ width: `${progress}%` }} />
-        {showEvents ? events.slice(0, 80).map((event) => {
-          const left = totalTime > 0 ? Math.max(0, Math.min(100, (event.t / totalTime) * 100)) : 0;
-          return (
-            <button
-              key={`${event.t}-${event.label}`}
-              type="button"
-              className={`replay-controls-v2__event replay-controls-v2__event--${event.type.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
-              style={{ left: `${left}%` }}
-              title={`${formatTime(event.t)} · ${event.label}`}
-              onClick={(clickEvent) => {
-                clickEvent.stopPropagation();
-                onSeek(event.t);
-              }}
-              aria-label={`Jump to ${event.label} at ${formatTime(event.t)}`}
-            />
-          );
-        }) : null}
+        {showEvents
+          ? events.slice(0, 200).map((event, eventIndex) => {
+              const left = totalTime > 0 ? Math.max(0, Math.min(100, (event.t / totalTime) * 100)) : 0;
+              return (
+                <button
+                  key={`${event.t}-${event.label}-${eventIndex}`}
+                  type="button"
+                  className={`replay-controls-v2__event replay-controls-v2__event--${event.type
+                    .toLowerCase()
+                    .replace(/[^a-z0-9]+/g, "-")}`}
+                  style={{ left: `${left}%` }}
+                  title={`${formatTime(event.t)} · ${event.label}`}
+                  onClick={(clickEvent) => {
+                    clickEvent.stopPropagation();
+                    onSeek(event.t);
+                  }}
+                  aria-label={`Jump to ${event.label} at ${formatTime(event.t)}`}
+                />
+              );
+            })
+          : null}
+        {hover ? (
+          <div className="replay-controls-v2__hover" style={{ left: `${hover.leftPct}%` }}>
+            <div className="replay-controls-v2__hover-pin" />
+            <div className="replay-controls-v2__hover-card">
+              <strong>{formatTime(hover.t)}</strong>
+              <span>Lap {Math.max(1, Math.floor(hover.t / lapEstimate) + 1)}</span>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div className="replay-controls-v2__main">
@@ -144,6 +187,17 @@ export function PlaybackControls({
 
         <span className={bufferState.className}>{bufferState.label}</span>
 
+        {showLoadMore ? (
+          <button
+            type="button"
+            className="replay-controls-v2__load-more"
+            onClick={() => onLoadFullRace?.()}
+            title={`Load remaining ${formatTime(totalTime - loadedTime)} of session`}
+          >
+            Load full race
+          </button>
+        ) : null}
+
         <div className="replay-controls-v2__cluster">
           {SKIPS.map((seconds) => (
             <button key={`forward-${seconds}`} type="button" className="replay-controls-v2__ghost" onClick={() => onSkipTime(seconds)}>
@@ -155,7 +209,7 @@ export function PlaybackControls({
           <span>{trackStatus}</span>
           <span>{formatTime(currentTime)} / {formatTime(totalTime)}</span>
           <span>{currentLap ? `Lap ${currentLap}` : "Lap -"}{totalLaps ? ` / ${totalLaps}` : ""}</span>
-          <span>Loaded to {formatTime(loadedTime)}</span>
+          <span>Loaded {formatTime(loadedTime)} / {formatTime(totalTime)}</span>
         </div>
         <div className="replay-controls-v2__speeds">
           {SPEEDS.map((speed) => (

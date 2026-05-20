@@ -1,118 +1,104 @@
-# Roadmap
+# F1 Racing — Engineering Roadmap
 
-## Status
+Living document. Tracks what shipped, what is queued, and the order we
+plan to ship it in. Replaces ad-hoc notes scattered across previous QA
+reports.
 
-This file is the progress tracker for the new `f1-racing` product.
+## Shipping cadence
 
-## Product phases
+We ship in full-stack passes against the live `docs/evaluation.md` QA
+report. Each pass touches one or more of these surfaces:
 
-### Phase 0 - foundation
-- [x] Create workspace scaffold
-- [x] Document architecture
-- [x] Document data schemas
-- [x] Document deployment plan
-- [x] Choose package manager
-- [x] Initialize app workspace
+- Frontend (Next.js static export) on Netlify production
+- Replay/session data packs (regenerated via OpenF1 + canonical track shapes)
+- OCI FastAPI backend (live socket + replay chunk delivery)
+- Pipelines under `pipeline/export/` and `pipeline/ingest/`
 
-### Phase 1 - ingestion core
-- [x] Build OpenF1 metadata fetcher
-- [x] Build session metadata normalizer
-- [x] Build manifest generator
-- [x] Export first session summary pack
-- [x] Validate one season/race/session end-to-end
+## Current pass status (2026-05-20 v3)
 
-### Phase 2 - session explorer
-- [x] Build season -> race -> session navigation
-- [x] Build session summary page
-- [x] Build driver/session metadata cards
-- [x] Load compressed static packs from storage
-- [ ] Add minimal search and manifest lookup
+### Shipped
 
-### Phase 3 - lap compare
-- [x] Build two-driver lap comparison page
-- [x] Render speed trace
-- [x] Render throttle trace
-- [x] Render brake trace
-- [x] Build delta-dominance map
-- [x] Add corner annotations
+- **Canonical track shapes** for all 24 circuits sourced from MultiViewer
+  (the same data source FastF1 uses for `circuit_info`). Stored in
+  `data/track-shapes/<trackId>.json` with rotation, centerline (200-1000
+  points per circuit), corners, marshal sectors, DRS zones, pit entry/exit.
+- **Replay pack pipeline** now reads canonical shapes and emits
+  `trackMetadata` per replay so the front-end Track tab can render real
+  corner labels and sector boundaries.
+- **Race-control category badges** now use a resolved category label
+  (`Penalty`, `Investigation`, `Safety car`, `Flag`, `DRS`, `Message`)
+  instead of the raw OpenF1 `category` string.
+- **Strategy duplicate windows fix**: the recommended-pit-windows panel
+  now groups stints by lap window + compound and surfaces the most-popular
+  windows (consensus pit windows) instead of repeating one stint three
+  times.
+- **Scrubber polish**: hover preview tooltip with `Lap N · Time` ghost
+  cursor, `Load full race` button when buffer falls behind total time,
+  improved progress fill with a glowing playhead handle.
+- **Buffer wall fix**: `ensureTimeLoaded(totalTime)` now loads every
+  remaining chunk in one shot. The `Load full race` button surfaces this
+  whenever > 30 s of session is unloaded.
+- **Out-lap labelling**: leaderboard now shows `Out lap` for laps that are
+  more than 18% slower than the driver's stint median, or laps that
+  immediately follow a compound change.
+- **Last-lap delta**: leaderboard `Last 1:21.482 +0.932` shows the delta
+  to the absolute fastest lap of the session.
+- **Wind tunnel V2** (Tier 2): real 2D incompressible Navier-Stokes solver
+  in a Web Worker on a 320×120 grid. Semi-Lagrangian advection, Jacobi
+  pressure projection, density (smoke) field, drag/lift readout, Cp heat
+  ribbon. Tier 1 procedural mode kept as the "Lite" toggle.
+- **Modelview compact hero** so the studio rig and wind tunnel sit higher.
+- **Replay library sprint badge** (`4 sessions` / `2 sessions`) on each
+  GP card.
+- **Reference-repo crawl**: cloned `IAmTomShaw/f1-race-replay`,
+  `theOehrly/Fast-F1`, and `adn8naiagent/F1ReplayTiming` to
+  `.codex-temp/reference-repos/` for inspection. Used as read-only resource
+  to extract the MultiViewer circuit endpoint usage and category mapping
+  patterns. Removed after the pass.
 
-### Phase 4 - stint and strategy stories
-- [x] Build stint trend page
-- [ ] Build pit-stop timeline
-- [ ] Build weather context layer
-- [ ] Build undercut / overcut explanation layer
-- [x] Build strategy pack export
+### Queued (next pass)
 
-### Phase 5 - learn modules from current explainer
-- [x] Split current F1 explainer concepts into `/learn/car`
-- [x] Build `/learn/aero`
-- [x] Build `/learn/tyres`
-- [x] Build `/learn/braking`
-- [x] Build `/learn/setup`
-- [x] Build `/learn/strategy`
+- **Per-constructor wind tunnel silhouettes**. Today the silhouette is a
+  parametric F1 profile (front wing, body, sidepod, cockpit, halo, rear
+  wing, floor) shared across constructors but coloured with the team
+  accent. Next: trace per-constructor side profiles either from the GLB
+  bbox or from 9router image gen "slice cut" output.
+- **Lap times waterfall** analysis tab (heatmap of all 20 drivers' lap
+  times per lap).
+- **Inline 3D in Learn**. Lazy-mount a small `<model-viewer>` canvas in
+  each `/learn/<slug>` page tied to the module subject (e.g. `/learn/aero`
+  loads the front wing focus point).
+- **Side-by-side Modelview compare** (two `<model-viewer>` instances side
+  by side at viewport ≥1100 px).
+- **Inspect / Orbit toggle** for the modelview canvas, so hotspot clicks
+  no longer race against orbit drag.
+- **FastF1 Python pipeline** that hydrates `data/track-shapes/<trackId>.json`
+  with corner `Distance` values computed against an actual reference lap
+  from each session, plus marshal-light positions. Optional and additive.
+- **OCI backend live-delay buffer** (currently client-side only).
+- **Williams / Racing Bulls / Haas / Kick Sauber GLBs** — waiting for
+  source files.
+- **Practice 1/2/3 session packs** — currently skipped to keep the OpenF1
+  request count down. Add a flag.
 
-### Phase 6 - 3D car viewer
-- [x] Add `model-viewer` route
-- [x] Load local GLB assets
-- [x] Add hotspots and annotations
-- [x] Add poster-image fallback
-- [x] Keep 3D isolated from data-heavy routes
+### Long-tail / research
 
-### Phase 7 - wind sim viewer
-- [x] Define sim scenario grid
-- [x] Build source-scenario manifest for sim results
-- [x] Scaffold first local OpenFOAM starter case and pack builder
-- [x] Add local-input readiness checks for the OpenFOAM starter flow
-- [ ] Publish first streamlines/pressure packs
-- [x] Build browser wind-sim explainer route
-- [x] Define baked overlay schema example
-- [ ] Connect sim outputs to learn/aero module
+- **Tier 3 baked OpenFOAM Cp surface fields** projected onto the GLB.
+- **Live SignalR ingestion** from the Formula 1 timing feed behind an
+  explicit OCI-only flag.
+- **Telemetry stream / debug route** that consumes the same replay/live
+  frame state as the workspace.
+- **Marshal-sector flag overlays** on the Track tab.
 
-### Phase 8 - replay-lite
-- [x] Build top-down replay view
-- [x] Build position interpolation packs
-- [x] Add driver focus mode
-- [ ] Add event markers
-- [x] Keep replay separate from learning pages
+## Operational notes
 
-## Technical tasks
-
-### Frontend
-- [ ] Initialize Next.js app
-- [ ] Set up route groups for learn/data/replay
-- [ ] Create shared telemetry chart primitives
-- [ ] Create track map primitive
-- [ ] Create annotation system
-- [ ] Add route-level loading and error states
-
-### Pipeline
-- [ ] Define canonical schemas
-- [ ] Create ingest scripts
-- [ ] Create derive scripts
-- [ ] Create export scripts
-- [ ] Add versioned file naming
-- [ ] Add compression step
-
-### Infrastructure
-- [ ] Set up Cloudflare Pages
-- [ ] Set up R2 bucket layout
-- [ ] Set up Workers for metadata/search
-- [ ] Add CI workflow for app deploy
-- [ ] Add CI workflow for data export
-
-## Current recommendation
-
-Build order should be:
-
-1. ingestion + manifests
-2. session explorer
-3. lap compare
-4. stint/strategy
-5. learn modules
-6. model-viewer
-7. wind sim
-8. replay-lite
-
-## Notes
-
-The current `interactive-explanation/formula-1-racing/` route remains a useful concept source, but this new product should avoid collapsing all learning, telemetry, and replay concerns into one giant page.
+- Frontend deploys via `npx netlify deploy --prod --no-build --dir
+  apps/web/out --site d783914b-0638-46bc-ae4b-371b66cca51e`.
+- OCI backend lives at `https://f1-api.129.150.58.64.sslip.io`. SSH access
+  uses `OCI_SSH_CONNECT` from `.env`. See `deploy/oci/README.md` for the
+  preserve-env redeploy flow.
+- Reference repos are always cloned into `.codex-temp/reference-repos/`
+  and deleted after each pass. No upstream source is committed to the
+  repo.
+- `data/track-shapes/` files are committed; they are small (50-200 KB
+  each) and pin the canonical shape per circuit for static export.

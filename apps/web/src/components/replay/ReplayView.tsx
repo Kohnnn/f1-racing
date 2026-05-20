@@ -244,6 +244,16 @@ const RACE_CONTROL_FILTERS: Array<{ id: RaceControlCategoryId; label: string }> 
   { id: "other", label: "Other" },
 ];
 
+const RACE_CONTROL_BADGE_LABEL: Record<RaceControlCategoryId, string> = {
+  all: "Message",
+  flag: "Flag",
+  drs: "DRS",
+  "safety-car": "Safety car",
+  penalty: "Penalty",
+  investigation: "Investigation",
+  other: "Message",
+};
+
 function categorizeRaceControlMessage(message: { category?: string | null; flag?: string | null; message?: string | null }): RaceControlCategoryId {
   const text = `${message.category ?? ""} ${message.flag ?? ""} ${message.message ?? ""}`.toLowerCase();
   if (text.includes("safety car") || text.includes("vsc") || text.includes("virtual safety")) return "safety-car";
@@ -443,6 +453,44 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
     return lookup;
   }, [lapHistoryByDriver]);
 
+  // Track which lap numbers are out-laps (first lap of a stint or an "in/out" lap that
+  // came right after a pit). We mark a lap as out-lap when its time is significantly slower
+  // than the driver's stint baseline (>15% off median), which is the same heuristic Motec uses.
+  const outLapByDriverLap = useMemo(() => {
+    const lookup = new Set<string>();
+    for (const [driverCode, laps] of lapHistoryByDriver.entries()) {
+      const completedTimes = laps
+        .map((lap) => lap.lapTime)
+        .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+      if (completedTimes.length < 4) continue;
+      const sorted = [...completedTimes].sort((a, b) => a - b);
+      const median = sorted[Math.floor(sorted.length / 2)];
+      const previousCompounds = new Map<number, string | null>();
+      let previousCompound: string | null = null;
+      for (const lap of laps) {
+        previousCompounds.set(lap.lapNumber, previousCompound);
+        if (lap.compound) previousCompound = lap.compound;
+      }
+      for (const lap of laps) {
+        if (lap.lapTime === null) continue;
+        const compoundChanged = lap.compound && previousCompounds.get(lap.lapNumber) && previousCompounds.get(lap.lapNumber) !== lap.compound;
+        const slowOutlier = lap.lapTime > median * 1.18;
+        if (compoundChanged || slowOutlier) {
+          lookup.add(`${driverCode}:${lap.lapNumber}`);
+        }
+      }
+    }
+    return lookup;
+  }, [lapHistoryByDriver]);
+
+  const sessionFastestLapTime = useMemo(() => {
+    const completed = replay.laps
+      .map((lap) => lap.lapTime)
+      .filter((value): value is number => typeof value === "number" && Number.isFinite(value) && value > 0);
+    if (!completed.length) return null;
+    return Math.min(...completed);
+  }, [replay.laps]);
+
   const displayedDrivers = useMemo<ReplayLeaderboardRow[]>(() => {
     if (!currentFrame) {
       return [];
@@ -468,8 +516,28 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
       })
       .map((driver) => {
         const info = driverInfoByCode.get(driver.driver.driverCode);
-        const lastLapLabel = previousLapLabelByDriverLap.get(`${driver.driver.driverCode}:${driver.driver.lap || 0}`) ?? null;
+        const lapKey = `${driver.driver.driverCode}:${driver.driver.lap || 0}`;
+        const lastLapLabel = previousLapLabelByDriverLap.get(lapKey) ?? null;
+        const isOutLap = outLapByDriverLap.has(lapKey);
         const status = driverStatusByCode.get(driver.driver.driverCode);
+        // Compute delta against the absolute fastest lap of the session, when both
+        // are known. We compare lapTime numbers (seconds) rather than parsing the
+        // formatted string back out.
+        const lastLapNumeric = (() => {
+          const driverLaps = lapHistoryByDriver.get(driver.driver.driverCode);
+          if (!driverLaps) return null;
+          for (let i = driverLaps.length - 1; i >= 0; i -= 1) {
+            const lap = driverLaps[i];
+            if (lap.lapNumber < (driver.driver.lap || 0) && typeof lap.lapTime === "number") {
+              return lap.lapTime;
+            }
+          }
+          return null;
+        })();
+        const fastest = sessionFastestLapTime;
+        const lastLapDeltaLabel = lastLapNumeric !== null && fastest !== null
+          ? `${lastLapNumeric >= fastest ? "+" : ""}${(lastLapNumeric - fastest).toFixed(3)}`
+          : null;
 
         return {
           abbr: driver.driver.driverCode,
@@ -488,10 +556,12 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
           rpm: driver.driver.rpm,
           drs: driver.driver.drs,
           lastLapLabel,
+          lastLapDeltaLabel,
+          isOutLap,
           status,
         };
       });
-  }, [currentFrame, driverInfoByCode, driverStatusByCode, estimatedLapDuration, previousLapLabelByDriverLap, projectMarkers, trackGeometry]);
+  }, [currentFrame, driverInfoByCode, driverStatusByCode, estimatedLapDuration, lapHistoryByDriver, outLapByDriverLap, previousLapLabelByDriverLap, projectMarkers, sessionFastestLapTime, trackGeometry]);
 
   const replayEvents = useMemo(() => {
     const events = (replay.raceControlMessages ?? []).map((message) => ({
@@ -993,7 +1063,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
                           onClick={() => handleSeek(entry.message.t)}
                           title={`Seek to T+${Math.floor(entry.message.t)}s`}
                         >
-                          <strong>{entry.message.flag || entry.message.category || "MSG"}</strong>
+                          <strong>{entry.message.flag || RACE_CONTROL_BADGE_LABEL[entry.category] || entry.message.category || "MSG"}</strong>
                           <span>
                             T+{Math.floor(entry.message.t)}s{entry.message.lapNumber ? ` · Lap ${entry.message.lapNumber}` : ""} · {entry.message.message}
                           </span>
@@ -1059,6 +1129,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
             showDriverLabels={showDriverLabels}
             showDrsZones={showDrsZones}
             showEvents={showEvents}
+            estimatedLapDuration={estimatedLapDuration}
             onToggleLabels={() => setShowDriverLabels((value) => !value)}
             onToggleDrsZones={() => setShowDrsZones((value) => !value)}
             onToggleEvents={() => setShowEvents((value) => !value)}
@@ -1066,6 +1137,11 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
             onSeek={handleSeek}
             onSkipLap={handleSkipLap}
             onSkipTime={handleSkipTime}
+            onLoadFullRace={() => {
+              if (totalTime > loadedEndTime && onEnsureTimeLoaded) {
+                onEnsureTimeLoaded(totalTime);
+              }
+            }}
             onPlay={() => {
               if (playheadTimeRef.current >= totalTime) {
                 syncPlaybackState(0, 0);

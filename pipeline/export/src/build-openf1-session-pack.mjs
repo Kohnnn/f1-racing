@@ -400,11 +400,39 @@ function buildCompareAnnotations(compare) {
 
 function buildStrategyPack(trackId, stints, weatherSummary) {
   const maxTyreAge = Math.max(...stints.map((stint) => Number(stint.tyre_age_at_start ?? 0)), 0);
-  const recommendedWindows = stints.slice(0, 3).map((stint) => ({
-    lapStart: Number(stint.lap_start),
-    lapEnd: Number(stint.lap_end),
-    reason: `${stint.compound ?? "UNKNOWN"} window from lap ${stint.lap_start} to ${stint.lap_end}`,
-  }));
+
+  // Group stints by lap window so the recommended windows are real pit-strategy
+  // bands (e.g. lap 18-22 medium, lap 38-44 hard) rather than per-driver duplicates.
+  const grouped = new Map();
+  for (const stint of stints) {
+    const lapStart = Number(stint.lap_start ?? 0);
+    const lapEnd = Number(stint.lap_end ?? lapStart);
+    const compound = String(stint.compound ?? "UNKNOWN").toUpperCase();
+    if (lapStart <= 0 || lapEnd <= 0) continue;
+    if (lapStart === 1 && lapEnd <= 2) continue; // throw out the formation/opening lap window
+    const key = `${compound}-${lapStart}-${lapEnd}`;
+    grouped.set(key, (grouped.get(key) ?? 0) + 1);
+  }
+
+  // Take the top distinct lap windows by frequency (popularity = consensus pit window).
+  const recommendedWindows = Array.from(grouped.entries())
+    .map(([key, count]) => {
+      const [compound, lapStartStr, lapEndStr] = key.split("-");
+      return {
+        compound,
+        lapStart: Number(lapStartStr),
+        lapEnd: Number(lapEndStr),
+        count,
+      };
+    })
+    .sort((a, b) => (b.count - a.count) || (a.lapStart - b.lapStart))
+    .slice(0, 4)
+    .sort((a, b) => a.lapStart - b.lapStart)
+    .map((entry) => ({
+      lapStart: entry.lapStart,
+      lapEnd: entry.lapEnd,
+      reason: `${entry.compound} window: ${entry.count} drivers ran lap ${entry.lapStart}-${entry.lapEnd}`,
+    }));
 
   return {
     trackId,

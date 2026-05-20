@@ -189,11 +189,15 @@ export function ReplayLibraryClient({ aliasMode, latestManifest, index }: Replay
                 const coverageLabel = buildCoverageLabel(grandPrix.sessions);
                 const sessionNames = sortedSessions.map((session) => session.sessionName);
                 const coverageNote = buildCoverageNote(coverageLabel, sessionNames);
+                const sessionCount = grandPrix.sessions.length;
                 return (
                   <article className="panel panel--nested replay-session-cluster" key={grandPrix.grandPrixSlug}>
                     <div>
                       <p className="eyebrow">{coverageLabel}</p>
-                      <h3>{grandPrix.grandPrixName}</h3>
+                      <h3>
+                        {grandPrix.grandPrixName}
+                        <span className="replay-session-cluster__badge">{sessionCount} session{sessionCount === 1 ? "" : "s"}</span>
+                      </h3>
                       <p className="replay-session-cluster__note">{coverageNote}</p>
                     </div>
                     <div className="replay-session-links">

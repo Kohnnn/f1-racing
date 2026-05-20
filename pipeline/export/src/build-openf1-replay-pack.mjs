@@ -1,4 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { readFileSync, existsSync } from "node:fs";
 import path from "path";
 import { fileURLToPath } from "node:url";
 import {
@@ -541,7 +542,68 @@ function buildDriverInfo(driversRaw) {
   });
 }
 
+/**
+ * Returns the canonical centerline polyline for a circuit, sourced from
+ * `data/track-shapes/<trackId>.json`. Falls back to the legacy hand-coded
+ * generator when no canonical shape is available.
+ *
+ * Aliases are resolved so the OpenF1 trackId (e.g. "albert-park") still
+ * matches our canonical filename (e.g. "melbourne").
+ */
+function loadCanonicalTrackShape(trackId) {
+  const slug = String(trackId || "").toLowerCase();
+
+  // Per-trackId alias map: keep the canonical filename on the right side.
+  const aliasMap = {
+    "albert-park": "melbourne",
+    "yas-marina": "yas-marina-circuit",
+    "abu-dhabi": "yas-marina-circuit",
+    "spa-francorchamps": "spa",
+    "sao-paulo": "interlagos",
+    "saopaulo": "interlagos",
+    "catalunya": "barcelona",
+    "red-bull-ring": "spielberg",
+    "emilia-romagna": "imola",
+    "hungaroring": "budapest",
+    "cota": "austin",
+    "china": "shanghai",
+    "marina-bay": "singapore",
+    "bahrain": "sakhir",
+    "autodromo": "mexico",
+    "azerbaijan": "baku",
+    "saudi-arabian": "jeddah",
+    "las-vegas": "lasvegas",
+    "qatar": "lusail",
+    "canada": "montreal",
+    "yas-island": "yas-marina-circuit",
+    "monte-carlo": "monaco",
+    "mexico-city": "mexico",
+  };
+
+  const canonicalSlug = aliasMap[slug] ?? slug;
+  const filePath = path.join(dataRoot, "track-shapes", `${canonicalSlug}.json`);
+  try {
+    if (!existsSync(filePath)) {
+      return null;
+    }
+    const raw = JSON.parse(readFileSync(filePath, "utf-8"));
+    if (Array.isArray(raw.centerline) && raw.centerline.length >= 32) {
+      return raw;
+    }
+  } catch {
+    // Missing or invalid -- fall back below.
+  }
+  return null;
+}
+
 function generateTrackPath(trackId) {
+  const canonical = loadCanonicalTrackShape(trackId);
+  if (canonical) {
+    // Canonical shapes are already rotated to broadcast orientation and centered.
+    // Densify to keep the runtime renderer happy without changing the underlying shape.
+    return densifyPath(canonical.centerline, 4);
+  }
+
   const trackShapes = {
     melbourne: generateOvalPath(900, 600, 16),
     bahrain: generateBahrainPath(),
@@ -1065,6 +1127,7 @@ async function buildReplayPack(sessionKey, drivers, ref) {
   process.stdout.write(`Building replay frames...\n`);
 
   const trackPath = generateTrackPath(ref.trackId);
+  const trackMetadata = loadCanonicalTrackShape(ref.trackId);
 
   const sessionStartTime = getReplayStartTime(ref, lapsRaw, carDataByDriver, allPositionData);
   const lapTimelines = buildLapTimelines(lapsRaw);
@@ -1233,6 +1296,7 @@ async function buildReplayPack(sessionKey, drivers, ref) {
     raceControlTimeline,
     frames,
     trackPath,
+    trackMetadata,
   };
 }
 
@@ -1256,6 +1320,7 @@ async function main() {
     raceControlTimeline,
     replayLaps,
     trackPath,
+    trackMetadata,
     weatherSummary,
   } = await buildReplayPack(ref.sessionKey, drivers, ref);
 
@@ -1283,6 +1348,17 @@ async function main() {
       teamColor: d.teamColor,
     })),
     trackPath,
+    trackMetadata: trackMetadata
+      ? {
+          trackId: trackMetadata.trackId,
+          name: trackMetadata.name,
+          rotationDeg: trackMetadata.rotationDeg,
+          length: trackMetadata.length,
+          corners: trackMetadata.corners,
+          drsZones: trackMetadata.drsZones,
+          source: trackMetadata.source,
+        }
+      : null,
     laps: replayLaps,
     raceControlMessages: raceControlTimeline,
     frames,

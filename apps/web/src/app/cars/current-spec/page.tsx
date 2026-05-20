@@ -16,18 +16,12 @@ export default async function CarModelPage() {
 
   return (
     <div className="page-stack">
-      <section className="hero hero--compact replay-hero model-surface-hero">
+      <section className="hero hero--compact hero--compact-modelview replay-hero model-surface-hero">
         <p className="eyebrow">Modelview</p>
-        <h1>Rotate the car, switch constructors, and hold the engineering story in one frame.</h1>
+        <h1>Rotate the car. Inspect the airflow.</h1>
         <p className="lead">
-          Select a season and constructor to load the GLB. Orbit, zoom, and use this studio view as the
-          anchor before jumping into learn modules or replay.
+          Pick a constructor below. The studio rig and the wind tunnel sit right under the controls.
         </p>
-        <div className="hero-actions">
-          <a className="button" href="/learn/car">Open car primer</a>
-          <a className="button button--secondary" href="/learn/aero">Open aero module</a>
-          <a className="button button--ghost" href={latestReplayHref}>Watch latest replay</a>
-        </div>
       </section>
 
       <Suspense fallback={<div className="panel">Loading model...</div>}>

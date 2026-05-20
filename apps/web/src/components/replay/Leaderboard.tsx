@@ -19,6 +19,10 @@ interface ReplayLeaderboardRow {
   rpm?: number | null;
   drs?: number | null;
   lastLapLabel: string | null;
+  /** Delta to the fastest lap of the session, if known. Format: "+0.932" / "-0.118". */
+  lastLapDeltaLabel?: string | null;
+  /** When the last completed lap is the driver's first flying lap after a pit (or a stint start). */
+  isOutLap?: boolean;
   status?: "FINISHED" | "DNF" | "DNS" | "DSQ" | "LAPPED";
 }
 
@@ -192,9 +196,11 @@ export function Leaderboard({ drivers, selectedDrivers, onDriverSelect }: Leader
                 <em>
                   {retired
                     ? "Out of session"
-                    : driver.lastLapLabel
-                      ? `Last ${driver.lastLapLabel}`
-                      : formatSpeed(driver.speed)}
+                    : driver.isOutLap
+                      ? "Out lap"
+                      : driver.lastLapLabel
+                        ? `Last ${driver.lastLapLabel}${driver.lastLapDeltaLabel ? ` ${driver.lastLapDeltaLabel}` : ""}`
+                        : formatSpeed(driver.speed)}
                 </em>
               </span>
               <span className="replay-leaderboard__tyre" title={tyreTitle(driver.compound, driver.tyreAge)} aria-label={tyreTitle(driver.compound, driver.tyreAge)}>

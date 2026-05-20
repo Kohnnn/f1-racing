@@ -567,6 +567,15 @@ export interface ReplayPack {
   };
   drivers: ReplayDriver[];
   trackPath: [number, number][] | null;
+  trackMetadata?: {
+    trackId: string;
+    name: string;
+    rotationDeg: number;
+    length: number;
+    corners: Array<{ number: number; letter: string; angleDeg: number; trackPosition: number | null }>;
+    drsZones: Array<{ from: number; to: number }>;
+    source: string;
+  } | null;
   laps: ReplayLap[];
   raceControlMessages?: ReplayRaceControlMessage[];
   totalTime?: number;
