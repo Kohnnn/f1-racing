@@ -75,9 +75,42 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
   });
   const [controls, setControls] = useState<WindTunnelControls>(DEFAULT_CONTROLS);
   const [readout, setReadout] = useState<{ drag: number; lift: number; reynolds: number } | null>(null);
+  const [constructorPolygon, setConstructorPolygon] = useState<Array<[number, number]> | null>(null);
+
+  // Try to load a per-constructor traced silhouette from data/wind-profiles. Falls back to the
+  // parametric F1 shape when no profile is available (e.g. Draco-compressed GLBs we cannot trace
+  // statically).
+  useEffect(() => {
+    if (!constructorSlug) {
+      setConstructorPolygon(null);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/data/wind-profiles/${constructorSlug}.json`)
+      .then((response) => (response.ok ? response.json() : null))
+      .then((payload) => {
+        if (cancelled) return;
+        if (payload && Array.isArray(payload.polygon) && payload.polygon.length >= 16) {
+          setConstructorPolygon(payload.polygon);
+        } else {
+          setConstructorPolygon(null);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setConstructorPolygon(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [constructorSlug]);
 
   // Build the F1 silhouette polygon in normalized [0..1] coordinates.
-  const silhouettePolygon = useMemo(() => buildSilhouette(controls), [controls]);
+  const silhouettePolygon = useMemo(() => {
+    if (constructorPolygon) {
+      return remapToTunnelFrame(constructorPolygon);
+    }
+    return buildSilhouette(controls);
+  }, [constructorPolygon, controls]);
 
   // Build the obstacle mask as a Uint8Array on the solver grid.
   const mask = useMemo(() => buildMask(silhouettePolygon, SOLVER_NX, SOLVER_NY), [silhouettePolygon]);
@@ -475,6 +508,24 @@ function buildSilhouette(controls: WindTunnelControls): Array<[number, number]> 
     [0.83, floorY - 0.01],
     [0.16, floorY - 0.01],
   ];
+}
+
+/**
+ * Remap a per-constructor polygon (normalized 0..1) to fit the wind tunnel's
+ * preferred 16% .. 84% horizontal band and 30% .. 76% vertical band. The
+ * traced silhouette spans the full 0..1 box but the tunnel canvas reserves
+ * room for the inlet on the left and the wake region on the right.
+ */
+function remapToTunnelFrame(polygon: Array<[number, number]>): Array<[number, number]> {
+  if (!polygon.length) return polygon;
+  const xMin = 0.16;
+  const xMax = 0.84;
+  const yMin = 0.3;
+  const yMax = 0.76;
+  return polygon.map(([x, y]) => [
+    xMin + x * (xMax - xMin),
+    yMin + y * (yMax - yMin),
+  ]);
 }
 
 /**

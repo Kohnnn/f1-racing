@@ -14,72 +14,39 @@ report. Each pass touches one or more of these surfaces:
 - OCI FastAPI backend (live socket + replay chunk delivery)
 - Pipelines under `pipeline/export/` and `pipeline/ingest/`
 
-## Current pass status (2026-05-20 v3)
+## Current pass status (2026-05-21)
 
-### Shipped
+### Shipped in this pass
 
-- **Canonical track shapes** for all 24 circuits sourced from MultiViewer
-  (the same data source FastF1 uses for `circuit_info`). Stored in
-  `data/track-shapes/<trackId>.json` with rotation, centerline (200-1000
-  points per circuit), corners, marshal sectors, DRS zones, pit entry/exit.
-- **Replay pack pipeline** now reads canonical shapes and emits
-  `trackMetadata` per replay so the front-end Track tab can render real
-  corner labels and sector boundaries.
-- **Race-control category badges** now use a resolved category label
-  (`Penalty`, `Investigation`, `Safety car`, `Flag`, `DRS`, `Message`)
-  instead of the raw OpenF1 `category` string.
-- **Strategy duplicate windows fix**: the recommended-pit-windows panel
-  now groups stints by lap window + compound and surfaces the most-popular
-  windows (consensus pit windows) instead of repeating one stint three
-  times.
-- **Scrubber polish**: hover preview tooltip with `Lap N · Time` ghost
-  cursor, `Load full race` button when buffer falls behind total time,
-  improved progress fill with a glowing playhead handle.
-- **Buffer wall fix**: `ensureTimeLoaded(totalTime)` now loads every
-  remaining chunk in one shot. The `Load full race` button surfaces this
-  whenever > 30 s of session is unloaded.
-- **Out-lap labelling**: leaderboard now shows `Out lap` for laps that are
-  more than 18% slower than the driver's stint median, or laps that
-  immediately follow a compound change.
-- **Last-lap delta**: leaderboard `Last 1:21.482 +0.932` shows the delta
-  to the absolute fastest lap of the session.
-- **Wind tunnel V2** (Tier 2): real 2D incompressible Navier-Stokes solver
-  in a Web Worker on a 320×120 grid. Semi-Lagrangian advection, Jacobi
-  pressure projection, density (smoke) field, drag/lift readout, Cp heat
-  ribbon. Tier 1 procedural mode kept as the "Lite" toggle.
-- **Modelview compact hero** so the studio rig and wind tunnel sit higher.
-- **Replay library sprint badge** (`4 sessions` / `2 sessions`) on each
-  GP card.
-- **Reference-repo crawl**: cloned `IAmTomShaw/f1-race-replay`,
-  `theOehrly/Fast-F1`, and `adn8naiagent/F1ReplayTiming` to
-  `.codex-temp/reference-repos/` for inspection. Used as read-only resource
-  to extract the MultiViewer circuit endpoint usage and category mapping
-  patterns. Removed after the pass.
+- **Per-constructor wind tunnel silhouettes** — `pipeline/export/src/build-wind-profiles.mjs` reads the GLB binary (positions traversed across the scene graph), rasterizes onto a 256×96 occupancy grid, traces the closed silhouette via top/bottom column scan, and writes `data/wind-profiles/<slug>.json`. The Tier 2 wind tunnel obstacle mask switches when the constructor changes. Falls back to the parametric F1 shape for Draco-compressed GLBs.
+- **Lap times waterfall** — new SVG heat-map analysis tab. Rows = drivers (sorted by fastest), columns = laps, cells tinted green (fastest) to red (slowest).
+- **Inline 3D in Learn** — `apps/web/src/components/story/learn-model-embed.tsx` lazily mounts a `<model-viewer>` inside `/learn/car`, `/learn/aero`, `/learn/setup` so the engineering reads pair with the geometry.
+- **Side-by-side Modelview compare** — `Compare side-by-side` toggle adds a second `<model-viewer>` panel with its own constructor selector. Two-column grid at viewports ≥1100 px.
+- **Inspect / Orbit toggle** — segmented toolbar mode lets users disable `camera-controls` so hotspot clicks no longer race against orbit drag.
+- **Real corner labels on the track canvas** — new `drawCorners` in `track-renderer.ts` reads `replay.trackMetadata.corners` and places numbered pills around the circuit at each corner's `trackPosition`. Toggled by the existing `Events B` shortcut.
+- **FastF1 corner-distance hydration** — new `pipeline/fastf1/hydrate-corner-distances.py` calls FastF1's `circuit_info.add_marker_distance(fastest_lap)` and writes the `trackPosition` (cumulative distance) back into each `data/track-shapes/<trackId>.json`. 22/24 circuits hydrated for 2025.
+- **OCI live-delay buffer** — `backend/main.py` `/ws/live/...` now accepts a `delay` query param (0..60s). Server-side queue holds frames for the configured wall-clock delay before broadcasting. Client slider passes through.
+
+### Shipped earlier (2026-05-20 v3)
+
+- Canonical track shapes for all 24 circuits sourced from MultiViewer.
+- `ReplayPack.trackMetadata` (rotation, corners, drs zones, length).
+- Race-control category badges resolved correctly (`Penalty` not `Other`).
+- Stint-grouped recommended pit windows (no more duplicate INTERMEDIATE-laps-1-2).
+- Scrubber hover tooltip + `Load full race` button.
+- Out-lap label + `Last 1:21.482 +0.932` delta in leaderboard.
+- Tier 2 Stable-Fluids Web Worker fluid solver.
+- Modelview compact hero, replay-library sprint badge.
 
 ### Queued (next pass)
 
-- **Per-constructor wind tunnel silhouettes**. Today the silhouette is a
-  parametric F1 profile (front wing, body, sidepod, cockpit, halo, rear
-  wing, floor) shared across constructors but coloured with the team
-  accent. Next: trace per-constructor side profiles either from the GLB
-  bbox or from 9router image gen "slice cut" output.
-- **Lap times waterfall** analysis tab (heatmap of all 20 drivers' lap
-  times per lap).
-- **Inline 3D in Learn**. Lazy-mount a small `<model-viewer>` canvas in
-  each `/learn/<slug>` page tied to the module subject (e.g. `/learn/aero`
-  loads the front wing focus point).
-- **Side-by-side Modelview compare** (two `<model-viewer>` instances side
-  by side at viewport ≥1100 px).
-- **Inspect / Orbit toggle** for the modelview canvas, so hotspot clicks
-  no longer race against orbit drag.
-- **FastF1 Python pipeline** that hydrates `data/track-shapes/<trackId>.json`
-  with corner `Distance` values computed against an actual reference lap
-  from each session, plus marshal-light positions. Optional and additive.
-- **OCI backend live-delay buffer** (currently client-side only).
-- **Williams / Racing Bulls / Haas / Kick Sauber GLBs** — waiting for
-  source files.
-- **Practice 1/2/3 session packs** — currently skipped to keep the OpenF1
-  request count down. Add a flag.
+- **Decode Draco-compressed GLBs** so we can also trace silhouettes for Ferrari, Mercedes, Alpine (needs `draco3d` or Three.js `DRACOLoader`).
+- **Hydrate Miami + São Paulo corner distances** — alias map already extended; just rerun the FastF1 script.
+- **Tier 3 baked OpenFOAM Cp surface fields** projected onto the GLB.
+- **Live SignalR ingestion** from the Formula 1 timing feed behind an explicit OCI-only flag.
+- **Telemetry stream / debug route** that consumes the same replay/live frame state as the workspace.
+- **Williams / Racing Bulls / Haas / Kick Sauber GLBs** — waiting for source files.
+- **Practice 1/2/3 session packs** — currently skipped to keep the OpenF1 request count down.
 
 ### Long-tail / research
 

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import type { ReplayDriver, ReplayFrame } from "@/lib/data";
 import { buildTrackGeometry, type TrackGeometry } from "./track-geometry";
-import { drawDrivers, drawSafetyCar, drawTrack, type DriverMarker, type SafetyCarMarker } from "./track-renderer";
+import { drawCorners, drawDrivers, drawSafetyCar, drawTrack, type CornerMarker, type DriverMarker, type SafetyCarMarker } from "./track-renderer";
 
 interface TrackCanvasProps {
   trackPath: [number, number][] | null;
@@ -13,6 +13,10 @@ interface TrackCanvasProps {
   selectedDrivers: string[];
   showDriverLabels?: boolean;
   showDrsZones?: boolean;
+  /** Show corner number labels (drawn from trackMetadata when available). */
+  showCorners?: boolean;
+  corners?: CornerMarker[];
+  trackTotalLength?: number;
   projectMarkersToTrack?: boolean;
   estimatedLapDuration?: number;
   width?: number;
@@ -47,6 +51,9 @@ export function TrackCanvas({
   selectedDrivers,
   showDriverLabels = false,
   showDrsZones = true,
+  showCorners = true,
+  corners,
+  trackTotalLength,
   projectMarkersToTrack = false,
   estimatedLapDuration = 90,
   width = 920,
@@ -62,6 +69,9 @@ export function TrackCanvas({
   const selectedDriversRef = useRef(selectedDrivers);
   const showDriverLabelsRef = useRef(showDriverLabels);
   const showDrsZonesRef = useRef(showDrsZones);
+  const showCornersRef = useRef(showCorners);
+  const cornersRef = useRef<CornerMarker[]>(corners ?? []);
+  const trackTotalLengthRef = useRef<number>(trackTotalLength ?? 0);
   const safetyCarRef = useRef<SafetyCarMarker | null>(null);
   const renderedMarkersRef = useRef<DriverMarker[]>([]);
 
@@ -138,6 +148,9 @@ export function TrackCanvas({
     selectedDriversRef.current = selectedDrivers;
     showDriverLabelsRef.current = showDriverLabels;
     showDrsZonesRef.current = showDrsZones;
+    showCornersRef.current = showCorners;
+    cornersRef.current = corners ?? [];
+    trackTotalLengthRef.current = trackTotalLength ?? 0;
 
     const safetyCar = currentFrame?.safetyCar;
     safetyCarRef.current = safetyCar && safetyCar.x !== null && safetyCar.y !== null && safetyCar.phase !== "none"
@@ -205,7 +218,7 @@ export function TrackCanvas({
         driverTargetsRef.current.delete(code);
       }
     }
-  }, [currentFrame, nextFrame, selectedDrivers, showDriverLabels, showDrsZones, geometry, driverColorByCode, projectMarkersToTrack, estimatedLapDuration]);
+  }, [currentFrame, nextFrame, selectedDrivers, showDriverLabels, showDrsZones, showCorners, corners, trackTotalLength, geometry, driverColorByCode, projectMarkersToTrack, estimatedLapDuration]);
 
   // Continuous render loop. Display distance eases toward target distance every frame, and
   // marker positions are read off the dense polyline so cars never cut across corners.
@@ -241,6 +254,10 @@ export function TrackCanvas({
       }
 
       drawTrack(ctx, geometry, trackStatusRef.current, showDrsZonesRef.current);
+
+      if (showCornersRef.current && cornersRef.current.length) {
+        drawCorners(ctx, geometry, cornersRef.current, trackTotalLengthRef.current || geometry.totalLength);
+      }
 
       const interpolated: DriverMarker[] = [];
       for (const [abbr, target] of driverTargetsRef.current.entries()) {

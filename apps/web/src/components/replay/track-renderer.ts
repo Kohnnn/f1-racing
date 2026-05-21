@@ -16,6 +16,19 @@ export interface SafetyCarMarker {
   phase: string;
 }
 
+export interface CornerMarker {
+  number: number;
+  letter?: string;
+  /** Cumulative distance along the track centerline (meters or normalized). */
+  trackPosition: number | null;
+  angleDeg?: number;
+}
+
+export interface DrsZoneMarker {
+  from: number;
+  to: number;
+}
+
 const TRACK_STATUS_COLORS: Record<string, string> = {
   GREEN: "#7b8496",
   YELLOW: "#f5c518",
@@ -106,6 +119,60 @@ export function drawTrack(ctx: CanvasRenderingContext2D, geometry: TrackGeometry
   }
 
   drawStartFinishLine(ctx, geometry);
+}
+
+/**
+ * Draws corner number labels around the circuit. Each corner is positioned by
+ * its `trackPosition` (cumulative distance along the centerline). When that
+ * value is missing we fall back to evenly distributing labels around the
+ * polyline so the user still gets a sense of corner ordering.
+ */
+export function drawCorners(
+  ctx: CanvasRenderingContext2D,
+  geometry: TrackGeometry,
+  corners: CornerMarker[],
+  totalCircuitLength: number,
+) {
+  if (!corners.length) return;
+
+  ctx.save();
+  ctx.font = "800 9px Aptos, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  const fallbackTotal = corners.length;
+  for (let i = 0; i < corners.length; i += 1) {
+    const corner = corners[i];
+    const ratio =
+      corner.trackPosition !== null && totalCircuitLength > 0
+        ? Math.max(0, Math.min(1, corner.trackPosition / totalCircuitLength))
+        : i / fallbackTotal;
+    const distance = ratio * geometry.totalLength;
+    const point = geometry.pointAtDistance(distance);
+    const screen = geometry.toScreen(point);
+    // Push label outward along the track normal so it sits off the racing line.
+    const offset = 24;
+    const labelX = screen.x + (point.nx ?? 0) * offset;
+    const labelY = screen.y - (point.ny ?? -1) * offset;
+
+    const label = `${corner.number}${corner.letter ?? ""}`;
+    const metrics = ctx.measureText(label);
+    const padX = 6;
+    const padY = 4;
+    const w = metrics.width + padX * 2;
+    const h = 16;
+    ctx.fillStyle = "rgba(15, 21, 32, 0.86)";
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(labelX - w / 2, labelY - h / 2, w, h, h / 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "rgba(247, 250, 255, 0.92)";
+    ctx.fillText(label, labelX, labelY);
+    void padY;
+  }
+  ctx.restore();
 }
 
 function drawStartFinishLine(ctx: CanvasRenderingContext2D, geometry: TrackGeometry) {

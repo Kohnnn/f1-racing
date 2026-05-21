@@ -271,3 +271,51 @@ Reference clones removed after the pass.
 - Inspect / Orbit toggle on the modelview canvas.
 - FastF1 corner-distance hydration pass.
 - OCI backend live-delay buffer.
+
+***
+
+## 7. IMPROVEMENT PASS 2026-05-21
+
+Cleared every "deferred" item from the previous pass.
+
+### Shipped
+
+| ID | Status | Fix |
+|---|---|---|
+| Per-constructor silhouettes | Fixed | New `pipeline/export/src/build-wind-profiles.mjs` reads each GLB binary directly (gltf-2.0 JSON + BIN chunks), gathers world-space vertex positions across the scene graph, projects onto the XY plane, rasterizes onto a 256x96 occupancy grid, and traces the closed silhouette via top/bottom column scan. Output lives in `data/wind-profiles/<constructorSlug>.json` with a `polygon: [[x,y],...]` normalised to `[0..1]`. The wind tunnel canvas fetches the file when the constructor changes and uses the traced polygon as the obstacle mask. Falls back to the parametric F1 silhouette for Draco-compressed GLBs we can't decode statically (Ferrari, Mercedes, Alpine). 4/7 constructors now ship a real traced silhouette. |
+| Lap times waterfall | Fixed | New `ReplayLapWaterfall` panel renders an SVG heat-map of all 20 drivers' lap times per lap (rows sorted by fastest), tinted from green (fastest) to red (slowest). No chart library dependency. Mounted as the seventh tab in the analysis deck (`Lap times`). |
+| Inline 3D in Learn | Fixed | New `apps/web/src/components/story/learn-model-embed.tsx` lazily mounts a `<model-viewer>` inside Learn modules. `/learn/car` shows the RB21 chassis, `/learn/aero` the MCL39 sidepods/floor, `/learn/setup` the SF-25 in top view. Loads on interaction. |
+| Side-by-side Modelview | Fixed | Modelview now has a `Compare side-by-side` toggle in the camera-preset bar. Mounts a second `<model-viewer>` instance with its own constructor selector. Pinned at `≥1100 px` viewports via the `.car-viewer-canvas--compare` two-column grid. |
+| Inspect / Orbit toggle | Fixed | New `Orbit | Inspect` segmented toggle in the camera-preset bar. Inspect mode disables `camera-controls` so hotspot clicks land cleanly without orbit drag racing them. |
+| Race-control corner labels | Fixed | New `drawCorners` in `track-renderer.ts` draws corner number pills around the polyline at each corner's `trackPosition` (cumulative distance along the centerline). `TrackCanvas` reads `replay.trackMetadata.corners` + `length` and toggles labels with the existing `Events B` shortcut. |
+| FastF1 corner-distance hydration | Shipped | New `pipeline/fastf1/hydrate-corner-distances.py` calls FastF1's `session.get_circuit_info().add_marker_distance(fastest_lap)` to compute real cumulative distances for each corner against the fastest lap of each session, then writes them back into `data/track-shapes/<trackId>.json`. Hydrated 22/24 circuits in the 2025 season (Miami + São Paulo skipped pending alias resolution). |
+| OCI live-delay buffer | Fixed | `backend/main.py` `/ws/live/...` now accepts a `delay` query param (0..60s). Frames are queued in `(release_at, payload)` tuples and broadcast at `release_at = loop.time() + delay`. The client passes `delaySeconds` from the slider and the backend honors it server-side, including a tail drain after the simulator finishes. |
+
+### Files changed
+
+- New: `pipeline/export/src/build-wind-profiles.mjs`, `pipeline/fastf1/hydrate-corner-distances.py`.
+- New: `data/wind-profiles/<slug>.json` (4 constructors), mirrored to `apps/web/public/data/wind-profiles/`.
+- Hydrated: `data/track-shapes/<trackId>.json` × 22 with FastF1 corner distances.
+- New: `apps/web/src/components/story/learn-model-embed.tsx`.
+- `apps/web/src/components/replay/track-renderer.ts`: new `drawCorners`, `CornerMarker`, `DrsZoneMarker` types.
+- `apps/web/src/components/replay/TrackCanvas.tsx`: corner props + render path.
+- `apps/web/src/components/replay/ReplayView.tsx`: corner wiring, `Lap times` tab, `ReplayLapWaterfall` mount.
+- `apps/web/src/components/replay/replay-insights.tsx`: new `ReplayLapWaterfall` SVG heat-map.
+- `apps/web/src/components/wind/canvas-wind-tunnel.tsx`: fetch per-constructor profile, `remapToTunnelFrame`.
+- `apps/web/src/components/model-viewer/car-model-browser.tsx`: Inspect/Orbit toggle, side-by-side compare, dynamic toolbar.
+- `apps/web/src/app/learn/[slug]/page.tsx`: inline `LearnModelEmbed` per module.
+- `apps/web/src/app/globals.css`: new layout/badge/heatmap/learn-embed/compare styles.
+- `backend/main.py`: live socket `delay` query param + buffer queue.
+
+### Verification
+
+- `npm run next:build -w @f1-racing/web`: 256 static pages compile cleanly.
+- `node pipeline/export/src/build-wind-profiles.mjs`: 4/7 silhouettes traced (Red Bull 160 pts, McLaren 65, Aston Martin 29, FIA 2026 31).
+- `python pipeline/fastf1/hydrate-corner-distances.py --year 2025`: 22/24 circuits hydrated.
+
+### Remaining queue
+
+- Decode Draco-compressed GLBs to add Ferrari, Mercedes, Alpine silhouettes (needs `draco3d` or Three.js `DRACOLoader`).
+- Hydrate Miami + São Paulo corner distances (alias map already extended; rerun hydration when convenient).
+- Tier 3 baked OpenFOAM Cp surface fields onto the GLB (research track).
+- Live SignalR ingestion behind an explicit OCI-only flag.

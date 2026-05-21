@@ -224,6 +224,141 @@ export function ReplayStrategyPanel({ strategy, stintPack, selectedDrivers = [] 
   );
 }
 
+interface ReplayLapWaterfallProps {
+  laps: ReplayPack["laps"];
+  drivers: ReplayPack["drivers"];
+}
+
+/**
+ * Heat-mapped waterfall of lap times per driver per lap. Each row is a driver
+ * (sorted by fastest overall lap). Each cell is a lap, tinted from green
+ * (fastest) to red (slowest) relative to the session range. Cells render as
+ * SVG rects so the chart stays light without a chart library dep.
+ */
+export function ReplayLapWaterfall({ laps, drivers }: ReplayLapWaterfallProps) {
+  const completed = laps.filter((lap): lap is typeof lap & { lapTime: number } => typeof lap.lapTime === "number" && lap.lapTime > 0);
+  if (completed.length === 0) {
+    return (
+      <section className="replay-insight-panel replay-insight-panel--embedded">
+        <p className="replay-insight-panel__lead">Lap-time data is not exported for this session yet.</p>
+      </section>
+    );
+  }
+
+  const maxLap = Math.max(...completed.map((lap) => lap.lapNumber));
+  const minTime = Math.min(...completed.map((lap) => lap.lapTime));
+  const maxTime = Math.max(...completed.map((lap) => lap.lapTime));
+  const range = Math.max(0.001, maxTime - minTime);
+
+  const byDriver = new Map<string, Map<number, number>>();
+  const fastestPerDriver = new Map<string, number>();
+  for (const lap of completed) {
+    let entry = byDriver.get(lap.driverCode);
+    if (!entry) {
+      entry = new Map();
+      byDriver.set(lap.driverCode, entry);
+    }
+    entry.set(lap.lapNumber, lap.lapTime);
+    const previous = fastestPerDriver.get(lap.driverCode);
+    if (previous === undefined || lap.lapTime < previous) {
+      fastestPerDriver.set(lap.driverCode, lap.lapTime);
+    }
+  }
+
+  const orderedDriverCodes = Array.from(byDriver.keys()).sort((a, b) => {
+    const fa = fastestPerDriver.get(a) ?? Number.POSITIVE_INFINITY;
+    const fb = fastestPerDriver.get(b) ?? Number.POSITIVE_INFINITY;
+    return fa - fb;
+  });
+  const driverInfoByCode = new Map(drivers.map((driver) => [driver.driverCode, driver]));
+
+  const rowHeight = 18;
+  const cellWidth = Math.max(8, Math.min(18, Math.floor(680 / Math.max(maxLap, 1))));
+  const labelWidth = 64;
+  const chartWidth = labelWidth + cellWidth * maxLap + 16;
+  const chartHeight = orderedDriverCodes.length * rowHeight + 28;
+
+  function tint(time: number) {
+    const t = (time - minTime) / range;
+    const h = (1 - t) * 120; // green-ish to red
+    return `hsl(${h}, 80%, 56%)`;
+  }
+
+  return (
+    <section className="replay-insight-panel replay-insight-panel--embedded">
+      <div className="section-header">
+        <div>
+          <p className="eyebrow">Lap-time waterfall</p>
+          <h2>{minTime.toFixed(3)}s fastest, {maxTime.toFixed(3)}s slowest across {completed.length} laps</h2>
+        </div>
+      </div>
+      <p className="replay-insight-panel__lead">
+        One row per driver, ordered by fastest lap. Each cell is a lap; greener = closer to the fastest of the session, redder = slower.
+      </p>
+      <div className="replay-lap-waterfall">
+        <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} role="img" aria-label="Lap-time waterfall heatmap">
+          <g transform={`translate(0, 14)`}>
+            {[1, Math.round(maxLap / 4), Math.round(maxLap / 2), Math.round((3 * maxLap) / 4), maxLap].map((lap) => (
+              <text
+                key={lap}
+                x={labelWidth + (lap - 1) * cellWidth + cellWidth / 2}
+                y={0}
+                fill="rgba(231,237,247,0.6)"
+                fontSize="9"
+                textAnchor="middle"
+              >
+                L{lap}
+              </text>
+            ))}
+          </g>
+          {orderedDriverCodes.map((code, rowIndex) => {
+            const info = driverInfoByCode.get(code);
+            const rowY = 24 + rowIndex * rowHeight;
+            return (
+              <g key={code} transform={`translate(0, ${rowY})`}>
+                <text x={4} y={rowHeight - 5} fill="#ffffff" fontSize="11" fontFamily="IBM Plex Mono, monospace" fontWeight="700">
+                  {code}
+                </text>
+                <text x={4} y={rowHeight + 5} fill={info?.teamColor ?? "rgba(231,237,247,0.5)"} fontSize="8" fontFamily="Aptos, sans-serif" letterSpacing="0.5">
+                  {info?.team ? info.team.slice(0, 9).toUpperCase() : ""}
+                </text>
+                {Array.from({ length: maxLap }, (_, lapIndex) => lapIndex + 1).map((lap) => {
+                  const time = byDriver.get(code)?.get(lap);
+                  if (time === undefined) {
+                    return (
+                      <rect
+                        key={lap}
+                        x={labelWidth + (lap - 1) * cellWidth}
+                        y={2}
+                        width={cellWidth - 1}
+                        height={rowHeight - 4}
+                        fill="rgba(255, 255, 255, 0.04)"
+                      />
+                    );
+                  }
+                  return (
+                    <rect
+                      key={lap}
+                      x={labelWidth + (lap - 1) * cellWidth}
+                      y={2}
+                      width={cellWidth - 1}
+                      height={rowHeight - 4}
+                      fill={tint(time)}
+                      opacity={0.85}
+                    >
+                      <title>{`${code} · L${lap} · ${time.toFixed(3)}s`}</title>
+                    </rect>
+                  );
+                })}
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+    </section>
+  );
+}
+
 interface ReplayTrackInfoPanelProps {
   replay: ReplayPack;
   trackId: string;

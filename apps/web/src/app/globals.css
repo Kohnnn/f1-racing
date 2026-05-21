@@ -3911,6 +3911,105 @@ code {
   vertical-align: middle;
 }
 
+.camera-preset-row__divider {
+  display: inline-block;
+  width: 1px;
+  height: 20px;
+  background: rgba(167, 189, 219, 0.18);
+  margin: 0 8px;
+  vertical-align: middle;
+}
+
+.camera-preset-row__group {
+  display: inline-flex;
+  gap: 4px;
+  padding: 3px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.car-viewer-canvas--compare {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  position: relative;
+}
+
+@media (min-width: 1100px) {
+.learn-model-embed {
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.learn-model-embed figcaption {
+  display: grid;
+  gap: 2px;
+  padding: 6px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(167, 189, 219, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(231, 237, 247, 0.74);
+  font-size: 0.78rem;
+}
+
+.learn-model-embed figcaption strong {
+  font-size: 0.86rem;
+  color: #ffffff;
+}
+
+.replay-lap-waterfall {
+  margin-top: 14px;
+  overflow: auto;
+  max-width: 100%;
+  padding: 8px;
+  border: 1px solid rgba(167, 189, 219, 0.12);
+  border-radius: 14px;
+  background: rgba(11, 15, 24, 0.5);
+}
+
+.replay-lap-waterfall svg {
+  display: block;
+  min-width: 600px;
+}
+
+.car-viewer-canvas--compare {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.car-viewer-canvas__compare-pane {
+  position: relative;
+  display: grid;
+  gap: 8px;
+}
+
+.car-viewer-canvas__compare-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(167, 189, 219, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(231, 237, 247, 0.74);
+  width: fit-content;
+}
+
+.car-viewer-canvas__compare-toolbar select {
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(167, 189, 219, 0.18);
+  background: rgba(11, 15, 24, 0.4);
+  color: var(--shell-ink);
+  font: inherit;
+  font-size: 0.74rem;
+}
+
 .hero--compact-modelview h1 {
   font-size: clamp(1.6rem, 3.2vw, 2.4rem);
   margin-bottom: 6px;

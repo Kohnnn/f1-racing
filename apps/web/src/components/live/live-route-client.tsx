@@ -202,8 +202,8 @@ function buildReplayFullUrl(route: Pick<LiveSessionRef, "season" | "grandPrix" |
   return buildClientDataUrl(staticPath, `/api/replay/${route.season}/${route.grandPrix}/${route.session}/full`);
 }
 
-function buildLiveSocketUrl(route: Pick<LiveSessionRef, "season" | "grandPrix" | "session">, speed: number) {
-  return buildClientWebSocketUrl(`/ws/live/${route.season}/${route.grandPrix}/${route.session}?speed=${speed}`);
+function buildLiveSocketUrl(route: Pick<LiveSessionRef, "season" | "grandPrix" | "session">, speed: number, delaySeconds: number = 0) {
+  return buildClientWebSocketUrl(`/ws/live/${route.season}/${route.grandPrix}/${route.session}?speed=${speed}&delay=${delaySeconds}`);
 }
 
 async function fetchJson<T>(url: string): Promise<T> {
@@ -429,7 +429,7 @@ export function LiveRouteClient({
       }
     }
 
-    const socketUrl = buildLiveSocketUrl(sessionRef, speed);
+    const socketUrl = buildLiveSocketUrl(sessionRef, speed, delaySeconds);
     if (!socketUrl) {
       void startStaticSimulation();
       return () => {
@@ -517,7 +517,7 @@ export function LiveRouteClient({
       closeTimer();
       socket?.close();
     };
-  }, [activeSession, apiOrigin, closeTimer, speed]);
+  }, [activeSession, apiOrigin, closeTimer, speed, delaySeconds]);
 
   // Tick the displayed frame age (used in the Feed tile) once per second.
   useEffect(() => {

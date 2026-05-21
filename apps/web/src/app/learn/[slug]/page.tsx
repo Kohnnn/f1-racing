@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { SurfaceCard } from "@/components/story/surface-card";
+import { LearnModelEmbed } from "@/components/story/learn-model-embed";
 import { getLearnModule, learnModules } from "../modules";
 
 interface LearnModulePageProps {
@@ -7,6 +8,31 @@ interface LearnModulePageProps {
     slug: string;
   }>;
 }
+
+const MODULE_MODEL_EMBED: Record<string, { modelSrc: string; modelTitle: string; modelScale?: string; cameraOrbit?: string; cameraTarget?: string; caption: string }> = {
+  car: {
+    modelSrc: "/models/2025/red-bull/rb21.glb",
+    modelTitle: "Red Bull RB21",
+    modelScale: "100 100 100",
+    cameraOrbit: "30deg 75deg 8.8m",
+    cameraTarget: "0m 0.48m 0m",
+    caption: "Drag to orbit. The full chassis sits in front of you.",
+  },
+  aero: {
+    modelSrc: "/models/2025/mclaren/mcl39.glb",
+    modelTitle: "McLaren MCL39",
+    cameraOrbit: "10deg 78deg 2.4m",
+    cameraTarget: "0m 0.2m 0m",
+    caption: "Look at the sidepod undercut and floor edges as you orbit.",
+  },
+  setup: {
+    modelSrc: "/models/2025/ferrari/sf25.glb",
+    modelTitle: "Ferrari SF-25",
+    cameraOrbit: "0deg 8deg 2.7m",
+    cameraTarget: "0m 0.15m 0m",
+    caption: "Top-down view to read planform and packaging balance.",
+  },
+};
 
 export async function generateStaticParams() {
   return learnModules.map((module) => ({ slug: module.slug }));
@@ -32,6 +58,8 @@ export default async function LearnModulePage({ params }: LearnModulePageProps) 
     notFound();
   }
 
+  const embed = MODULE_MODEL_EMBED[slug];
+
   return (
     <div className="page-stack">
       <section className="hero hero--compact">
@@ -39,6 +67,25 @@ export default async function LearnModulePage({ params }: LearnModulePageProps) 
         <h1>{module.title}</h1>
         <p className="lead">{module.description}</p>
       </section>
+
+      {embed ? (
+        <section className="panel">
+          <div className="section-header">
+            <div>
+              <p className="eyebrow">Inline 3D model</p>
+              <h2>Inspect while you read</h2>
+            </div>
+          </div>
+          <LearnModelEmbed
+            modelSrc={embed.modelSrc}
+            modelTitle={embed.modelTitle}
+            modelScale={embed.modelScale}
+            cameraOrbit={embed.cameraOrbit}
+            cameraTarget={embed.cameraTarget}
+            caption={embed.caption}
+          />
+        </section>
+      ) : null}
 
       <section className="panel">
         <div className="section-header">

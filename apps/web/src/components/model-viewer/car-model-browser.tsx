@@ -165,6 +165,8 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
   const [activeFlowId, setActiveFlowId] = useState<FlowOverlayId>(
     getFocusPoint(searchParams.get("focus"))?.flowOverlay ?? "off",
   );
+  const [interactionMode, setInteractionMode] = useState<"orbit" | "inspect">("orbit");
+  const [compareSlug, setCompareSlug] = useState<string | null>(null);
 
   useEffect(() => {
     import("@google/model-viewer");
@@ -289,6 +291,44 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
               {preset.label}
             </button>
           ))}
+          <span className="camera-preset-row__divider" aria-hidden="true" />
+          <div className="camera-preset-row__group" role="tablist" aria-label="Interaction mode">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={interactionMode === "orbit"}
+              className={`camera-preset${interactionMode === "orbit" ? " camera-preset--active" : ""}`}
+              onClick={() => setInteractionMode("orbit")}
+              title="Drag to orbit, click to set focus"
+            >
+              Orbit
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={interactionMode === "inspect"}
+              className={`camera-preset${interactionMode === "inspect" ? " camera-preset--active" : ""}`}
+              onClick={() => setInteractionMode("inspect")}
+              title="Click hotspots without orbiting"
+            >
+              Inspect
+            </button>
+          </div>
+          <span className="camera-preset-row__divider" aria-hidden="true" />
+          <button
+            type="button"
+            className={`camera-preset${compareSlug ? " camera-preset--active" : ""}`}
+            onClick={() => {
+              if (compareSlug) {
+                setCompareSlug(null);
+                return;
+              }
+              const candidate = uniqueConstructors.find((entry) => entry.slug !== constructorSlug);
+              if (candidate) setCompareSlug(candidate.slug);
+            }}
+          >
+            {compareSlug ? "Hide compare" : "Compare side-by-side"}
+          </button>
         </div>
       </div>
 
@@ -305,7 +345,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
           </div>
           <p className="car-stage-panel__lead">{selected.notes}</p>
 
-          <div className="car-viewer-canvas">
+          <div className={`car-viewer-canvas${compareSlug ? " car-viewer-canvas--compare" : ""}`}>
             {createElement(
               "model-viewer",
               {
@@ -314,21 +354,22 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
                 src: selected.file,
                 alt: selected.displayName,
                 scale: selected.modelScale,
-                "camera-controls": true,
+                "camera-controls": interactionMode === "orbit",
+                "disable-pan": interactionMode === "inspect",
                 reveal: "auto",
                 loading: "eager",
                 "camera-orbit": currentView.orbit,
                 "camera-target": currentView.target,
                 exposure: "1.05",
                 "shadow-intensity": "1",
-                "touch-action": "pan-y",
+                "touch-action": interactionMode === "orbit" ? "pan-y" : "none",
                 "interaction-prompt": "auto",
                 "environment-image": "neutral",
                 onLoad: () => setModelReady(true),
                 onError: () => setModelReady(true),
                 style: {
                   width: "100%",
-                  height: "min(68vh, 680px)",
+                  height: compareSlug ? "min(58vh, 560px)" : "min(68vh, 680px)",
                   background: "radial-gradient(circle at top, rgba(255,255,255,0.98), rgba(234,240,248,0.9) 58%, rgba(217,225,236,0.98))",
                   borderRadius: "22px",
                 },
@@ -357,6 +398,55 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
             {!modelReady ? (
               <div className="car-viewer-loading" role="status" aria-live="polite">
                 Loading {selected.displayName} · {selected.sizeLabel}
+              </div>
+            ) : null}
+
+            {compareSlug ? (
+              <div className="car-viewer-canvas__compare-pane">
+                <div className="car-viewer-canvas__compare-toolbar">
+                  <span>Compare with</span>
+                  <select
+                    value={compareSlug}
+                    onChange={(event) => setCompareSlug(event.target.value)}
+                    aria-label="Compare constructor"
+                  >
+                    {uniqueConstructors
+                      .filter((entry) => entry.slug !== constructorSlug)
+                      .map((entry) => (
+                        <option key={entry.slug} value={entry.slug}>{entry.name}</option>
+                      ))}
+                  </select>
+                </div>
+                {(() => {
+                  const compareModel = catalog.models.find(
+                    (m) => m.season === season && m.constructorSlug === compareSlug,
+                  );
+                  if (!compareModel) return null;
+                  return createElement(
+                    "model-viewer",
+                    {
+                      key: `compare-${compareModel.id}`,
+                      src: compareModel.file,
+                      alt: compareModel.displayName,
+                      scale: compareModel.modelScale,
+                      "camera-controls": interactionMode === "orbit",
+                      reveal: "auto",
+                      loading: "lazy",
+                      "camera-orbit": currentView.orbit,
+                      "camera-target": currentView.target,
+                      exposure: "1.05",
+                      "shadow-intensity": "1",
+                      "touch-action": interactionMode === "orbit" ? "pan-y" : "none",
+                      "environment-image": "neutral",
+                      style: {
+                        width: "100%",
+                        height: "min(58vh, 560px)",
+                        background: "radial-gradient(circle at top, rgba(255,255,255,0.98), rgba(234,240,248,0.9) 58%, rgba(217,225,236,0.98))",
+                        borderRadius: "22px",
+                      },
+                    },
+                  );
+                })()}
               </div>
             ) : null}
 
@@ -480,7 +570,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
       </div>
 
       <div className="car-wind-tunnel-host">
-        <CanvasWindTunnel modelTitle={selected.displayName} />
+        <CanvasWindTunnel modelTitle={selected.displayName} constructorSlug={selected.constructorSlug} />
       </div>
     </section>
   );

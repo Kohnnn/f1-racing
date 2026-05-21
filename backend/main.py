@@ -311,6 +311,7 @@ async def live_socket(
     grand_prix: str,
     session: str,
     speed: float = 8.0,
+    delay: float = 0.0,
 ) -> None:
     await websocket.accept()
 
@@ -330,6 +331,7 @@ async def live_socket(
         return
 
     speed_factor = max(0.25, min(speed, 64.0))
+    delay_seconds = max(0.0, min(delay, 60.0))
     race_control_messages = replay.get("raceControlMessages") or []
     visible_messages: list[dict[str, Any]] = []
     rc_index = 0
@@ -339,6 +341,7 @@ async def live_socket(
             "type": "status",
             "message": "Starting simulated live feed",
             "source": "simulated-replay",
+            "delay": delay_seconds,
         }
     )
     await websocket.send_json(
@@ -349,11 +352,28 @@ async def live_socket(
             "session": replay.get("session"),
             "trackId": replay.get("trackId"),
             "speed": speed_factor,
+            "delay": delay_seconds,
             "source": "simulated-replay",
         }
     )
 
+    # Backend-side delay buffer: queue (sendAt, payload) tuples and release them
+    # in order. Frames are produced at `speed_factor` x real time and held in
+    # the queue for `delay_seconds` of wall-clock time before broadcasting.
+    queue: list[tuple[float, dict[str, Any]]] = []
+
+    async def flush_due_frames(now: float) -> bool:
+        i = 0
+        while i < len(queue) and queue[i][0] <= now:
+            _, payload = queue[i]
+            await websocket.send_json(payload)
+            i += 1
+        if i:
+            del queue[:i]
+        return True
+
     try:
+        loop = asyncio.get_event_loop()
         for index, frame in enumerate(frames):
             frame_time = float(frame.get("t", 0))
             while rc_index < len(race_control_messages):
@@ -363,23 +383,33 @@ async def live_socket(
                 visible_messages.append(race_control_messages[rc_index])
                 rc_index += 1
 
-            await websocket.send_json(
-                {
-                    "type": "frame",
-                    "frame": frame,
-                    "rcMessages": visible_messages[-6:],
-                    "source": "simulated-replay",
-                }
-            )
+            payload = {
+                "type": "frame",
+                "frame": frame,
+                "rcMessages": visible_messages[-6:],
+                "source": "simulated-replay",
+            }
+            release_at = loop.time() + delay_seconds
+            queue.append((release_at, payload))
+
+            await flush_due_frames(loop.time())
 
             if index >= len(frames) - 1:
                 break
 
             next_time = float(frames[index + 1].get("t", frame_time))
-            delay_seconds = max(
+            inter_frame = max(
                 0.05, min(1.25, (next_time - frame_time) / speed_factor)
             )
-            await asyncio.sleep(delay_seconds)
+            await asyncio.sleep(inter_frame)
+
+        # Drain the remaining buffered frames after the simulation finishes.
+        if queue:
+            tail_until = max(release for release, _ in queue)
+            while queue and loop.time() < tail_until:
+                await asyncio.sleep(0.05)
+                await flush_due_frames(loop.time())
+            await flush_due_frames(float("inf"))
 
         await websocket.send_json({"type": "finished", "source": "simulated-replay"})
     except (WebSocketDisconnect, RuntimeError):
