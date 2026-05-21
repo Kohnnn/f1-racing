@@ -75,6 +75,27 @@ a {
   font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
 }
 
+/*
+ * Session summary opts out of the serif display family so it visually matches
+ * the Replay/Live workspaces (which use sans for their banner headings).
+ * The `.session-summary-page` class is set on the page wrapper.
+ */
+.session-summary-page .hero h1 {
+  font-family: Aptos, "Segoe UI", "Helvetica Neue", sans-serif;
+  letter-spacing: -0.01em;
+}
+
+/*
+ * Learn module headings shouldn't be smaller than the rest of the surface
+ * tier — promote them to the same display scale as Replay/Live so the
+ * typographic hierarchy stays consistent across pages.
+ */
+.learn-module-page .hero h1 {
+  font-size: clamp(2.6rem, 6.4vw, 4.8rem);
+  line-height: 0.94;
+  letter-spacing: -0.005em;
+}
+
 .brand strong {
   font-size: 1.4rem;
 }
@@ -3617,6 +3638,17 @@ code {
   font-style: normal;
   color: rgba(231, 237, 247, 0.58);
   font-size: 0.72rem;
+}
+
+.replay-leaderboard__tyre-fresh {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(56, 189, 248, 0.18);
+  border: 1px solid rgba(56, 189, 248, 0.5);
+  color: #bae6fd !important;
+  font-size: 0.6rem !important;
+  font-weight: 700;
+  letter-spacing: 0.1em;
 }
 
 .replay-leaderboard__tyre strong {

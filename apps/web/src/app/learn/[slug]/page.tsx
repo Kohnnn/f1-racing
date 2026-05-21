@@ -61,7 +61,7 @@ export default async function LearnModulePage({ params }: LearnModulePageProps) 
   const embed = MODULE_MODEL_EMBED[slug];
 
   return (
-    <div className="page-stack">
+    <div className="page-stack learn-module-page">
       <section className="hero hero--compact">
         <p className="eyebrow">Learn module</p>
         <h1>{module.title}</h1>

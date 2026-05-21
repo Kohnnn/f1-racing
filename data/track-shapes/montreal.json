@@ -4,7 +4,7 @@
     "canada"
   ],
   "circuitKey": 23,
-  "name": "Montr\u00e9al",
+  "name": "Montréal",
   "country": "Canada",
   "rotationDeg": 62,
   "centerline": [
@@ -2551,11 +2551,28 @@
       "trackPosition": 3849.052928581389
     }
   ],
-  "drsZones": [],
+  "drsZones": [
+    {
+      "id": "DRS1",
+      "fromRatio": 0.94,
+      "toRatio": 0.05,
+      "from": 40653.671779230855,
+      "to": 2162.4293499590885
+    },
+    {
+      "id": "DRS2",
+      "fromRatio": 0.55,
+      "toRatio": 0.62,
+      "from": 23786.722849549973,
+      "to": 26814.123939492696
+    }
+  ],
   "pitEntryDistance": null,
   "pitExitDistance": null,
   "length": 43248.58699918177,
   "source": "multiviewer.app",
   "fetchedAt": "2026-05-20T16:27:36.962Z",
-  "fastF1HydratedAt": "computed-via-fastf1-circuit-info"
+  "fastF1HydratedAt": "computed-via-fastf1-circuit-info",
+  "drsZonesSeededAt": "2026-05-21T05:06:44.165Z",
+  "drsZonesSource": "fia-2025-event-notes"
 }

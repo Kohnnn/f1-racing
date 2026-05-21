@@ -25,8 +25,21 @@ export interface CornerMarker {
 }
 
 export interface DrsZoneMarker {
+  id?: string;
+  /** Cumulative distance along the track centerline at zone start. */
   from: number;
+  /** Cumulative distance along the track centerline at zone end. */
   to: number;
+  /** Optional pre-computed normalised ratios (0..1). Used as a fallback. */
+  fromRatio?: number;
+  toRatio?: number;
+}
+
+export interface MarshalSectorMarker {
+  index: number;
+  fromDistance: number;
+  toDistance: number;
+  flag?: string | null;
 }
 
 const TRACK_STATUS_COLORS: Record<string, string> = {
@@ -71,7 +84,7 @@ function strokeDensePath(ctx: CanvasRenderingContext2D, geometry: TrackGeometry,
   ctx.restore();
 }
 
-export function drawTrack(ctx: CanvasRenderingContext2D, geometry: TrackGeometry, trackStatus: string, showDrsZones: boolean) {
+export function drawTrack(ctx: CanvasRenderingContext2D, geometry: TrackGeometry, trackStatus: string, showDrsZones: boolean, drsZones?: DrsZoneMarker[], totalCircuitLength?: number) {
   const statusColor = TRACK_STATUS_COLORS[trackStatus] || TRACK_STATUS_COLORS.GREEN;
 
   // Drop shadow under the asphalt slab.
@@ -95,30 +108,159 @@ export function drawTrack(ctx: CanvasRenderingContext2D, geometry: TrackGeometry
   strokeDensePath(ctx, geometry, 1.4, "rgba(247, 250, 255, 0.32)", { dashed: true });
 
   // DRS zones — drawn over the surface but under markers, with a green glow.
-  if (showDrsZones && geometry.densePoints.length > 20) {
-    const zoneStarts = [0.16, 0.46, 0.72];
-    for (const startRatio of zoneStarts) {
-      const startIndex = Math.floor(startRatio * geometry.densePoints.length);
-      const endIndex = Math.min(geometry.densePoints.length - 1, startIndex + Math.floor(geometry.densePoints.length * 0.06));
-      const first = geometry.toScreen(geometry.densePoints[startIndex]);
-      ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(first.x, first.y);
-      for (let index = startIndex + 1; index <= endIndex; index += 1) {
-        const screen = geometry.toScreen(geometry.densePoints[index]);
-        ctx.lineTo(screen.x, screen.y);
-      }
-      ctx.shadowColor = "rgba(34, 197, 94, 0.55)";
-      ctx.shadowBlur = 14;
-      ctx.strokeStyle = "rgba(34, 197, 94, 0.85)";
-      ctx.lineWidth = 4.5;
-      ctx.lineCap = "round";
-      ctx.stroke();
-      ctx.restore();
-    }
+  if (showDrsZones) {
+    drawDrsZones(ctx, geometry, drsZones, totalCircuitLength);
   }
 
   drawStartFinishLine(ctx, geometry);
+}
+
+/**
+ * Draws DRS activation zones on top of the asphalt. When `drsZones` is provided
+ * with cumulative-distance ranges (or normalised ratios) we draw exact arc
+ * segments. Otherwise we fall back to three evenly distributed segments so
+ * older replay packs still get a visible cue.
+ */
+export function drawDrsZones(
+  ctx: CanvasRenderingContext2D,
+  geometry: TrackGeometry,
+  drsZones?: DrsZoneMarker[],
+  totalCircuitLength?: number,
+) {
+  if (geometry.densePoints.length < 20) return;
+
+  ctx.save();
+  ctx.shadowColor = "rgba(34, 197, 94, 0.55)";
+  ctx.shadowBlur = 14;
+  ctx.strokeStyle = "rgba(34, 197, 94, 0.85)";
+  ctx.lineWidth = 4.5;
+  ctx.lineCap = "round";
+
+  if (drsZones && drsZones.length) {
+    for (const zone of drsZones) {
+      // Resolve start/end ratios. Prefer absolute distances when present + we
+      // have a known total circuit length; otherwise use the explicit ratios.
+      let startRatio: number;
+      let endRatio: number;
+      if (Number.isFinite(zone.from) && Number.isFinite(zone.to) && totalCircuitLength && totalCircuitLength > 0) {
+        startRatio = ((zone.from / totalCircuitLength) % 1 + 1) % 1;
+        endRatio = ((zone.to / totalCircuitLength) % 1 + 1) % 1;
+      } else if (typeof zone.fromRatio === "number" && typeof zone.toRatio === "number") {
+        startRatio = ((zone.fromRatio % 1) + 1) % 1;
+        endRatio = ((zone.toRatio % 1) + 1) % 1;
+      } else {
+        continue;
+      }
+      drawDrsArcByRatio(ctx, geometry, startRatio, endRatio);
+    }
+  } else {
+    // Fallback when no zones are exposed by the data pack.
+    const zoneStarts = [0.16, 0.46, 0.72];
+    for (const startRatio of zoneStarts) {
+      drawDrsArcByRatio(ctx, geometry, startRatio, Math.min(1, startRatio + 0.06));
+    }
+  }
+  ctx.restore();
+}
+
+function drawDrsArcByRatio(
+  ctx: CanvasRenderingContext2D,
+  geometry: TrackGeometry,
+  startRatio: number,
+  endRatio: number,
+) {
+  const total = geometry.densePoints.length;
+  const startIndex = Math.max(0, Math.min(total - 1, Math.floor(startRatio * total)));
+  const wrapped = endRatio < startRatio;
+  const segments = wrapped
+    ? [
+        [startIndex, total - 1],
+        [0, Math.max(0, Math.min(total - 1, Math.floor(endRatio * total)))],
+      ]
+    : [[startIndex, Math.max(0, Math.min(total - 1, Math.floor(endRatio * total)))]];
+
+  for (const [from, to] of segments) {
+    if (to <= from) continue;
+    const first = geometry.toScreen(geometry.densePoints[from]);
+    ctx.beginPath();
+    ctx.moveTo(first.x, first.y);
+    for (let index = from + 1; index <= to; index += 1) {
+      const screen = geometry.toScreen(geometry.densePoints[index]);
+      ctx.lineTo(screen.x, screen.y);
+    }
+    ctx.stroke();
+  }
+}
+
+/**
+ * Tints a polyline arc when an explicit marshal-sector flag is active. The
+ * caller passes the active flag (e.g. "YELLOW", "DOUBLE YELLOW", "RED") and
+ * the sector range expressed as cumulative-distance pairs that live in the
+ * canonical track-shape JSON.
+ */
+export function drawMarshalSectors(
+  ctx: CanvasRenderingContext2D,
+  geometry: TrackGeometry,
+  sectors: MarshalSectorMarker[] | undefined,
+  totalCircuitLength: number,
+  activeFlagBySector: Map<number, string>,
+) {
+  if (!sectors?.length || totalCircuitLength <= 0 || activeFlagBySector.size === 0) {
+    return;
+  }
+  ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineWidth = 6;
+  for (const sector of sectors) {
+    const flag = activeFlagBySector.get(sector.index);
+    if (!flag) continue;
+    const color = TRACK_STATUS_COLORS[flag] || TRACK_STATUS_COLORS.YELLOW;
+    ctx.strokeStyle = color;
+    ctx.shadowColor = `${color}c0`;
+    ctx.shadowBlur = 14;
+    const startRatio = ((sector.fromDistance / totalCircuitLength) % 1 + 1) % 1;
+    const endRatio = ((sector.toDistance / totalCircuitLength) % 1 + 1) % 1;
+    drawDrsArcByRatio(ctx, geometry, startRatio, endRatio);
+  }
+  ctx.restore();
+}
+
+/**
+ * Draws short-lived pulses at pit-out positions. Each pulse fades over ~3s.
+ * Caller passes a list of active pulses with their normalised ratio and age.
+ */
+export function drawPitPulses(
+  ctx: CanvasRenderingContext2D,
+  geometry: TrackGeometry,
+  pulses: Array<{ ratio: number; ageMs: number; color?: string; label?: string }>,
+) {
+  if (!pulses.length) return;
+  for (const pulse of pulses) {
+    const ratio = ((pulse.ratio % 1) + 1) % 1;
+    const distance = ratio * geometry.totalLength;
+    const point = geometry.pointAtDistance(distance);
+    const screen = geometry.toScreen(point);
+    const lifetime = 3200; // ms
+    const t = Math.min(1, pulse.ageMs / lifetime);
+    const radius = 8 + t * 28;
+    const alpha = (1 - t) * 0.85;
+    if (alpha <= 0.02) continue;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(screen.x, screen.y, radius, 0, Math.PI * 2);
+    ctx.strokeStyle = pulse.color ?? `rgba(56, 189, 248, ${alpha.toFixed(3)})`;
+    ctx.shadowColor = `rgba(56, 189, 248, ${(alpha * 0.6).toFixed(3)})`;
+    ctx.shadowBlur = 18;
+    ctx.lineWidth = 2.4;
+    ctx.stroke();
+    if (pulse.label && t < 0.6) {
+      ctx.font = "800 9px Aptos, sans-serif";
+      ctx.fillStyle = `rgba(186, 230, 253, ${alpha.toFixed(3)})`;
+      ctx.textAlign = "center";
+      ctx.fillText(pulse.label, screen.x, screen.y - radius - 4);
+    }
+    ctx.restore();
+  }
 }
 
 /**

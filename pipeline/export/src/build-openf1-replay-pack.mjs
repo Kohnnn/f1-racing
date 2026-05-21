@@ -452,8 +452,9 @@ function normalizeSessionRef(session, args = {}) {
   };
 }
 
-async function getSeasonManifest() {
-  const filePath = path.join(dataRoot, "manifests", "openf1-2025-season.json");
+async function getSeasonManifest(year) {
+  const targetYear = Number(year ?? 2025);
+  const filePath = path.join(dataRoot, "manifests", `openf1-${targetYear}-season.json`);
   return readJson(filePath);
 }
 
@@ -464,10 +465,10 @@ async function resolveSession(args) {
     if (!session) {
       throw new Error(`Session key ${args.sessionKey} not found.`);
     }
-    
+
     // Try to find matching session in manifest for correct slug
     try {
-      const manifest = await getSeasonManifest();
+      const manifest = await getSeasonManifest(session.year || args.season);
       const manifestSessions = manifest.grandsPrix.flatMap((gp) => gp.sessions);
       const manifestSession = manifestSessions.find(
         (ms) => Number(ms.sessionKey) === Number(args.sessionKey)
@@ -482,7 +483,7 @@ async function resolveSession(args) {
     return session;
   }
 
-  const manifest = await getSeasonManifest();
+  const manifest = await getSeasonManifest(args.season);
   const sessions = manifest.grandsPrix.flatMap((grandPrix) => grandPrix.sessions);
 
   if (args.grandPrixSlug && args.sessionSlug) {
@@ -508,7 +509,7 @@ async function resolveSession(args) {
   const qualifyingSessions = sessions.filter((session) => session.sessionName === "Qualifying");
   const latest = qualifyingSessions.at(-1) || sessions.at(-1);
   if (!latest) {
-    throw new Error("No sessions found in OpenF1 2025 season manifest.");
+    throw new Error(`No sessions found in OpenF1 ${args.season ?? 2025} season manifest.`);
   }
 
   return {

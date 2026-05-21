@@ -20,3 +20,5 @@ apps/web/public/data/packs/seasons/
 # Netlify CLI artifacts
 apps/web/.netlify/
 deploy/oci/command
+# FastF1 local cache (regenerated on demand)
+tmp_fastf1_cache/

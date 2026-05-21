@@ -3,7 +3,33 @@
 import { useEffect, useMemo, useRef } from "react";
 import type { ReplayDriver, ReplayFrame } from "@/lib/data";
 import { buildTrackGeometry, type TrackGeometry } from "./track-geometry";
-import { drawCorners, drawDrivers, drawSafetyCar, drawTrack, type CornerMarker, type DriverMarker, type SafetyCarMarker } from "./track-renderer";
+import {
+  drawCorners,
+  drawDrivers,
+  drawDrsZones,
+  drawMarshalSectors,
+  drawPitPulses,
+  drawSafetyCar,
+  drawTrack,
+  type CornerMarker,
+  type DriverMarker,
+  type DrsZoneMarker,
+  type MarshalSectorMarker,
+  type SafetyCarMarker,
+} from "./track-renderer";
+
+export interface PitPulse {
+  /** stable identifier so we can dedupe re-emitted pulses */
+  id: string;
+  /** along-track normalised ratio (0..1) */
+  ratio: number;
+  /** absolute time (replay clock seconds) when the pulse fires */
+  startedAt: number;
+  /** team color for the pulse stroke */
+  color?: string;
+  /** optional small label rendered above the pulse */
+  label?: string;
+}
 
 interface TrackCanvasProps {
   trackPath: [number, number][] | null;
@@ -15,7 +41,16 @@ interface TrackCanvasProps {
   showDrsZones?: boolean;
   /** Show corner number labels (drawn from trackMetadata when available). */
   showCorners?: boolean;
+  /** Show marshal-sector flag overlays. */
+  showMarshalSectors?: boolean;
   corners?: CornerMarker[];
+  drsZones?: DrsZoneMarker[];
+  marshalSectors?: MarshalSectorMarker[];
+  /** Sector index → flag string. Indexed sectors will tint when present. */
+  activeMarshalFlagBySector?: Map<number, string>;
+  pitPulses?: PitPulse[];
+  /** Optional clock used to age pit-pulses (typically the replay clock seconds). */
+  clockSeconds?: number;
   trackTotalLength?: number;
   projectMarkersToTrack?: boolean;
   estimatedLapDuration?: number;
@@ -52,7 +87,13 @@ export function TrackCanvas({
   showDriverLabels = false,
   showDrsZones = true,
   showCorners = true,
+  showMarshalSectors = true,
   corners,
+  drsZones,
+  marshalSectors,
+  activeMarshalFlagBySector,
+  pitPulses,
+  clockSeconds,
   trackTotalLength,
   projectMarkersToTrack = false,
   estimatedLapDuration = 90,
@@ -70,7 +111,13 @@ export function TrackCanvas({
   const showDriverLabelsRef = useRef(showDriverLabels);
   const showDrsZonesRef = useRef(showDrsZones);
   const showCornersRef = useRef(showCorners);
+  const showMarshalSectorsRef = useRef(showMarshalSectors);
   const cornersRef = useRef<CornerMarker[]>(corners ?? []);
+  const drsZonesRef = useRef<DrsZoneMarker[]>(drsZones ?? []);
+  const marshalSectorsRef = useRef<MarshalSectorMarker[]>(marshalSectors ?? []);
+  const activeMarshalFlagsRef = useRef<Map<number, string>>(activeMarshalFlagBySector ?? new Map());
+  const pitPulsesRef = useRef<PitPulse[]>(pitPulses ?? []);
+  const clockSecondsRef = useRef<number>(clockSeconds ?? 0);
   const trackTotalLengthRef = useRef<number>(trackTotalLength ?? 0);
   const safetyCarRef = useRef<SafetyCarMarker | null>(null);
   const renderedMarkersRef = useRef<DriverMarker[]>([]);
@@ -149,7 +196,13 @@ export function TrackCanvas({
     showDriverLabelsRef.current = showDriverLabels;
     showDrsZonesRef.current = showDrsZones;
     showCornersRef.current = showCorners;
+    showMarshalSectorsRef.current = showMarshalSectors;
     cornersRef.current = corners ?? [];
+    drsZonesRef.current = drsZones ?? [];
+    marshalSectorsRef.current = marshalSectors ?? [];
+    activeMarshalFlagsRef.current = activeMarshalFlagBySector ?? new Map();
+    pitPulsesRef.current = pitPulses ?? [];
+    clockSecondsRef.current = clockSeconds ?? 0;
     trackTotalLengthRef.current = trackTotalLength ?? 0;
 
     const safetyCar = currentFrame?.safetyCar;
@@ -218,7 +271,7 @@ export function TrackCanvas({
         driverTargetsRef.current.delete(code);
       }
     }
-  }, [currentFrame, nextFrame, selectedDrivers, showDriverLabels, showDrsZones, showCorners, corners, trackTotalLength, geometry, driverColorByCode, projectMarkersToTrack, estimatedLapDuration]);
+  }, [currentFrame, nextFrame, selectedDrivers, showDriverLabels, showDrsZones, showCorners, showMarshalSectors, corners, drsZones, marshalSectors, activeMarshalFlagBySector, pitPulses, clockSeconds, trackTotalLength, geometry, driverColorByCode, projectMarkersToTrack, estimatedLapDuration]);
 
   // Continuous render loop. Display distance eases toward target distance every frame, and
   // marker positions are read off the dense polyline so cars never cut across corners.
@@ -253,10 +306,39 @@ export function TrackCanvas({
         return;
       }
 
-      drawTrack(ctx, geometry, trackStatusRef.current, showDrsZonesRef.current);
+      drawTrack(
+        ctx,
+        geometry,
+        trackStatusRef.current,
+        showDrsZonesRef.current,
+        drsZonesRef.current,
+        trackTotalLengthRef.current || geometry.totalLength,
+      );
 
       if (showCornersRef.current && cornersRef.current.length) {
         drawCorners(ctx, geometry, cornersRef.current, trackTotalLengthRef.current || geometry.totalLength);
+      }
+
+      if (showMarshalSectorsRef.current) {
+        drawMarshalSectors(
+          ctx,
+          geometry,
+          marshalSectorsRef.current,
+          trackTotalLengthRef.current || geometry.totalLength,
+          activeMarshalFlagsRef.current,
+        );
+      }
+
+      // Draw decaying pit-out pulses if any are still alive.
+      if (pitPulsesRef.current.length) {
+        const nowSeconds = clockSecondsRef.current;
+        const ageMillis = pitPulsesRef.current.map((pulse) => ({
+          ratio: pulse.ratio,
+          color: pulse.color,
+          label: pulse.label,
+          ageMs: Math.max(0, (nowSeconds - pulse.startedAt) * 1000),
+        }));
+        drawPitPulses(ctx, geometry, ageMillis);
       }
 
       const interpolated: DriverMarker[] = [];

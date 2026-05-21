@@ -8,7 +8,7 @@ import { Leaderboard, type ReplayLeaderboardRow } from "./Leaderboard";
 import { PlaybackControls } from "./PlaybackControls";
 import { ReplayComparePanel, ReplayLapWaterfall, ReplayStintPanel, ReplayStrategyPanel, ReplayTrackInfoPanel } from "./replay-insights";
 import { ReplayTelemetryStrip } from "./replay-telemetry-strip";
-import { TrackCanvas } from "./TrackCanvas";
+import { TrackCanvas, type PitPulse } from "./TrackCanvas";
 import { buildTrackGeometry } from "./track-geometry";
 
 const UI_SYNC_INTERVAL_MS = 180;
@@ -302,6 +302,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
   const playheadTimeRef = useRef(initialTime);
   const frameIndexRef = useRef(0);
   const lastUiSyncRef = useRef(initialTime);
+  const [showMarshalSectors, setShowMarshalSectors] = useState(true);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -596,6 +597,83 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
       .sort((left, right) => (left.lapTime ?? Infinity) - (right.lapTime ?? Infinity))[0];
   }, [replay.fastestLap, replay.laps]);
 
+  // Derive a list of pit-out pulses by scanning the loaded frames for tyre
+  // compound transitions per driver. Each pulse is anchored to the frame's
+  // wall-clock time `t` so the renderer can age it against the replay clock.
+  const pitPulses = useMemo<PitPulse[]>(() => {
+    if (!replay.frames?.length) return [];
+    const previousCompoundByDriver = new Map<string, string | null>();
+    const previousAgeByDriver = new Map<string, number | null>();
+    const seen = new Set<string>();
+    const pulses: PitPulse[] = [];
+    const driverColor = (code: string) => driverInfoByCode.get(code)?.teamColor ?? "#38bdf8";
+    for (const frame of replay.frames) {
+      for (const driver of Object.values(frame.drivers)) {
+        if (!driver) continue;
+        const previous = previousCompoundByDriver.get(driver.driverCode) ?? null;
+        const previousAge = previousAgeByDriver.get(driver.driverCode) ?? null;
+        const compoundChanged = !!previous && !!driver.tyreCompound && previous !== driver.tyreCompound;
+        // A reset of tyre age to 0 with a known previous age is a strong pit signal.
+        const ageReset = previousAge !== null && previousAge > 0 && (driver.tyreAge ?? -1) === 0;
+        if (compoundChanged || ageReset) {
+          const id = `${driver.driverCode}-pit-${Math.round(frame.t)}`;
+          if (!seen.has(id)) {
+            seen.add(id);
+            pulses.push({
+              id,
+              ratio: 0.02, // near start/finish line; close to most pit-outs
+              startedAt: frame.t,
+              color: driverColor(driver.driverCode),
+              label: `${driver.driverCode} PIT`,
+            });
+          }
+        }
+        if (driver.tyreCompound) previousCompoundByDriver.set(driver.driverCode, driver.tyreCompound);
+        if (typeof driver.tyreAge === "number") previousAgeByDriver.set(driver.driverCode, driver.tyreAge);
+      }
+    }
+    return pulses;
+  }, [driverInfoByCode, replay.frames]);
+
+  // Pulse window: only show pulses whose age is under ~3.5s of the replay clock.
+  const activePitPulses = useMemo<PitPulse[]>(() => {
+    if (!pitPulses.length) return [];
+    const lifetime = 3.5;
+    return pitPulses.filter((pulse) => {
+      const age = currentTime - pulse.startedAt;
+      return age >= 0 && age <= lifetime;
+    });
+  }, [currentTime, pitPulses]);
+
+  // Resolve which marshal sectors are currently flagged based on the active
+  // race-control messages within a small look-back window. Sector indexes are
+  // 1-based to align with FIA terminology (S1/S2/S3 etc.).
+  const activeMarshalFlagBySector = useMemo<Map<number, string>>(() => {
+    const map = new Map<number, string>();
+    if (!replay.raceControlMessages?.length) return map;
+    const window = 12; // seconds: keep flag tints alive for ~12s after the message
+    const messages = replay.raceControlMessages.filter(
+      (message) => message.t <= currentTime && currentTime - message.t <= window,
+    );
+    for (const message of messages) {
+      const text = `${message.flag ?? ""} ${message.message ?? ""}`.toLowerCase();
+      const sectorMatch = /sector\s+(\d+)/i.exec(message.message || "");
+      const sector = sectorMatch ? Number(sectorMatch[1]) : null;
+      if (!sector) continue;
+      let flag: string | null = null;
+      if (text.includes("double yellow")) flag = "DOUBLE YELLOW";
+      else if (text.includes("yellow")) flag = "YELLOW";
+      else if (text.includes("red")) flag = "RED";
+      else if (text.includes("green")) flag = null; // clears
+      if (flag) {
+        map.set(sector, flag);
+      } else {
+        map.delete(sector);
+      }
+    }
+    return map;
+  }, [currentTime, replay.raceControlMessages]);
+
   const suggestedDriver = useMemo(() => {
     return fastestLap?.driverCode ?? displayedDrivers[0]?.abbr ?? null;
   }, [displayedDrivers, fastestLap]);
@@ -665,10 +743,21 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
   const featuredStintHref = manifest.stints ? `/stints/${route.season}/${route.grandPrix}/${route.session}` : null;
 
   // When two or more drivers are pinned, build a live compare pack from their fastest laps in
-  // the loaded laps list. Falls back to the static manifest compare otherwise.
+  // the loaded laps list. When no pair is pinned but laps exist, fall back to the current
+  // leader vs P2 so the panel always reflects who is actually on track right now.
   const dynamicCompare = useMemo<ComparePack | null>(() => {
-    if (selectedDrivers.length < 2 || !lapRecords?.length) return null;
-    const [leftCode, rightCode] = selectedDrivers.slice(0, 2);
+    if (!lapRecords?.length) return null;
+
+    let pair: [string, string] | null = null;
+    if (selectedDrivers.length >= 2) {
+      pair = [selectedDrivers[0], selectedDrivers[1]];
+    } else if (displayedDrivers.length >= 2) {
+      // Fallback: leader vs second on track. Avoids the hardcoded NOR vs VER from the
+      // static manifest pack when nothing is shift-selected.
+      pair = [displayedDrivers[0].abbr, displayedDrivers[1].abbr];
+    }
+    if (!pair) return null;
+    const [leftCode, rightCode] = pair;
 
     const fastestFor = (code: string) =>
       lapRecords
@@ -712,7 +801,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
       deltaSections,
       events,
     };
-  }, [lapRecords, replay.trackId, selectedDrivers]);
+  }, [displayedDrivers, lapRecords, replay.trackId, selectedDrivers]);
 
   const activeCompare = dynamicCompare ?? compare;
 
@@ -897,6 +986,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
       if (event.code === "KeyD") setShowDrsZones((value) => !value);
       if (event.code === "KeyL") setShowDriverLabels((value) => !value);
       if (event.code === "KeyB") setShowEvents((value) => !value);
+      if (event.code === "KeyM") setShowMarshalSectors((value) => !value);
     }
 
     window.addEventListener("keydown", onKeyDown);
@@ -1021,7 +1111,13 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
               showDriverLabels={showDriverLabels}
               showDrsZones={showDrsZones}
               showCorners={showEvents}
+              showMarshalSectors={showMarshalSectors}
               corners={replay.trackMetadata?.corners ?? []}
+              drsZones={replay.trackMetadata?.drsZones ?? []}
+              marshalSectors={replay.trackMetadata?.marshalSectors ?? []}
+              activeMarshalFlagBySector={activeMarshalFlagBySector}
+              pitPulses={activePitPulses}
+              clockSeconds={currentTime}
               trackTotalLength={replay.trackMetadata?.length}
               projectMarkersToTrack={projectMarkers}
               estimatedLapDuration={estimatedLapDuration}
@@ -1132,10 +1228,12 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
             showDriverLabels={showDriverLabels}
             showDrsZones={showDrsZones}
             showEvents={showEvents}
+            showMarshalSectors={showMarshalSectors}
             estimatedLapDuration={estimatedLapDuration}
             onToggleLabels={() => setShowDriverLabels((value) => !value)}
             onToggleDrsZones={() => setShowDrsZones((value) => !value)}
             onToggleEvents={() => setShowEvents((value) => !value)}
+            onToggleMarshalSectors={() => setShowMarshalSectors((value) => !value)}
             onSpeedChange={setPlaybackSpeed}
             onSeek={handleSeek}
             onSkipLap={handleSkipLap}

@@ -187,7 +187,7 @@ export function SessionRouteClient({ manifest, summary, route }: SessionRouteCli
 
   if (state.status === "ready") {
     return (
-      <div className="page-stack">
+      <div className="page-stack session-summary-page">
         <section className="hero hero--compact">
           <p className="eyebrow">Session summary</p>
           <h1>
@@ -235,7 +235,7 @@ export function SessionRouteClient({ manifest, summary, route }: SessionRouteCli
 
   if (state.status === "replay-only") {
     return (
-      <div className="page-stack">
+      <div className="page-stack session-summary-page">
         <section className="hero hero--compact">
           <p className="eyebrow">Session summary</p>
           <h1>
@@ -282,7 +282,7 @@ export function SessionRouteClient({ manifest, summary, route }: SessionRouteCli
   }
 
   return (
-    <div className="page-stack">
+    <div className="page-stack session-summary-page">
       <section className="hero hero--compact">
           <p className="eyebrow">Session summary</p>
         <h1>

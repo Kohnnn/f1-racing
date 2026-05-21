@@ -46,9 +46,18 @@ function tyreShort(compound: string | null) {
   }
 }
 
-function tyreTitle(compound: string | null, age: number | null) {
+function tyreTitle(compound: string | null, age: number | null, fresh: boolean) {
   const label = compound || "Unknown compound";
+  if (fresh) {
+    return `${label}, fresh out of the pits`;
+  }
   return age === null ? label : `${label}, ${age} lap${age === 1 ? "" : "s"}`;
+}
+
+function tyreAgeLabel(age: number | null, fresh: boolean): string | null {
+  if (fresh) return "FRESH";
+  if (age === null) return null;
+  return `${age} laps`;
 }
 
 function tyreColor(compound: string | null) {
@@ -203,10 +212,14 @@ export function Leaderboard({ drivers, selectedDrivers, onDriverSelect }: Leader
                         : formatSpeed(driver.speed)}
                 </em>
               </span>
-              <span className="replay-leaderboard__tyre" title={tyreTitle(driver.compound, driver.tyreAge)} aria-label={tyreTitle(driver.compound, driver.tyreAge)}>
+              <span className="replay-leaderboard__tyre" title={tyreTitle(driver.compound, driver.tyreAge, (driver.tyreAge ?? -1) === 0)} aria-label={tyreTitle(driver.compound, driver.tyreAge, (driver.tyreAge ?? -1) === 0)}>
                 <span className="replay-leaderboard__tyre-dot" style={{ backgroundColor: tyreColor(driver.compound) }} />
                 {tyreShort(driver.compound)}
-                {driver.tyreAge !== null ? <em>{driver.tyreAge} laps</em> : null}
+                {tyreAgeLabel(driver.tyreAge, (driver.tyreAge ?? -1) === 0) ? (
+                  <em className={(driver.tyreAge ?? -1) === 0 ? "replay-leaderboard__tyre-fresh" : undefined}>
+                    {tyreAgeLabel(driver.tyreAge, (driver.tyreAge ?? -1) === 0)}
+                  </em>
+                ) : null}
                 {drsActive ? <strong>DRS</strong> : null}
               </span>
             </button>

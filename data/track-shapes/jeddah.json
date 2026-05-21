@@ -3057,11 +3057,35 @@
       "trackPosition": 5472.636977391344
     }
   ],
-  "drsZones": [],
+  "drsZones": [
+    {
+      "id": "DRS1",
+      "fromRatio": 0.96,
+      "toRatio": 0.04,
+      "from": 58671.04774190921,
+      "to": 2444.6269892462174
+    },
+    {
+      "id": "DRS2",
+      "fromRatio": 0.4,
+      "toRatio": 0.48,
+      "from": 24446.269892462176,
+      "to": 29335.523870954607
+    },
+    {
+      "id": "DRS3",
+      "fromRatio": 0.78,
+      "toRatio": 0.85,
+      "from": 47670.22629030124,
+      "to": 51948.32352148212
+    }
+  ],
   "pitEntryDistance": null,
   "pitExitDistance": null,
   "length": 61115.674731155435,
   "source": "multiviewer.app",
   "fetchedAt": "2026-05-20T16:27:32.877Z",
-  "fastF1HydratedAt": "computed-via-fastf1-circuit-info"
+  "fastF1HydratedAt": "computed-via-fastf1-circuit-info",
+  "drsZonesSeededAt": "2026-05-21T05:06:44.142Z",
+  "drsZonesSource": "fia-2025-event-notes"
 }

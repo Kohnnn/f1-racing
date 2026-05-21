@@ -254,6 +254,7 @@ export function LiveRouteClient({
   const [reloadKey, setReloadKey] = useState(0);
   const [delaySeconds, setDelaySeconds] = useState(0);
   const [frameAgeMs, setFrameAgeMs] = useState<number | null>(null);
+  const [showRaceControl, setShowRaceControl] = useState(true);
   const timerRef = useRef<number | null>(null);
   const speed = initialSpeed;
   const initialSessionId = `${initialSession.season}:${initialSession.grandPrix}:${initialSession.session}`;
@@ -585,6 +586,35 @@ export function LiveRouteClient({
     return lookup;
   }, [lapHistoryByDriver]);
 
+  // Detect out-laps based on either compound change or a lap time well above the driver's
+  // running median (matches the heuristic used in ReplayView).
+  const outLapByDriverLap = useMemo(() => {
+    const lookup = new Set<string>();
+    for (const [driverCode, laps] of lapHistoryByDriver.entries()) {
+      const completedTimes = laps
+        .map((lap) => lap.lapTime)
+        .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+      if (completedTimes.length < 4) continue;
+      const sorted = [...completedTimes].sort((a, b) => a - b);
+      const median = sorted[Math.floor(sorted.length / 2)];
+      const previousCompoundByLap = new Map<number, string | null>();
+      let previousCompound: string | null = null;
+      for (const lap of laps) {
+        previousCompoundByLap.set(lap.lapNumber, previousCompound);
+        if (lap.compound) previousCompound = lap.compound;
+      }
+      for (const lap of laps) {
+        if (lap.lapTime === null) continue;
+        const compoundChanged = lap.compound && previousCompoundByLap.get(lap.lapNumber) && previousCompoundByLap.get(lap.lapNumber) !== lap.compound;
+        const slowOutlier = lap.lapTime > median * 1.18;
+        if (compoundChanged || slowOutlier) {
+          lookup.add(`${driverCode}:${lap.lapNumber}`);
+        }
+      }
+    }
+    return lookup;
+  }, [lapHistoryByDriver]);
+
   const displayedDrivers = useMemo<ReplayLeaderboardRow[]>(() => {
     if (!renderedCurrentFrame) {
       return [];
@@ -595,7 +625,9 @@ export function LiveRouteClient({
       .sort((left, right) => left.position - right.position)
       .map((driver) => {
         const info = driverInfoByCode.get(driver.driverCode);
-        const lastLapLabel = previousLapLabelByDriverLap.get(`${driver.driverCode}:${driver.lap || 0}`) ?? null;
+        const lapKey = `${driver.driverCode}:${driver.lap || 0}`;
+        const lastLapLabel = previousLapLabelByDriverLap.get(lapKey) ?? null;
+        const isOutLap = outLapByDriverLap.has(lapKey);
 
         return {
           abbr: driver.driverCode,
@@ -614,9 +646,10 @@ export function LiveRouteClient({
           rpm: driver.rpm,
           drs: driver.drs,
           lastLapLabel,
+          isOutLap,
         };
       });
-  }, [driverInfoByCode, previousLapLabelByDriverLap, renderedCurrentFrame]);
+  }, [driverInfoByCode, outLapByDriverLap, previousLapLabelByDriverLap, renderedCurrentFrame]);
 
   const selectedTelemetryDrivers = displayedDrivers.filter((driver) => selectedDrivers.includes(driver.abbr));
   const leadDriver = displayedDrivers[0] || null;
@@ -807,6 +840,17 @@ export function LiveRouteClient({
                 <span>Messages</span>
                 <strong>{feed.rcMessages.length || 0}</strong>
               </div>
+              <button
+                type="button"
+                className={`replay-track-panel__messages-button${showRaceControl ? " replay-track-panel__messages-button--open" : ""}`}
+                onClick={() => setShowRaceControl((value) => !value)}
+                aria-expanded={showRaceControl}
+                aria-label="Toggle race control messages"
+                disabled={feed.rcMessages.length === 0}
+              >
+                <span>Race control</span>
+                <strong>{showRaceControl ? "Hide" : "Show"}</strong>
+              </button>
             </div>
           </div>
 
@@ -817,10 +861,15 @@ export function LiveRouteClient({
               currentFrame={renderedCurrentFrame}
               nextFrame={null}
               selectedDrivers={selectedDrivers}
+              corners={replayMeta.trackMetadata?.corners ?? []}
+              drsZones={replayMeta.trackMetadata?.drsZones ?? []}
+              marshalSectors={replayMeta.trackMetadata?.marshalSectors ?? []}
+              trackTotalLength={replayMeta.trackMetadata?.length}
+              clockSeconds={currentTime}
               onDriverClick={handleDriverSelect}
             />
 
-            {feed.rcMessages.length ? (
+            {showRaceControl && feed.rcMessages.length ? (
               <div className="replay-race-control">
                 <p>Race control</p>
                 <ul>

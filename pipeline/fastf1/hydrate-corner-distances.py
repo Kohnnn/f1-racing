@@ -59,7 +59,12 @@ def resolve_filename(track_id: str) -> str:
     return SLUG_TO_FILENAME.get(track_id, track_id)
 
 
-def hydrate_corner_distances(year: int, limit: int | None = None) -> tuple[int, int]:
+def hydrate_corner_distances(
+    year: int,
+    limit: int | None = None,
+    rounds: set[int] | None = None,
+    circuits: set[str] | None = None,
+) -> tuple[int, int]:
     try:
         import fastf1  # type: ignore
     except ImportError:
@@ -75,6 +80,32 @@ def hydrate_corner_distances(year: int, limit: int | None = None) -> tuple[int, 
         print(f"No events for year {year}")
         return (0, 0)
 
+    # Pre-resolve which round numbers we actually want to hydrate so we never
+    # load timing/laps data for skipped events. Without this filter the script
+    # downloads every Grand Prix in the season just to discover which ones
+    # match the requested circuits.
+    target_rounds: set[int] | None = rounds.copy() if rounds is not None else None
+    if circuits is not None:
+        derived: set[int] = set()
+        for index, event in schedule.iterrows():
+            country = str(event.get("Country", "")).lower().replace(" ", "-")
+            location = str(event.get("Location", "")).lower().replace(" ", "-")
+            event_name = str(event.get("EventName", "")).lower().replace(" ", "-")
+            for candidate in (location, country, event_name):
+                if not candidate:
+                    continue
+                if candidate in circuits:
+                    derived.add(int(event["RoundNumber"]))
+                    break
+                if resolve_filename(candidate) in circuits:
+                    derived.add(int(event["RoundNumber"]))
+                    break
+        if derived:
+            target_rounds = derived if target_rounds is None else (target_rounds & derived)
+        else:
+            print(f"No matching rounds found for circuits={circuits}")
+            return (0, 0)
+
     ok = 0
     failed = 0
 
@@ -83,6 +114,8 @@ def hydrate_corner_distances(year: int, limit: int | None = None) -> tuple[int, 
             break
 
         round_num = int(event["RoundNumber"])
+        if target_rounds is not None and round_num not in target_rounds:
+            continue
         country = str(event.get("Country", ""))
         location = str(event.get("Location", ""))
         official = str(event.get("OfficialEventName", ""))
@@ -130,6 +163,9 @@ def hydrate_corner_distances(year: int, limit: int | None = None) -> tuple[int, 
                 failed += 1
                 continue
 
+            if circuits is not None and target_path.stem.lower() not in circuits:
+                continue
+
             payload = json.loads(target_path.read_text(encoding="utf-8"))
 
             corner_records = []
@@ -164,13 +200,33 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Hydrate corner distances into canonical track shapes via FastF1.")
     parser.add_argument("--year", type=int, default=2025)
     parser.add_argument("--limit", type=int, default=None, help="Stop after this many circuits (testing).")
+    parser.add_argument(
+        "--rounds",
+        type=str,
+        default=None,
+        help="Comma-separated list of round numbers to hydrate (e.g. 6,21).",
+    )
+    parser.add_argument(
+        "--circuits",
+        type=str,
+        default=None,
+        help="Comma-separated list of canonical track-shape filenames (without .json) to hydrate.",
+    )
     args = parser.parse_args()
 
     if not TRACK_SHAPES_DIR.exists():
         print(f"track-shapes directory missing: {TRACK_SHAPES_DIR}")
         sys.exit(1)
 
-    ok, failed = hydrate_corner_distances(args.year, args.limit)
+    rounds = None
+    if args.rounds:
+        rounds = {int(value.strip()) for value in args.rounds.split(",") if value.strip()}
+
+    circuits = None
+    if args.circuits:
+        circuits = {value.strip().lower() for value in args.circuits.split(",") if value.strip()}
+
+    ok, failed = hydrate_corner_distances(args.year, args.limit, rounds=rounds, circuits=circuits)
     print(f"\nDone. ok={ok} failed={failed}")
 
 

@@ -23,10 +23,12 @@ interface PlaybackControlsProps {
   onToggleLabels: () => void;
   onToggleDrsZones: () => void;
   onToggleEvents: () => void;
+  onToggleMarshalSectors?: () => void;
   onLoadFullRace?: () => void;
   showDriverLabels: boolean;
   showDrsZones: boolean;
   showEvents: boolean;
+  showMarshalSectors?: boolean;
   events: Array<{
     t: number;
     label: string;
@@ -92,10 +94,12 @@ export function PlaybackControls({
   onToggleLabels,
   onToggleDrsZones,
   onToggleEvents,
+  onToggleMarshalSectors,
   onLoadFullRace,
   showDriverLabels,
   showDrsZones,
   showEvents,
+  showMarshalSectors,
   events,
   estimatedLapDuration,
 }: PlaybackControlsProps) {
@@ -229,8 +233,18 @@ export function PlaybackControls({
           <button type="button" className={showDriverLabels ? "is-active" : ""} onClick={onToggleLabels}>Labels L</button>
           <button type="button" className={showDrsZones ? "is-active" : ""} onClick={onToggleDrsZones}>DRS D</button>
           <button type="button" className={showEvents ? "is-active" : ""} onClick={onToggleEvents}>Events B</button>
+          {onToggleMarshalSectors ? (
+            <button
+              type="button"
+              className={showMarshalSectors ? "is-active" : ""}
+              onClick={onToggleMarshalSectors}
+              title="Toggle marshal-sector flag overlays"
+            >
+              Marshals M
+            </button>
+          ) : null}
         </div>
-        <p>Space play/pause · arrows seek · Shift+arrows 30s · [ ] laps · R restart · 1-5 speed presets</p>
+        <p>Space play/pause · arrows seek · Shift+arrows 30s · [ ] laps · R restart · 1-5 speed presets · M marshals</p>
       </div>
     </section>
   );

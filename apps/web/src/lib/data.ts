@@ -573,7 +573,8 @@ export interface ReplayPack {
     rotationDeg: number;
     length: number;
     corners: Array<{ number: number; letter: string; angleDeg: number; trackPosition: number | null }>;
-    drsZones: Array<{ from: number; to: number }>;
+    drsZones: Array<{ id?: string; from: number; to: number; fromRatio?: number; toRatio?: number }>;
+    marshalSectors?: Array<{ index: number; fromDistance: number; toDistance: number; flag?: string | null }>;
     source: string;
   } | null;
   laps: ReplayLap[];
