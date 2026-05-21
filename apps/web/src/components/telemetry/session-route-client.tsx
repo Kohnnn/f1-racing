@@ -185,6 +185,19 @@ export function SessionRouteClient({ manifest, summary, route }: SessionRouteCli
     return fastest;
   }, [state]);
 
+  const lapsByDriver = useMemo(() => {
+    if (state.status !== "ready") {
+      return new Map<string, LapRecord[]>();
+    }
+    const map = new Map<string, LapRecord[]>();
+    for (const lap of state.laps) {
+      const list = map.get(lap.driverCode) ?? [];
+      list.push(lap);
+      map.set(lap.driverCode, list);
+    }
+    return map;
+  }, [state]);
+
   if (state.status === "ready") {
     return (
       <div className="page-stack session-summary-page">
@@ -211,18 +224,31 @@ export function SessionRouteClient({ manifest, summary, route }: SessionRouteCli
               <a className="button button--secondary" href={compareHref}>
                 Open compare route
               </a>
-            ) : null}
+            ) : (
+              <span className="button button--ghost button--disabled" aria-disabled="true" title="No compare pack exported for this session">
+                Compare route unavailable
+              </span>
+            )}
             {manifest.stints ? (
               <a className="button button--secondary" href={`/stints/${route.season}/${route.grandPrix}/${route.session}`}>
                 Open stint story
               </a>
-            ) : null}
+            ) : (
+              <span className="button button--ghost button--disabled" aria-disabled="true" title="No stint pack exported for this session">
+                Stint story unavailable
+              </span>
+            )}
           </div>
         </section>
 
         <section className="panel-grid panel-grid--two">
           {state.drivers.map((driver) => (
-            <DriverCard key={driver.driverCode} driver={driver} fastestLap={fastestByDriver.get(driver.driverCode)} />
+            <DriverCard
+              key={driver.driverCode}
+              driver={driver}
+              fastestLap={fastestByDriver.get(driver.driverCode)}
+              driverLaps={lapsByDriver.get(driver.driverCode)}
+            />
           ))}
         </section>
 

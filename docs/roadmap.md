@@ -18,6 +18,22 @@ report. Each pass touches one or more of these surfaces:
 
 ### Shipped in this pass
 
+- **Final replay workspace polish** — playback controls now include elapsed/remaining time, restart, speed label, load-full-race progress, hover/segment ribbons for SC/VSC/yellow/red/pit/DRS, lap-loop hooks (`I`, `O`, `P`), and a keyboard shortcut overlay.
+- **Professional telemetry strip** — replay telemetry now renders rolling SVG sparklines for speed, throttle, brake, and RPM alongside gear/DRS/lap readouts.
+- **Live Analysis Deck** — Live now has `Telemetry`, `Stints`, `Strategy`, and `Lap times` tabs, with live stint snapshots, strategy heuristics, and lap waterfall parity with Replay.
+- **Dark theme unification** — global page, panel, modelview, Learn, and control surfaces now run in a consistent dark theme. Light theme is deferred to long-tail.
+- **Route-aware shell navigation** — the shared nav is client-side aware and highlights the active surface, including the restored Sessions entry.
+- **Learn inline 3D stability** — inline model embeds no longer show a blank canvas; they use eager reveal, fixed viewer sizing, skeleton/progress UI, and error fallback.
+- **Learn progress controls** — module pages now show a step chip and local `Mark as read` controls at top and bottom.
+- **Modelview inspect upgrade** — inspect mode disables orbit, applies a dedicated visual state, pulses hotspots, adds DRS rear-wing emphasis, duplicates hotspots in compare mode, and scaffolds generated exploded-view assets at `/exploded-views/<season>/<constructor>.png`.
+- **Track canvas aspect fix** — replay/live track canvases now use `ResizeObserver` and render to the actual DOM size, removing Melbourne-style CSS stretching.
+- **Leaderboard correctness polish** — replay rows trust published race position, show gap-to-leader wording, wider constructor color stripes, position movement arrows, fastest-lap marker, and personal-best sector data from all driver laps.
+- **Session CTA clarity** — unavailable compare/stint actions now show disabled explanatory chips instead of disappearing or linking to empty surfaces.
+- **Wind tunnel offscreen pause** — the canvas solver skips simulation/draw work when offscreen to reduce wasted CPU/battery.
+- **Replay Library 2026 clarity** — 2026 cards now say `live OpenF1 pack` and coverage notes distinguish exported session types.
+
+### Shipped in previous pass
+
 - **DRS zones on track map** — `pipeline/export/src/seed-drs-zones.mjs` writes FIA-published 2025 DRS-zone fractions into every `data/track-shapes/<trackId>.json`. `track-renderer.ts` resolves zones from `replay.trackMetadata.drsZones` (cumulative-distance pairs) and tints the polyline arcs accordingly. Falls back to the previous heuristic when no zone data is present.
 - **Pit-stop pulses on the track map** — `ReplayView` scans loaded frames for tyre compound transitions and tyre-age-zero resets per driver, emits short-lived `PitPulse` markers, and `drawPitPulses` ages them against the replay clock.
 - **Marshal-sector flag overlays** — race-control messages mentioning `sector N` flip the corresponding sector tint via `drawMarshalSectors`. Toggle from the playback toolbar (`Marshals M` chip + `M` shortcut).
@@ -40,41 +56,16 @@ report. Each pass touches one or more of these surfaces:
 - Real corner labels via FastF1 hydration on 22/24 circuits.
 - OCI live-delay buffer.
 
-### Queued (next pass) — v3 regressions + carry-over
-
-#### P0 — visual regressions surfaced in v3 evaluation
-
-- **B3 Melbourne track map distortion** — normalize polyline aspect ratio to canvas bounds for circuits whose bbox aspect ratio differs from the canvas. The `buildTrackGeometry` scaler currently uses a single uniform scale derived from min(width/height) ratios; circuits like Melbourne (squat oval) end up squished vertically.
-- **B7 Modelview LOADING overlay persists** — clear `LOADING …` banner on `model-viewer` `load` event.
-- **B8 Modelview blank canvas gap** — fix container sizing on the modelview wrapper so the wind tunnel sits flush below the 3D viewer rather than below an empty rectangle.
-
-#### P1 — data correctness
-
-- **B4 Live driver code typo** (`VFR` → `VER`).
-- **B5 Replay leaderboard sort** when not on a dense polyline (avoid the projected-distance fallback flipping P17 between P3/P4).
-- **B6 Mini-bar gap label** — only P1 should read `Leader`.
-- **B10 Inline race control widget stuck on Lap 1** — re-bind to the live frame clock, the popover already advances correctly.
-- **B16 Analysis Deck heading** — propagate the active tab into the heading text (currently always says "Race control" once that tab has been used).
-- **B21 CURRENT READ leader copy** — should follow the actual leader on track, not whoever was first when the page loaded.
-
-#### P2 — UX polish
-
-- **B2 Live track-map loading skeleton.**
-- **B13 LOAD FULL RACE progress indicator** — replace the static button with a percentage + ETA while chunks fetch in the background.
-- **B14 Live tyre column overflow** on narrow viewports.
-- **B17 Home hero camera initial frame** — start the RB21 hero in the side-view pose.
-- **B22 Modelview wind tunnel viewport pause** — pause the fluid worker when the canvas leaves the viewport.
-
 ### Long-tail / research
 
+- **Light theme** — deferred until the dark product shell is stable across all pages.
+- **Generated exploded-view assets** — current UI looks for `/exploded-views/<season>/<constructor>.png`. Generate with 9Router/image tooling and commit optimized PNGs per constructor.
 - **Decode Draco-compressed GLBs** so we can trace silhouettes for Ferrari, Mercedes, Alpine (needs `draco3d` or Three.js `DRACOLoader`). Deferred at user request — not in current scope.
 - **Williams / Racing Bulls / Haas / Kick Sauber GLBs** — blocked on source asset drop; deferred at user request.
 - **Tier 3 baked OpenFOAM Cp surface fields** projected onto the GLB.
 - **Live SignalR ingestion** from the Formula 1 timing feed behind an explicit OCI-only flag.
 - **Telemetry stream / debug route** that consumes the same replay/live frame state as the workspace.
-- **Marshal-sector flag overlays parity** — wire FastF1 marshal sector geometry into `data/track-shapes/<trackId>.json` so overlays target real geometry, not a polyline-ratio approximation.
 - **2026 practice (FP1/2/3) packs** — currently skipped to keep the OpenF1 request count down.
-- **Hover preview tooltip on the scrubber** + **lap loop / bookmark mode** — closes the remaining v3 industry-benchmark gaps vs. F1 TV / Motec.
 - **Wind tunnel Cp legend strip** with gradient bar.
 - **Driver photo grid on Session Summary** (fix crop first).
 - **Scroll-spy for Modelview sections.**
@@ -94,4 +85,3 @@ report. Each pass touches one or more of these surfaces:
   each) and pin the canonical shape per circuit for static export.
 - Run `node pipeline/export/src/refresh-seasons-index.mjs` after any
   new pack build so `seasons.json` and the web mirror stay accurate.
-

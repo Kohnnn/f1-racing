@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
+import { SiteNav } from "@/components/shell/site-nav";
 
 export const metadata: Metadata = {
   title: {
@@ -27,19 +28,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
               <span className="brand__eyebrow">Replay-first F1 viewer</span>
               <strong>F1 Racing</strong>
             </a>
-            <div className="site-header__navs">
-              <nav className="site-nav site-nav--primary">
-                <a href="/live">Live</a>
-                <a href="/replay">Replay</a>
-              </nav>
-              <nav className="site-nav site-nav--secondary">
-                <a href="/cars/current-spec">Modelview</a>
-                <a href="/learn">Learn</a>
-              </nav>
-            </div>
+            <SiteNav />
           </header>
           <main>{children}</main>
         </div>
+        <a href="#top" className="scroll-to-top" aria-label="Scroll to top">↑</a>
       </body>
     </html>
   );

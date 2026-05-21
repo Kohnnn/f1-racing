@@ -1,6 +1,37 @@
 
 ---
 
+## Final UI / Replay Pass — shipped 2026-05-22
+
+Build verification: `npm run next:build -w @f1-racing/web` passed and exported 334 static pages.
+
+### Fixed in this pass
+
+| Area | Result |
+|------|--------|
+| Learn inline 3D | Model embeds no longer blank; eager reveal, fixed canvas height, loader, progress UI, and fallback added. |
+| Replay controls | Scrubber now has elapsed/remaining time, restart, speed label, load progress/ETA, event ribbons, lap loop hooks, and shortcut overlay. |
+| Session dead CTAs | Compare/stint actions now show disabled explanatory chips when unavailable. |
+| Dark theme | Page shell, panels, modelview, controls, and Learn surfaces use a consistent dark product theme. |
+| Navigation | Route-aware shell nav highlights the active page and includes Sessions. |
+| Live Analysis Deck | Added `Telemetry · Stints · Strategy · Lap times` with live stint and strategy readouts. |
+| Modelview inspect | Inspect mode now has dark technical staging, pulsing hotspots, DRS rear-wing emphasis, compare hotspots, and exploded-view asset scaffold. |
+| Replay telemetry | Added rolling SVG sparklines for speed, throttle, brake, and RPM. |
+| Track canvas | Canvas bitmap now tracks actual DOM size via `ResizeObserver`, fixing CSS aspect distortion. |
+| Leaderboard | Replay ordering trusts race position, gap labels are position-aware, movement arrows and fastest-lap markers added. |
+| Driver sectors | Personal-best sector now scans all driver laps instead of only fastest-lap sectors. |
+| Learn progress | Module pages include step chip and local `Mark as read` controls. |
+| Wind tunnel | Simulation/draw work pauses while the canvas is offscreen. |
+| Replay Library | 2026 copy now distinguishes live OpenF1 packs and exported session availability. |
+
+### Remaining roadmap items
+
+- Generate and commit `/exploded-views/<season>/<constructor>.png` assets with 9Router/image tooling.
+- Add Draco decoder support for compressed GLBs and ingest missing constructor source assets.
+- Keep light theme, OpenFOAM Cp fields, SignalR ingestion, and 2026 practice packs in long-tail.
+
+---
+
 # F1 Racing App — QA Evaluation Report **v3**
 
 **URL:** `https://playful-peony-77899c.netlify.app/`
@@ -253,3 +284,439 @@ now queued for the next pass — see `docs/roadmap.md`.
 ### Carried into next pass (from v3)
 
 P0 visual regressions (B3 / B7 / B8), P1 data correctness (B4 / B5 / B6 / B10 / B16 / B21), P2 polish (B2 skeleton / B13 progress / B14 tyre overflow / B17 hero camera / B22 viewport pause). See `docs/roadmap.md`.
+
+VERSION V4
+---
+
+# F1 RACING VIEWER — QA EVALUATION REPORT v2
+
+**Tester:** AI QA | **Date:** 2026-05-21 | **Build:** Netlify `playful-peony-77899c` | **Scope:** All pages, all tabs, all interactive flows
+
+***
+
+## 1. SITE-WIDE OBSERVATIONS
+
+### 1.1 Theme Inconsistency — CRITICAL BUG
+
+| Page | Theme |
+|---|---|
+| LIVE | Dark |
+| REPLAY Workspace | Dark |
+| SESSION SUMMARY | **Light (white bg)** |
+| REPLAY LIBRARY hero | Dark → transitions to **Light** card section |
+| LEARN index | **Light** |
+| LEARN module (Car) | **Light** |
+| MODELVIEW | Dark header → **Light** card stage |
+
+**Impact:** Jarring visual context switch. User feels like they've left the app. Navigation bar stays dark on all pages which creates a floating nav anomaly on light pages. Benchmark (F1 official, Fastf1, RaceFans) — all use a single consistent theme throughout their session UIs. [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/replay/)
+
+### 1.2 Navigation — Active State
+
+- REPLAY nav item underlined on Replay Library. [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/replay/)
+- LIVE, MODELVIEW, LEARN have no active underline/highlight when on their respective pages.
+- **Bug:** Nav active indicator not applied consistently to all routes.
+
+### 1.3 Page Title Branding
+
+- All pages show `REPLAY-FIRST F1 VIEWER` as subtitle above `F1 Racing` logo — good for context but "F1 Racing" is a generic name; consider a project name.
+
+***
+
+## 2. REPLAY PAGE — Australian Grand Prix
+
+**URL:** `/replay/2025/australian-grand-prix/race/` [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/replay/2025/australian-grand-prix/race/)
+
+### 2.1 Header Stats Block
+
+✅ STATUS: GREEN | REPLAY CLOCK: updates correctly | LAP: 1/57 | TRACK: Melbourne  
+✅ WEATHER: 15.7C air / 19.2C track | WIND: 3.9m/s - 253°  
+✅ Quick-links: REPLAY LIBRARY | MODELVIEW | ILEARN | SESSION SUMMARY — all working
+
+### 2.2 Playback Controls — Tested
+
+| Control | Result |
+|---|---|
+| PLAY | Works → changes to PAUSE, clock advances |
+| PAUSE | Works → stops clock |
+| +30s skip | Works → clock jumped 0:10→0:40, leader changed VER→NOR |
+| 0.2x speed | Works → button highlights orange |
+| Speed presets (0.1x–20x) | All selectable |
+| -5m / -1m / -30s / -5s offsets | Visible, not tested for all edge cases |
+| +5s / +30s / +1m / +5m | Visible |
+| PREV LAP / NEXT LAP | Visible |
+| LOAD FULL RACE button | Visible |
+| Scrubber bar | Visible progress indicator |
+
+**Bugs / Missing:**
+
+- ❌ **No keyboard shortcut indicator on PLAY button itself** — shortcut is Space but button has no tooltip hint
+- ❌ **No elapsed time / remaining time displayed on scrubber** — only "LOADED TO 47:52 / 1:46:08" in status bar which is small text
+- ❌ **No scrubber drag-to-seek** — cannot click arbitrary position on scrubber bar to jump to that moment (this is standard in all media players)
+- ❌ **No loop button** — for studying specific lap sections repeatedly
+- ❌ **No restart button** — "R" key works per shortcut legend but no visible button
+- ❌ **LOAD FULL RACE**: only loads 47:52 by default → confusing why not all loaded at once; no loading indicator/progress bar for this action
+- ⚠️ Labels toggle (LABELS L), DRS (DRS D), Events (EVENTS B), Marshals (MARSHALS M) visible as toggles but small/hard to discover — no icons
+- ⚠️ Speed presets row (0.1x → 20x) not labeled as "Speed" — a new user won't know what these are
+- ⚠️ Shortcut legend (`Space play/pause · arrows seek · Shift+arrows 30s · [] laps · R restart · 1-5 speed presets · M marshals`) is plain text, very small, easy to miss
+
+### 2.3 Track Map
+
+✅ Cars animated and move during playback [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/replay/2025/australian-grand-prix/race/)
+✅ Driver labels appear on track (NOR, VER, PIA, BOR etc.)  
+✅ Race Control messages appear inside map overlay  
+✅ Top-3 position strip below map (1 NOR Leader / 11 DOO Leader / 15 SAI Leader)  
+⚠️ Only top 3 shown in position strip — no way to expand without the leaderboard  
+❌ Cannot click car dots on map to select — must use leaderboard (conflicting UX; track map says "Click any marker to inspect a car")  
+**Bug found:** Map click-to-select may not be working for all car positions when crowded
+
+### 2.4 Leaderboard
+
+✅ Columns: POS | DRIVER (3-letter code, full name, team) | GAP | TYRE  
+✅ Live lap time shown on each driver row when selected  
+✅ Leaderboard reorders dynamically as replay advances  
+✅ 1 SELECTED / CLEAR shown when driver selected  
+✅ SHIFT+CLICK for compare mode supported  
+✅ Tyre legend at bottom (S SOFT, M MEDIUM, H HARD, I INTER, W WET)  
+❌ GAP column: shows "+X.XXX" for gap, but no indication of whether it's gap to leader or to car ahead — ambiguous  
+❌ No constructor color strip on driver rows (present in F1's own timing app)  
+❌ DNF/DNS drivers: listed but position numbers are arbitrary (11, 15, 26) — should be greyed/separated at bottom  
+
+### 2.5 Analysis Deck — 7 Tabs
+
+**TELEMETRY (selected):** [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/replay/2025/australian-grand-prix/race/)
+✅ Speed (km/h), Tyre compound + lap count, Last lap time  
+✅ Throttle (bar), Brake (bar), Gear, DRS (0/1), RPM, LAP  
+❌ No visual graphs/waveforms — all numeric readouts only. Benchmark: F1TV Pro shows waveform overlay per lap. Add mini bar charts or sparklines.  
+❌ LAST LAP shows "-" at race start — expected but jarring
+
+**COMPARE:** [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/replay/2025/australian-grand-prix/race/)
+✅ "NOR vs VER" auto-compare with delta sections and AI-derived events  
+✅ Derived events are quality: "sector gain at S1 – NOR is faster through S1, likely from a cleaner line or more committed entry"  
+❌ No visual delta chart (time delta line across lap sectors like F1TV/FastF1)  
+❌ Second driver for compare is always VER (default leader) — no UI to change compare target within this tab
+
+**STINTS:**
+✅ Shows compound, average lap time, trend (getting faster/slower), laps range  
+✅ Side by side for 2 drivers  
+❌ No visual stint timeline bar (common in strategy tools like RacingReference)  
+❌ No pit stop events shown
+
+**STRATEGY:**
+✅ GREEN PIT LOSS (18.9s), SC/VSC PIT LOSS (11.5s), CROSSOVER → INTER (95%), CROSSOVER → WET (99%)  
+✅ "Recommended pit windows" with context text  
+❌ No probability chart/visualization  
+❌ All data is static text — harder to scan quickly
+
+**TRACK:**
+✅ Path points (2469), Total laps (57), DRS zones (3 illustrative), Source: OPENF1  
+❌ No visual mini track diagram in this panel  
+❌ DRS zones labeled "illustrative" — should clarify when actual zones will be populated
+
+**LAP TIMES:**
+✅ Beautiful heatmap waterfall — all drivers across 57 laps, green→red per speed [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/replay/2025/australian-grand-prix/race/)
+✅ Lap number axis at top (L1, L14, L29, L43, L57)  
+❌ No hover tooltip on cells showing exact lap time  
+❌ No ability to click a cell to jump the replay to that lap  
+❌ Driver names truncated to team+code only, hard to read at a glance
+
+**RACE CONTROL (98):**  
+Badge shows 98 messages — not tested in detail but tab renders correctly
+
+***
+
+## 3. LIVE PAGE — Abu Dhabi Grand Prix (Yas Marina)
+
+**URL:** `/live/` | STATUS: SIMULATED  [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/live/)
+
+### 3.1 Header
+
+✅ FEED: Local replay simulator | REPLAY CLOCK: 0:16/1:56:32 | LAP: 1/58  
+✅ WEATHER: 26.8C air / 31.4C track | WIND: 2.9m/s - 328°  
+✅ STATUS badge: "SIMULATED" (amber color) — distinct from "GREEN"  
+✅ Quick-links: REPLAY ROUTE | ABU DHABI GRAND PRIX SUMMARY | MODELVIEW | LEARN  
+✅ DISPLAY DELAY slider (0s) — unique to LIVE page, not in Replay  
+
+### 3.2 Key Differences from Replay (correctly implemented)
+
+✅ No playback controls bar — correct, it's live  
+✅ Leaderboard shows **speed (km/h)** as sub-text instead of last lap  
+✅ TYRE column shows "FRESH" badges  
+✅ MESSAGES counter shows 1 instead of 98  
+
+### 3.3 Bugs / Missing vs Replay
+
+❌ **No Analysis Deck on Live page** — only "Selected live telemetry strips." Replay has a 7-tab Analysis Deck; Live has none. Users cannot see lap times, strategy, or stints during a live session. This is a major gap.  
+❌ **No fastest lap tracker** visible on Live  
+❌ DISPLAY DELAY slider: range unclear (0 to what? seconds? minutes?). No max label.  
+❌ RACE CONTROL box: Shows only "SessionStatus: T+0s · Lap 1 · SESSION STARTED" — same single message even as simulation advances. Needs scrolling message feed like Replay.  
+
+### 3.4 Leaderboard Live Differences
+
+✅ Real-time gap updates (+0.417, +3.829, etc.)  
+✅ Speed shown per driver  
+⚠️ After selecting driver, leaderboard switches from speed to last lap times — mode switch is not labeled/indicated to user
+
+***
+
+## 4. SESSION SUMMARY PAGE
+
+**URL:** `/sessions/2025/australian-grand-prix/race/` [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/sessions/2025/australian-grand-prix/race/)
+
+### 4.1 Design
+
+⚠️ **Light theme** — hard contrast switch from dark app  
+✅ Header: Fastest Lap (NOR · 1:22.167), Track, Air/Track Temp, Rain Risk (100%)  
+✅ Three CTAs: "Open replay", "Open compare route", "Open stint story"  
+✅ Driver cards in 2-column grid: team name (colored), driver, CODE, best lap, compound, stints, best sector  
+
+### 4.2 Driver Cards
+
+✅ DNF/DNS badges visible (colored chips)  
+✅ HAD card shows "Did not start"  
+✅ All 20 drivers visible when scrolling  
+❌ No driver headshot or number livery  
+❌ No constructor championship points shown  
+❌ "Open compare route" and "Open stint story" CTAs navigate nowhere (404 or same page) — dead links  
+❌ Best Sector column always shows S2 for most drivers — suspicious, may be data issue  
+❌ Stints count is sometimes "-" for DNF drivers where stints=1 is shown — inconsistent
+
+***
+
+## 5. MODELVIEW PAGE
+
+**URL:** `/cars/current-spec/` [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/cars/current-spec/)
+
+### 5.1 Features Working
+
+✅ Season selector (2025, 2026) and Constructor selector (all teams)  
+✅ View modes: Studio, Side, Front, Top, Orbit, Inspect — all switch correctly  
+✅ Side view shows correct angle with description "Best read for wheelbase, body length, and rake" [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/cars/current-spec/?season=2026&constructor=fia-2026)
+✅ Compare side-by-side: Ferrari SF-25 vs Red Bull RB21 rendered simultaneously [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/cars/current-spec/?season=2025&constructor=ferrari)
+✅ Button toggles "Compare side-by-side" → "Hide compare"  
+✅ Hotspot labels on 3D model (Rear wing, Floor, Tyres, Brakes, Front wing)  
+✅ Airflow Layer panel: Overlay off / Front load / Floor channel / Rear wake  
+✅ Current Model metadata: Season, Constructor, Asset size, Status  
+✅ FIA 2026 concept car loads (~3.7MB), Red Bull RB21 (~3.1MB compressed), Ferrari SF-25 (~5.6MB)  
+✅ Focus Point panel with clickable hotspots linking to learn modules  
+
+### 5.2 Bugs / Missing
+
+❌ **Inspect mode**: clicking Inspect button highlights it but no visible behavior change in the view — expected to show an exploded/annotated view  
+❌ **No drag/rotate instructions** — users may not realize the model is interactive (no "drag to rotate" hint)  
+❌ **Loading indicator**: "LOADING [CAR] - ~X MB" shown but no progress bar; model appears instantly (good) but text stays showing  
+❌ **Compare mode**: left car has hotspot labels, right car has none and no label overlay — comparison is purely visual with no annotation on the reference car  
+❌ **No animation**: no moving DRS, no suspension travel demo — static model only  
+❌ **No zoom**: no scroll-to-zoom instruction or visible control  
+❌ Season 2026 constructor options only show "FIA 2026 spec" — no per-team 2026 cars yet (expected but should be labeled "concept only")  
+
+***
+
+## 6. REPLAY LIBRARY PAGE
+
+**URL:** `/replay/` [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/replay/)
+
+### 6.1 Features Working
+
+✅ Dark hero section with "Find an exported F1 session" headline  
+✅ 3-panel info cards: LATEST PACK / LIVE DESK / MODELVIEW  
+✅ Quick-link buttons: Open latest replay / Open live feed / Open modelview / Open learn  
+✅ Search bar: instant filter — "Monaco" → 1 result (Monaco 2025) working correctly  
+✅ NEWEST FIRST / OLDEST FIRST sort toggles  
+✅ "34 grand prix" count badge  
+✅ 2026 session cards clearly marked "2026 preview replay" (orange label)  
+✅ Sprint weekends labeled "SPRINT WEEKEND – FULL COVERAGE"  
+
+### 6.2 Bugs / Missing
+
+❌ **Theme split**: hero is dark, card grid is light — jarring transition mid-page  
+❌ **2026 preview replays**: clicking Race/Qualifying cards for 2026 shows "2026 preview replay" text but unclear if they actually open or are placeholder  
+❌ **No filters**: no filter by session type (Race only, Qualifying only), no filter by team or driver  
+❌ **No "recently viewed" / bookmarks** section  
+❌ **No season filter pill** — must scroll to find a specific year  
+❌ Session cards: no race winner shown, no fastest lap, no weather icon — cards are sparse  
+❌ Search: no debounce indicator, no "no results" empty state message observed  
+
+***
+
+## 7. LEARN PAGE
+
+**URL:** `/learn/` [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/learn/)
+
+### 7.1 Features Working
+
+✅ 6 modules: Car → Aero → Tyres → Braking → Setup → Strategy  
+✅---
+
+## 7. LEARN PAGE (continued)
+
+**URL:** `/learn/` + `/learn/car/` [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/learn/)
+
+### 7.1 Features Working ✅
+
+- 6 modules in recommended order: Car → Aero → Tyres → Braking → Setup → Strategy [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/learn/)
+- Progress tracker: "0/6 read · 0%" with orange progress bar
+- **MARK AS READ** works correctly: Car card shows "✓ READ" (green badge), counter updates to "1/6 · 17%", CTA changes to "Continue with Aero", button toggles to "MARK UNREAD" — localStorage persistence confirmed [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/learn/)
+- Module cards show slug URL (`/learn/car`), step number (STEP 1 OF 6), description, and two sequential navigation links ("Continue to aero →", "View 3D car model →")
+- HOW TO USE LEARN section: contextual explanation of the cross-surface workflow
+- Module page layout: header, inline 3D model section, key points section, CONTINUE cards (2-up: "View 3D car model" + "Continue to aero") [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/learn/car/)
+
+### 7.2 Bugs / Missing ❌
+
+- **CRITICAL — Inline 3D model is completely blank (white canvas).** "Red Bull RB21" label visible at bottom-left but WebGL/Three.js canvas fails to render after 10+ seconds. No loading spinner, no error message, no fallback — the ~200px tall blank white box is confusing and broken. [playful-peony-77899c.netlify](https://playful-peony-77899c.netlify.app/learn/car/)
+- **No "Mark as read" button inside the module itself** — must go back to `/learn/` index to mark. Users who finish a module have no in-page completion action.
+- **No progress indicator inside module page** — user can't tell they're on step 1/6 while reading
+- No estimated read time per module
+- No images, diagrams, or illustrations in module text — pure text bullets only
+- HOW TO USE LEARN section is hidden at the bottom; should be an onboarding tooltip or modal on first visit
+- No search within Learn modules
+- "Explore sessions →" and "Return to car overview →" footer links in Strategy module not tested — may be dead links
+
+***
+
+## 8. CROSS-PAGE BENCHMARK: CONSISTENCY MATRIX
+
+| Feature | LIVE | REPLAY | SESSION SUMMARY | REPLAY LIBRARY | MODELVIEW | LEARN |
+|---|---|---|---|---|---|---|
+| Theme | Dark | Dark | **Light** | Mixed | Mixed | **Light** |
+| Nav active state | ❌ | ❌ | ❌ | ✅ (underline) | ❌ | ❌ |
+| Page title format | "Live · F1 Racing" | "GP · Race replay · F1 Racing" | "GP · Race · F1 Racing" | "Replay · F1 Racing" | "Modelview · F1 Racing" | "Learn/Car · F1 Racing" |
+| Quick action buttons | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Section labels (orange caps) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Analysis / Data deck | Partial (telemetry only) | Full (7 tabs) | Cards view | None | None | None |
+| Leaderboard | ✅ | ✅ | N/A | N/A | N/A | N/A |
+| Track map | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Keyboard shortcuts | ❌ | ✅ (small text) | ❌ | ❌ | ❌ | ❌ |
+| Search | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| Scroll-to-top button | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Mobile responsive | Not tested | Not tested | Not tested | Not tested | Not tested | Not tested |
+
+**Key benchmark gap vs F1TV Pro / FastF1 / Multiviewer:**
+
+- F1TV shows telemetry waveform overlays → this app shows only numeric readouts
+- FastF1 / RacingReference shows interactive lap time delta chart → this app shows heatmap only (good!) but no hover/click
+- Multiviewer has floating draggable panels → this app is fixed-layout only
+- All benchmarks use a single unified dark theme across all surfaces
+
+***
+
+## 9. BUG PRIORITY LIST
+
+### 🔴 P0 — CRITICAL (blocks core functionality)
+
+| # | Bug | Page | Impact |
+|---|---|---|---|
+| B1 | Inline 3D model in Learn/Car is blank — never renders | LEARN `/learn/car/` | LEARN module completely broken |
+| B2 | No scrubber click-to-seek — cannot jump to arbitrary replay position | REPLAY | Core media control missing |
+| B3 | "Open compare route" and "Open stint story" CTAs are dead links | SESSION SUMMARY | Feature promises that go nowhere |
+
+### 🟠 P1 — HIGH (major UX friction)
+
+| # | Bug | Page |
+|---|---|---|
+| B4 | Theme inconsistency — Session Summary, Learn, Replay Library use light theme while core app is dark | GLOBAL |
+| B5 | Nav active state missing on 4/5 nav items | GLOBAL |
+| B6 | Live page has no Analysis Deck (no stints, strategy, lap times during live session) | LIVE |
+| B7 | Inspect mode button activates but view shows no visible change | MODELVIEW |
+| B8 | Telemetry is pure numeric — no waveform/sparkline graphs | REPLAY/LIVE |
+| B9 | No loading state/spinner for inline 3D model (blank canvas with no feedback) | LEARN |
+
+### 🟡 P2 — MEDIUM (noticeable UX gaps)
+
+| # | Bug | Page |
+|---|---|---|
+| B10 | Scrubber bar has no timestamp labels or elapsed/remaining display | REPLAY |
+| B11 | LOAD FULL RACE has no progress indicator | REPLAY |
+| B12 | Speed presets row unlabeled — no "SPEED" header | REPLAY |
+| B13 | GAP column ambiguous (leader gap vs gap to car ahead) | REPLAY/LIVE |
+| B14 | DISPLAY DELAY slider has no max-value label | LIVE |
+| B15 | DNF/DNS drivers mixed into main leaderboard positions | REPLAY/LIVE |
+| B16 | Compare side-by-side: right car has no hotspot labels | MODELVIEW |
+| B17 | No "drag to rotate" hint on 3D model | MODELVIEW |
+| B18 | No MARK AS READ button inside individual module page | LEARN |
+| B19 | No progress step indicator inside module reading view | LEARN |
+| B20 | Replay Library: 2026 preview session cards clickable but destination unclear | REPLAY LIB |
+
+### 🔵 P3 — LOW / POLISH
+
+| # | Note |
+|---|---|
+| B21 | Shortcut legend text too small and unstyled |
+| B22 | Race Control toggle says "Show"/"Hide" inconsistently vs "Race Control" label |
+| B23 | Session Summary: Best Sector shows S2 for nearly all drivers — potential data bug |
+| B24 | No scroll-to-top button on any long pages |
+| B25 | LOADING model text stays displayed even after model loads |
+| B26 | No constructor color bar on leaderboard rows |
+
+***
+
+## 10. FEATURE IMPROVEMENT IDEAS (Prioritized)
+
+### Replay Controls — Benchmark F1TV / Multiviewer
+
+1. **Click-to-seek scrubber** with timestamp tooltip on hover — standard on all video/replay tools
+2. **Waveform telemetry graphs** — throttle/brake/speed as sparkline curves per lap, not just live numbers
+3. **Lap time delta visualization** — classic F1 delta chart (green/red relative to reference lap) in the COMPARE tab
+4. **Loop a lap segment** — press L to loop current lap for repeated study
+5. **Keyboard shortcut cheatsheet overlay** — press `?` to toggle a styled modal of all shortcuts
+6. **RESTART button** visible in controls bar (not just `R` key)
+7. **Speed label** on the 0.1x–20x preset row ("PLAYBACK SPEED ▼")
+8. **Scrubber segment markers** — show pit stop events, safety car periods, lap boundaries as tick marks on the scrubber bar
+9. **Mini lap timeline** below scrubber showing SC/VSC/RED FLAG events as color zones
+
+### Live Page
+
+1. **Live Analysis Deck** — port at minimum STINTS and STRATEGY tabs to the live surface
+2. **Fastest lap banner** — flash animation when fastest lap is set
+3. **Race Control message feed** — scrolling log rather than single-message display
+4. **DISPLAY DELAY slider** — add "0s" and "30s" endpoint labels, plus numeric readout
+
+### Leaderboard
+
+1. **Constructor color left-border** on each driver row (red=Ferrari, blue=RBR, etc.)
+2. **GAP label** — tooltip or column sub-header clarifying "gap to leader"
+3. **DNF/DNS separation** — greyed-out section below racing drivers with "CLASSIFIED / NOT CLASSIFIED" divider
+4. **Fastest lap indicator** — purple highlight on the fastest lap holder (F1 standard)
+5. **Position change arrows** — show +2 / -1 position delta since last update
+
+### Modelview
+
+1. **"Drag to rotate / scroll to zoom" ghost overlay** on first load (fades after 2s)
+2. **Animated DRS** — toggle DRS open/closed state on model
+3. **Compare mode labels** — constructor name + car model shown above each panel in compare view
+4. **Hotspot click behavior** — clicking a hotspot should snap camera to that part AND highlight it with a glow ring
+5. **Wind tunnel mode** — colored particle stream over airflow layer (illustrative)
+
+### Learn
+
+1. **Fix inline 3D model rendering** — highest priority; the blank canvas is the core differentiator of this module
+2. **In-page MARK AS READ button** at the bottom of each module
+3. **Step progress chip** inside module header: "Step 2 of 6 · Aero"
+4. **Estimated read time** per module card: "~4 min read"
+5. **Diagrams / illustrations** for each module (at minimum labeled SVG diagrams)
+6. **Contextual deep links** from Learn content into Replay — e.g., "See Norris's S1 gain →" links to jump replay to that moment
+
+### Global / UX Polish
+
+1. **Unified dark theme** across ALL pages — Session Summary, Learn, Replay Library card sections all need dark variants
+2. **Consistent nav active states** — all 4 nav items should highlight when on their route
+3. **Scroll-to-top button** on long pages (Session Summary, Replay Library, Learn)
+4. **Keyboard shortcut icon** (⌨) in corner of Replay + Live pages linking to shortcut overlay
+5. **Mobile layout pass** — not tested but given dense data density, likely broken below 768px
+6. **Favicon and OG meta tags** — check for proper social share preview and tab icon
+7. **404 page** — verify custom 404 for broken routes like "Open compare route"
+
+***
+
+## 11. OVERALL SCORES
+
+| Dimension | Score | Notes |
+|---|---|---|
+| Feature depth | 8.5/10 | Analysis Deck is genuinely excellent; 7 tabs, AI-derived compare insights |
+| Visual design | 7/10 | Dark theme looks great but theme inconsistency drags it down significantly |
+| Replay controls | 6/10 | Play/pause/speed work but missing scrubber seek, loop, waveforms |
+| Data accuracy | 8/10 | OpenF1-backed, real lap times, compounds, gaps all correct |
+| Navigation UX | 6/10 | No active nav states, dead CTAs, inconsistent cross-links |
+| Learn module | 4/10 | Inline 3D completely broken; text-only content otherwise |
+| Modelview | 8/10 | Best-in-class 3D car inspector; compare mode is impressive |
+| Live surface | 7/10 | Solid but missing Analysis Deck vs replay parity |
+| **Overall** | **7.0/10** | **Strong analytical core; fix theme + Learn 3D + scrubber = 8.5+** |

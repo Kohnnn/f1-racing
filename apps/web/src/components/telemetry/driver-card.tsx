@@ -1,9 +1,11 @@
-import { bestSectorLabel, formatLapTime } from "@f1-racing/telemetry-utils";
+import { formatLapTime, personalBestSector } from "@f1-racing/telemetry-utils";
 import type { DriverSummary, LapRecord } from "@/lib/data";
 
 interface DriverCardProps {
   driver: DriverSummary;
   fastestLap?: LapRecord;
+  /** All laps for this driver — used to compute the personal best per sector. */
+  driverLaps?: LapRecord[];
 }
 
 function bestLapLabel(driver: DriverSummary) {
@@ -21,8 +23,16 @@ function statusBadge(status?: DriverSummary["status"]) {
   return <span className={`driver-card__status driver-card__status--${status.toLowerCase()}`}>{status}</span>;
 }
 
-export function DriverCard({ driver, fastestLap }: DriverCardProps) {
+export function DriverCard({ driver, fastestLap, driverLaps }: DriverCardProps) {
   const showCompletedLap = driver.bestLapTime > 0;
+  // Real personal-best sector across every completed lap, not just the
+  // fastest lap (which always has S2 fastest at most circuits).
+  const personalBest = driverLaps?.length
+    ? personalBestSector(driverLaps)
+    : fastestLap
+      ? personalBestSector([fastestLap])
+      : { label: "-", seconds: null };
+
   return (
     <article className="panel driver-card">
       <div className="driver-card__header">
@@ -53,8 +63,8 @@ export function DriverCard({ driver, fastestLap }: DriverCardProps) {
         <div>
           <dt>Best sector</dt>
           <dd>
-            {showCompletedLap && fastestLap
-              ? bestSectorLabel(fastestLap.sector1, fastestLap.sector2, fastestLap.sector3)
+            {showCompletedLap && personalBest.label !== "-"
+              ? `${personalBest.label}${personalBest.seconds ? ` · ${personalBest.seconds.toFixed(3)}s` : ""}`
               : "-"}
           </dd>
         </div>

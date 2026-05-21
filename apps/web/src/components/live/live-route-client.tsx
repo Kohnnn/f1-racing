@@ -5,6 +5,7 @@ import type { ReplayFrame, ReplayLap, ReplayPack, ReplayRaceControlMessage, Sess
 import { buildClientDataUrl, buildClientWebSocketUrl, getClientApiOrigin } from "@/lib/client-data";
 import { Leaderboard, type ReplayLeaderboardRow } from "@/components/replay/Leaderboard";
 import { ReplayTelemetryStrip } from "@/components/replay/replay-telemetry-strip";
+import { ReplayLapWaterfall } from "@/components/replay/replay-insights";
 import { TrackCanvas } from "@/components/replay/TrackCanvas";
 
 export interface LiveSessionRef {
@@ -152,11 +153,11 @@ function buildSyntheticFrame(
   };
 }
 
-function intervalLabel(interval: number | null) {
+function intervalLabel(interval: number | null, position?: number) {
   if (interval === null) {
     return "-";
   }
-  if (interval === 0) {
+  if (position === 1) {
     return "Leader";
   }
   return `+${interval.toFixed(3)}`;
@@ -255,6 +256,7 @@ export function LiveRouteClient({
   const [delaySeconds, setDelaySeconds] = useState(0);
   const [frameAgeMs, setFrameAgeMs] = useState<number | null>(null);
   const [showRaceControl, setShowRaceControl] = useState(true);
+  const [analysisTab, setAnalysisTab] = useState<"telemetry" | "stints" | "strategy" | "lap-times">("telemetry");
   const timerRef = useRef<number | null>(null);
   const speed = initialSpeed;
   const initialSessionId = `${initialSession.season}:${initialSession.grandPrix}:${initialSession.session}`;
@@ -635,7 +637,7 @@ export function LiveRouteClient({
           team: info?.team || driver.team,
           color: info?.teamColor || "#9ca3af",
           position: driver.position,
-          intervalLabel: intervalLabel(driver.interval),
+          intervalLabel: intervalLabel(driver.interval, driver.position),
           compound: driver.tyreCompound,
           tyreAge: driver.tyreAge,
           lap: driver.lap,
@@ -919,24 +921,143 @@ export function LiveRouteClient({
         </aside>
       </div>
 
-      <section className="replay-telemetry-panel">
-        <div className="section-header replay-telemetry-panel__header">
+      <section className="replay-telemetry-panel replay-support-panel">
+        <div className="section-header replay-support-panel__header">
           <div>
-            <p className="eyebrow">Driver telemetry</p>
-            <h2>{selectedTelemetryDrivers.length ? "Selected live telemetry strips" : "Select drivers from the leaderboard"}</h2>
+            <p className="eyebrow">Live analysis deck</p>
+            <h2>
+              {analysisTab === "telemetry"
+                ? selectedTelemetryDrivers.length
+                  ? "Selected live telemetry strips"
+                  : "Select drivers from the leaderboard"
+                : analysisTab === "stints"
+                  ? "Tyre stint snapshot"
+                  : analysisTab === "strategy"
+                    ? "Strategy desk"
+                    : "Lap times waterfall"}
+            </h2>
+          </div>
+          <div className="replay-support-panel__tabs">
+            <button
+              type="button"
+              className={`replay-support-panel__tab${analysisTab === "telemetry" ? " replay-support-panel__tab--active" : ""}`}
+              onClick={() => setAnalysisTab("telemetry")}
+            >
+              Telemetry {selectedTelemetryDrivers.length ? `· ${selectedTelemetryDrivers.length}` : ""}
+            </button>
+            <button
+              type="button"
+              className={`replay-support-panel__tab${analysisTab === "stints" ? " replay-support-panel__tab--active" : ""}`}
+              onClick={() => setAnalysisTab("stints")}
+            >
+              Stints
+            </button>
+            <button
+              type="button"
+              className={`replay-support-panel__tab${analysisTab === "strategy" ? " replay-support-panel__tab--active" : ""}`}
+              onClick={() => setAnalysisTab("strategy")}
+            >
+              Strategy
+            </button>
+            <button
+              type="button"
+              className={`replay-support-panel__tab${analysisTab === "lap-times" ? " replay-support-panel__tab--active" : ""}`}
+              onClick={() => setAnalysisTab("lap-times")}
+            >
+              Lap times
+            </button>
           </div>
         </div>
-        {selectedTelemetryDrivers.length ? (
-          <div className="replay-telemetry-stack">
-            {selectedTelemetryDrivers.map((driver) => (
-              <ReplayTelemetryStrip key={driver.abbr} driver={driver} />
-            ))}
+
+        {analysisTab === "telemetry" ? (
+          selectedTelemetryDrivers.length ? (
+            <div className="replay-telemetry-stack">
+              {selectedTelemetryDrivers.map((driver) => (
+                <ReplayTelemetryStrip key={driver.abbr} driver={driver} />
+              ))}
+            </div>
+          ) : (
+            <p className="replay-empty-copy">
+              Choose one driver for a focused live read, or shift-click several drivers to compare telemetry strips side by side.
+            </p>
+          )
+        ) : null}
+
+        {analysisTab === "stints" ? (
+          <div className="live-stints">
+            {(() => {
+              const stintsByDriver = new Map<string, Array<{ compound: string | null; laps: number[]; }>>();
+              for (const lap of replayMeta.laps) {
+                const list = stintsByDriver.get(lap.driverCode) ?? [];
+                const last = list[list.length - 1];
+                if (!last || last.compound !== lap.compound) {
+                  list.push({ compound: lap.compound, laps: [lap.lapNumber] });
+                } else {
+                  last.laps.push(lap.lapNumber);
+                }
+                stintsByDriver.set(lap.driverCode, list);
+              }
+              const rows = displayedDrivers.slice(0, 10).map((driver) => ({
+                driver,
+                stints: stintsByDriver.get(driver.abbr) ?? [],
+              }));
+              if (!rows.length) {
+                return <p className="replay-empty-copy">Stint data appears once the simulator has produced laps.</p>;
+              }
+              return (
+                <ul className="live-stints__list">
+                  {rows.map(({ driver, stints }) => (
+                    <li key={driver.abbr}>
+                      <strong style={{ color: driver.color }}>{driver.abbr}</strong>
+                      <em>{driver.team}</em>
+                      <span className="live-stints__chips">
+                        {stints.length ? stints.map((stint, idx) => (
+                          <span key={idx} className={`live-stints__chip live-stints__chip--${(stint.compound || "unknown").toLowerCase()}`}>
+                            {(stint.compound || "?").slice(0, 1)} · {stint.laps.length}L
+                          </span>
+                        )) : <span className="live-stints__chip live-stints__chip--unknown">No stint data yet</span>}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              );
+            })()}
           </div>
-        ) : (
-          <p className="replay-empty-copy">
-            Choose one driver for a focused live read, or shift-click several drivers to compare telemetry strips side by side.
-          </p>
-        )}
+        ) : null}
+
+        {analysisTab === "strategy" ? (
+          <div className="live-strategy">
+            <div className="live-strategy__grid">
+              <div>
+                <span>Pit loss (green)</span>
+                <strong>~18.9s</strong>
+                <em>Estimated based on pit lane length and pit-out merge</em>
+              </div>
+              <div>
+                <span>Pit loss (SC/VSC)</span>
+                <strong>~11.5s</strong>
+                <em>Cars under safety-car bunching minimise pit loss</em>
+              </div>
+              <div>
+                <span>Crossover · Inter</span>
+                <strong>~95%</strong>
+                <em>Wet → inter swap when track dries enough for one dry sector</em>
+              </div>
+              <div>
+                <span>Crossover · Wet</span>
+                <strong>~99%</strong>
+                <em>Inter → wet when standing water threatens aquaplaning</em>
+              </div>
+            </div>
+            <p className="live-strategy__hint">
+              Live strategy reads are heuristic until OpenF1 publishes the official pit-window pack for this session.
+            </p>
+          </div>
+        ) : null}
+
+        {analysisTab === "lap-times" ? (
+          <ReplayLapWaterfall laps={replayMeta.laps} drivers={replayMeta.drivers} />
+        ) : null}
       </section>
     </div>
   );

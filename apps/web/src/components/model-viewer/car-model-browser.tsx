@@ -6,6 +6,48 @@ import type { CarModelCatalog } from "@/lib/data";
 import { focusPoints, getFocusPoint, type FlowOverlayId } from "./focus-points";
 import { CanvasWindTunnel } from "@/components/wind/canvas-wind-tunnel";
 
+/**
+ * Renders an AI-generated exploded technical illustration of the car
+ * matched to the current constructor + season slug. Image lives at
+ * `/exploded-views/<season>/<constructor>.png` (committed asset). Falls
+ * back gracefully when the file is missing.
+ */
+function ExplodedViewLayer({ constructorSlug, season }: { constructorSlug: string; season: number }) {
+  const [available, setAvailable] = useState<boolean | null>(null);
+  const url = `/exploded-views/${season}/${constructorSlug}.png`;
+  useEffect(() => {
+    let cancelled = false;
+    fetch(url, { method: "HEAD" })
+      .then((response) => {
+        if (cancelled) return;
+        setAvailable(response.ok);
+      })
+      .catch(() => {
+        if (!cancelled) setAvailable(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [url]);
+
+  if (available === false) {
+    return (
+      <div className="car-viewer-inspect-overlay__hint">
+        Exploded view not yet generated for this constructor.
+      </div>
+    );
+  }
+  if (!available) {
+    return null;
+  }
+  return (
+    <figure className="car-viewer-inspect-overlay__exploded">
+      <img src={url} alt="Exploded technical view" loading="lazy" />
+      <figcaption>Exploded view · subsystems annotated</figcaption>
+    </figure>
+  );
+}
+
 interface CarModelBrowserProps {
   catalog: CarModelCatalog;
   latestReplayHref: string;
@@ -345,7 +387,9 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
           </div>
           <p className="car-stage-panel__lead">{selected.notes}</p>
 
-          <div className={`car-viewer-canvas${compareSlug ? " car-viewer-canvas--compare" : ""}`}>
+          <div
+            className={`car-viewer-canvas${compareSlug ? " car-viewer-canvas--compare" : ""} car-viewer-canvas--mode-${interactionMode}`}
+          >
             {createElement(
               "model-viewer",
               {
@@ -360,17 +404,20 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
                 loading: "eager",
                 "camera-orbit": currentView.orbit,
                 "camera-target": currentView.target,
-                exposure: "1.05",
+                exposure: "1.0",
                 "shadow-intensity": "1",
+                "shadow-softness": "0.85",
                 "touch-action": interactionMode === "orbit" ? "pan-y" : "none",
                 "interaction-prompt": "auto",
+                "interaction-prompt-style": "wiggle",
                 "environment-image": "neutral",
                 onLoad: () => setModelReady(true),
                 onError: () => setModelReady(true),
                 style: {
                   width: "100%",
                   height: compareSlug ? "min(58vh, 560px)" : "min(68vh, 680px)",
-                  background: "radial-gradient(circle at top, rgba(255,255,255,0.98), rgba(234,240,248,0.9) 58%, rgba(217,225,236,0.98))",
+                  background:
+                    "radial-gradient(circle at top, rgba(20,28,42,0.95), rgba(8,11,18,0.96) 58%, rgba(4,6,12,1))",
                   borderRadius: "22px",
                 },
               },
@@ -383,7 +430,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
                     key: point.id,
                     slot: `hotspot-${point.id}`,
                     type: "button",
-                    className: `car-model-hotspot${isActive ? " car-model-hotspot--active" : ""}`,
+                    className: `car-model-hotspot car-model-hotspot--${point.id}${isActive ? " car-model-hotspot--active" : ""}${interactionMode === "inspect" ? " car-model-hotspot--inspect" : ""}`,
                     "data-position": point.hotspotPosition,
                     "data-normal": point.hotspotNormal,
                     "data-visibility-attribute": "visible",
@@ -395,8 +442,28 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
               }),
             )}
 
+            {/* First-load drag hint that fades after a couple of seconds. */}
+            {modelReady ? (
+              <div className="car-viewer-drag-hint" aria-hidden="true">
+                Drag to rotate · scroll to zoom · click hotspots
+              </div>
+            ) : null}
+
+            {/* Exploded-view annotation pin overlay shown only in Inspect mode. */}
+            {interactionMode === "inspect" && modelReady ? (
+              <div className="car-viewer-inspect-overlay" aria-hidden="true">
+                <p className="car-viewer-inspect-overlay__title">Inspect mode</p>
+                <p>Click any hotspot to lock the camera. Orbit drag is disabled so the click lands cleanly.</p>
+                <ExplodedViewLayer
+                  constructorSlug={selected.constructorSlug}
+                  season={selected.season}
+                />
+              </div>
+            ) : null}
+
             {!modelReady ? (
               <div className="car-viewer-loading" role="status" aria-live="polite">
+                <span className="car-viewer-loading__spinner" aria-hidden="true" />
                 Loading {selected.displayName} · {selected.sizeLabel}
               </div>
             ) : null}
@@ -430,21 +497,42 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
                       alt: compareModel.displayName,
                       scale: compareModel.modelScale,
                       "camera-controls": interactionMode === "orbit",
+                      "disable-pan": interactionMode === "inspect",
                       reveal: "auto",
                       loading: "lazy",
                       "camera-orbit": currentView.orbit,
                       "camera-target": currentView.target,
-                      exposure: "1.05",
+                      exposure: "1.0",
                       "shadow-intensity": "1",
+                      "shadow-softness": "0.85",
                       "touch-action": interactionMode === "orbit" ? "pan-y" : "none",
                       "environment-image": "neutral",
                       style: {
                         width: "100%",
                         height: "min(58vh, 560px)",
-                        background: "radial-gradient(circle at top, rgba(255,255,255,0.98), rgba(234,240,248,0.9) 58%, rgba(217,225,236,0.98))",
+                        background:
+                          "radial-gradient(circle at top, rgba(20,28,42,0.95), rgba(8,11,18,0.96) 58%, rgba(4,6,12,1))",
                         borderRadius: "22px",
                       },
                     },
+                    focusPoints.map((point) => {
+                      const isActive = point.id === activeFocusId;
+                      return createElement(
+                        "button",
+                        {
+                          key: `compare-${point.id}`,
+                          slot: `hotspot-${point.id}`,
+                          type: "button",
+                          className: `car-model-hotspot car-model-hotspot--${point.id}${isActive ? " car-model-hotspot--active" : ""}${interactionMode === "inspect" ? " car-model-hotspot--inspect" : ""}`,
+                          "data-position": point.hotspotPosition,
+                          "data-normal": point.hotspotNormal,
+                          "data-visibility-attribute": "visible",
+                          onClick: () => handleFocusChange(isActive ? null : point.id),
+                          "aria-label": `${compareModel.displayName} — ${point.title}`,
+                        },
+                        point.shortLabel,
+                      );
+                    }),
                   );
                 })()}
               </div>

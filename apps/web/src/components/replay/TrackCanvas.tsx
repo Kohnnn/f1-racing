@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReplayDriver, ReplayFrame } from "@/lib/data";
 import { buildTrackGeometry, type TrackGeometry } from "./track-geometry";
 import {
@@ -102,6 +102,11 @@ export function TrackCanvas({
   onDriverClick,
 }: TrackCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  // Auto-fit the canvas size to the actual rendered DOM size so wide ovals
+  // (Melbourne) and tall layouts (Monaco) both fit without aspect-ratio
+  // distortion. We start with the static fallback then update on layout.
+  const [renderSize, setRenderSize] = useState<{ width: number; height: number }>({ width, height });
   const animationFrameRef = useRef<number | null>(null);
   const driverTargetsRef = useRef<Map<string, DriverTarget>>(new Map());
   const laneAssignmentsRef = useRef<Map<string, number>>(new Map());
@@ -127,7 +132,31 @@ export function TrackCanvas({
     [drivers],
   );
 
-  const geometry = useMemo(() => buildTrackGeometry(trackPath, width, height), [trackPath, width, height]);
+  const geometry = useMemo(
+    () => buildTrackGeometry(trackPath, renderSize.width, renderSize.height),
+    [trackPath, renderSize.width, renderSize.height],
+  );
+
+  // Watch the container for resize so the geometry rebuilds with the actual
+  // aspect ratio of the box on screen (B3 Melbourne distortion fix).
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!node || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const cr = entry.contentRect;
+        const nextWidth = Math.max(320, Math.round(cr.width));
+        const nextHeight = Math.max(240, Math.round(cr.height));
+        setRenderSize((previous) =>
+          previous.width === nextWidth && previous.height === nextHeight
+            ? previous
+            : { width: nextWidth, height: nextHeight },
+        );
+      }
+    });
+    ro.observe(node);
+    return () => ro.disconnect();
+  }, []);
 
   // Stable per-driver lane offset, hashed from driver code so it does not change as positions swap.
   function laneOffsetForDriver(driverCode: string) {
@@ -283,8 +312,8 @@ export function TrackCanvas({
 
     const drawFrame = () => {
       const dpr = window.devicePixelRatio || 1;
-      const targetWidth = Math.round(width * dpr);
-      const targetHeight = Math.round(height * dpr);
+      const targetWidth = Math.round(renderSize.width * dpr);
+      const targetHeight = Math.round(renderSize.height * dpr);
 
       if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
         canvas.width = targetWidth;
@@ -292,15 +321,15 @@ export function TrackCanvas({
       }
 
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, width, height);
+      ctx.clearRect(0, 0, renderSize.width, renderSize.height);
       ctx.fillStyle = "#0a0d13";
-      ctx.fillRect(0, 0, width, height);
+      ctx.fillRect(0, 0, renderSize.width, renderSize.height);
 
       if (!geometry) {
         ctx.fillStyle = "#7f8797";
         ctx.font = "600 16px Aptos, sans-serif";
         ctx.textAlign = "center";
-        ctx.fillText("Track path not available", width / 2, height / 2);
+        ctx.fillText("Track path not available", renderSize.width / 2, renderSize.height / 2);
         renderedMarkersRef.current = [];
         animationFrameRef.current = requestAnimationFrame(drawFrame);
         return;
@@ -381,7 +410,7 @@ export function TrackCanvas({
         animationFrameRef.current = null;
       }
     };
-  }, [geometry, height, width]);
+  }, [geometry, renderSize.height, renderSize.width]);
 
   function handleCanvasClick(event: React.MouseEvent<HTMLCanvasElement>) {
     if (!onDriverClick || !renderedMarkersRef.current.length || !geometry) {
@@ -413,13 +442,19 @@ export function TrackCanvas({
   }
 
   return (
-    <canvas
-      ref={canvasRef}
-      width={width}
-      height={height}
-      onClick={handleCanvasClick}
-      className="replay-track-canvas"
-      style={{ width: "100%", height: "100%", display: "block" }}
-    />
+    <div
+      ref={containerRef}
+      className="replay-track-canvas-stage"
+      style={{ position: "relative", width: "100%", height: "100%", minHeight: 360 }}
+    >
+      <canvas
+        ref={canvasRef}
+        width={renderSize.width}
+        height={renderSize.height}
+        onClick={handleCanvasClick}
+        className="replay-track-canvas"
+        style={{ width: "100%", height: "100%", display: "block" }}
+      />
+    </div>
   );
 }

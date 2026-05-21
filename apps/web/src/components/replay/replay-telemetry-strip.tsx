@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef } from "react";
+
 interface ReplayTelemetryStripProps {
   driver: {
     abbr: string;
@@ -18,14 +20,77 @@ interface ReplayTelemetryStripProps {
   };
 }
 
-function Pips({ value, max, color }: { value: number; max: number; color: string }) {
-  const filled = Math.round((Math.max(0, value) / max) * 5);
+const SPARK_LEN = 60;
+
+interface SparklineProps {
+  value: number | null | undefined;
+  max: number;
+  color: string;
+  label: string;
+  driverKey: string;
+  format?: (value: number) => string;
+}
+
+/**
+ * Lightweight rolling sparkline. Each strip keeps a per-driver per-channel
+ * ring buffer of the last `SPARK_LEN` values and re-renders into a tiny SVG
+ * polyline. Memory footprint is tiny (60 numbers × 5 channels × ~5 drivers).
+ */
+function Sparkline({ value, max, color, label, driverKey, format }: SparklineProps) {
+  const buffer = useRef<number[]>([]);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const next = typeof value === "number" && Number.isFinite(value) ? value : 0;
+    const previous = buffer.current;
+    const updated = previous.length >= SPARK_LEN
+      ? [...previous.slice(-SPARK_LEN + 1), next]
+      : [...previous, next];
+    buffer.current = updated;
+    if (containerRef.current) {
+      containerRef.current.dataset.refresh = String(performance.now());
+    }
+  }, [value, driverKey, label]);
+
+  const points = buffer.current;
+  const polyPoints = points
+    .map((v, idx) => {
+      const x = (idx / Math.max(1, SPARK_LEN - 1)) * 100;
+      const y = 100 - Math.max(0, Math.min(1, v / max)) * 100;
+      return `${x.toFixed(2)},${y.toFixed(2)}`;
+    })
+    .join(" ");
+  const fillPoints = points.length
+    ? `0,100 ${polyPoints} 100,100`
+    : "";
+  const display = typeof value === "number" && Number.isFinite(value)
+    ? format
+      ? format(value)
+      : `${Math.round(value)}`
+    : "-";
+
   return (
-    <div className="replay-telemetry-strip__pips">
-      {Array.from({ length: 5 }, (_, index) => {
-        const active = index < filled;
-        return <span key={index} style={{ backgroundColor: active ? color : "#363b48", height: `${6 + index * 3}px` }} />;
-      })}
+    <div className="telemetry-spark" ref={containerRef}>
+      <span className="telemetry-spark__label">{label}</span>
+      <div className="telemetry-spark__viewport">
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+          {fillPoints ? (
+            <polygon points={fillPoints} fill={`${color}26`} />
+          ) : null}
+          {polyPoints ? (
+            <polyline
+              points={polyPoints}
+              fill="none"
+              stroke={color}
+              strokeWidth="1.6"
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          ) : null}
+        </svg>
+      </div>
+      <strong className="telemetry-spark__value">{display}</strong>
     </div>
   );
 }
@@ -58,17 +123,42 @@ export function ReplayTelemetryStrip({ driver }: ReplayTelemetryStripProps) {
         </div>
       </div>
 
-      <div className="replay-telemetry-strip__metrics">
-        <div className="replay-telemetry-strip__metric replay-telemetry-strip__metric--bars">
-          <span>Throttle</span>
-          <Pips value={driver.throttle ?? 0} max={100} color="#22c55e" />
-        </div>
+      <div className="telemetry-strip-sparklines">
+        <Sparkline
+          driverKey={driver.abbr}
+          label="Speed"
+          value={driver.speed}
+          max={360}
+          color="#71c1ff"
+          format={(v) => `${Math.round(v)} km/h`}
+        />
+        <Sparkline
+          driverKey={driver.abbr}
+          label="Throttle"
+          value={driver.throttle}
+          max={100}
+          color="#22c55e"
+          format={(v) => `${Math.round(v)}%`}
+        />
+        <Sparkline
+          driverKey={driver.abbr}
+          label="Brake"
+          value={driver.brake}
+          max={100}
+          color="#ef4444"
+          format={(v) => `${Math.round(v)}%`}
+        />
+        <Sparkline
+          driverKey={driver.abbr}
+          label="RPM"
+          value={driver.rpm}
+          max={15000}
+          color="#ff7a1a"
+          format={(v) => `${(Math.round(v / 100) / 10).toFixed(1)}k`}
+        />
+      </div>
 
-        <div className="replay-telemetry-strip__metric replay-telemetry-strip__metric--bars">
-          <span>Brake</span>
-          <Pips value={driver.brake ?? 0} max={100} color="#ef4444" />
-        </div>
-
+      <div className="replay-telemetry-strip__metrics replay-telemetry-strip__metrics--compact">
         <div className="replay-telemetry-strip__metric">
           <span>Gear</span>
           <strong>{driver.gear ?? "-"}</strong>
@@ -76,12 +166,7 @@ export function ReplayTelemetryStrip({ driver }: ReplayTelemetryStripProps) {
 
         <div className="replay-telemetry-strip__metric">
           <span>DRS</span>
-          <strong>{driver.drs !== null ? driver.drs : "-"}</strong>
-        </div>
-
-        <div className="replay-telemetry-strip__metric">
-          <span>RPM</span>
-          <strong>{driver.rpm !== null && driver.rpm !== undefined ? `${Math.round(driver.rpm / 100) / 10}k` : "-"}</strong>
+          <strong>{(driver.drs ?? 0) >= 10 ? "Open" : "Closed"}</strong>
         </div>
 
         <div className="replay-telemetry-strip__metric">

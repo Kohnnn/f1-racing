@@ -53,7 +53,7 @@ function buildCoverageLabel(sessions: Array<{ sessionName: string }>) {
 
 function buildSessionMeta(season: number, sessionName: string) {
   if (season > 2025) {
-    return "2026 preview replay";
+    return `2026 ${sessionName.toLowerCase()} · live OpenF1 pack`;
   }
   return `${sessionName} replay`;
 }

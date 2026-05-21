@@ -182,11 +182,11 @@ function formatSeconds(seconds: number) {
   return `${minutes}:${String(secs).padStart(2, "0")}`;
 }
 
-function intervalLabel(interval: number | null) {
+function intervalLabel(interval: number | null, position?: number) {
   if (interval === null) {
     return "-";
   }
-  if (interval === 0) {
+  if (position === 1) {
     return "Leader";
   }
   return `+${interval.toFixed(3)}`;
@@ -302,7 +302,14 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
   const playheadTimeRef = useRef(initialTime);
   const frameIndexRef = useRef(0);
   const lastUiSyncRef = useRef(initialTime);
+  const lastPositionsRef = useRef<Map<string, number>>(new Map());
   const [showMarshalSectors, setShowMarshalSectors] = useState(true);
+  const [loadProgress, setLoadProgress] = useState<number>(0);
+  const [loopBounds, setLoopBounds] = useState<{ from: number | null; to: number | null }>({ from: null, to: null });
+  const [loopActive, setLoopActive] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const [fastestLapToast, setFastestLapToast] = useState<{ driver: string; time: number; key: number } | null>(null);
+  const lastFastestRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -492,10 +499,27 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
     return Math.min(...completed);
   }, [replay.laps]);
 
+  const fastestLap = useMemo(() => {
+    if (replay.fastestLap) {
+      return replay.fastestLap;
+    }
+
+    const completedLaps = replay.laps.filter((lap) => lap.lapTime !== null);
+    if (!completedLaps.length) {
+      return null;
+    }
+
+    return completedLaps
+      .slice()
+      .sort((left, right) => (left.lapTime ?? Infinity) - (right.lapTime ?? Infinity))[0];
+  }, [replay.fastestLap, replay.laps]);
+
   const displayedDrivers = useMemo<ReplayLeaderboardRow[]>(() => {
     if (!currentFrame) {
       return [];
     }
+
+    const fastestDriverCode = fastestLap?.driverCode ?? null;
 
     return Object.values(currentFrame.drivers)
       .filter((driver) => driver.position > 0)
@@ -510,9 +534,9 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
         return { driver, progress };
       })
       .sort((left, right) => {
-        if (left.progress !== null && right.progress !== null && Math.abs(left.progress - right.progress) > 1) {
-          return right.progress - left.progress;
-        }
+        // Always trust the published `position` field for ordering. The
+        // projected-distance heuristic was previously flipping rows when
+        // the projection was within a metre, putting P17 between P3 and P4.
         return left.driver.position - right.driver.position;
       })
       .map((driver) => {
@@ -540,13 +564,18 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
           ? `${lastLapNumeric >= fastest ? "+" : ""}${(lastLapNumeric - fastest).toFixed(3)}`
           : null;
 
+        // Position delta vs. the previous render. Negative = gained places.
+        const previousPosition = lastPositionsRef.current.get(driver.driver.driverCode) ?? driver.driver.position;
+        const positionDelta = driver.driver.position - previousPosition;
+        lastPositionsRef.current.set(driver.driver.driverCode, driver.driver.position);
+
         return {
           abbr: driver.driver.driverCode,
           fullName: info?.fullName || driver.driver.driverCode,
           team: info?.team || driver.driver.team,
           color: info?.teamColor || "#9ca3af",
           position: driver.driver.position,
-          intervalLabel: intervalLabel(driver.driver.interval),
+          intervalLabel: intervalLabel(driver.driver.interval, driver.driver.position),
           compound: driver.driver.tyreCompound,
           tyreAge: driver.driver.tyreAge,
           lap: driver.driver.lap,
@@ -559,10 +588,12 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
           lastLapLabel,
           lastLapDeltaLabel,
           isOutLap,
+          isFastestLap: fastestDriverCode === driver.driver.driverCode,
+          positionDelta,
           status,
         };
       });
-  }, [currentFrame, driverInfoByCode, driverStatusByCode, estimatedLapDuration, lapHistoryByDriver, outLapByDriverLap, previousLapLabelByDriverLap, projectMarkers, sessionFastestLapTime, trackGeometry]);
+  }, [currentFrame, driverInfoByCode, driverStatusByCode, estimatedLapDuration, fastestLap, lapHistoryByDriver, outLapByDriverLap, previousLapLabelByDriverLap, projectMarkers, sessionFastestLapTime, trackGeometry]);
 
   const replayEvents = useMemo(() => {
     const events = (replay.raceControlMessages ?? []).map((message) => ({
@@ -582,20 +613,35 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
     return [...events, ...statusEvents].sort((left, right) => left.t - right.t);
   }, [replay.frames, replay.raceControlMessages]);
 
-  const fastestLap = useMemo(() => {
-    if (replay.fastestLap) {
-      return replay.fastestLap;
+  // Build colored segment ribbons for the scrubber: SC/VSC/Yellow/Red zones from
+  // the frame trackStatus stream (real durations) plus pit pulses for visual
+  // continuity with the track map.
+  const replaySegments = useMemo(() => {
+    if (!replay.frames.length) return [] as Array<{ fromTime: number; toTime: number; type: "sc" | "vsc" | "yellow" | "red" | "pit" | "drs"; label?: string }>;
+    const segments: Array<{ fromTime: number; toTime: number; type: "sc" | "vsc" | "yellow" | "red" | "pit" | "drs"; label?: string }> = [];
+    let openType: string | null = null;
+    let openFrom = 0;
+    const flush = (closeAt: number) => {
+      if (!openType) return;
+      const t = openType;
+      const variant = t === "SC" ? "sc" : t === "VSC" ? "vsc" : t === "RED" ? "red" : t === "YELLOW" || t === "DOUBLE YELLOW" ? "yellow" : null;
+      if (variant) {
+        segments.push({ fromTime: openFrom, toTime: closeAt, type: variant, label: t });
+      }
+      openType = null;
+    };
+    for (const frame of replay.frames) {
+      const status = normalizeTrackStatus(frame.trackStatus);
+      if (status === openType) continue;
+      flush(frame.t);
+      if (status !== "GREEN" && status !== "CHEQUERED") {
+        openType = status;
+        openFrom = frame.t;
+      }
     }
-
-    const completedLaps = replay.laps.filter((lap) => lap.lapTime !== null);
-    if (!completedLaps.length) {
-      return null;
-    }
-
-    return completedLaps
-      .slice()
-      .sort((left, right) => (left.lapTime ?? Infinity) - (right.lapTime ?? Infinity))[0];
-  }, [replay.fastestLap, replay.laps]);
+    flush(replay.frames.at(-1)?.t ?? totalTime);
+    return segments;
+  }, [replay.frames, totalTime]);
 
   // Derive a list of pit-out pulses by scanning the loaded frames for tyre
   // compound transitions per driver. Each pulse is anchored to the frame's
@@ -873,7 +919,17 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
     const deltaMs = timestamp - lastTimeRef.current;
     lastTimeRef.current = timestamp;
 
-    const nextTime = playheadTimeRef.current + (deltaMs / 1000) * playbackSpeed;
+    let nextTime = playheadTimeRef.current + (deltaMs / 1000) * playbackSpeed;
+
+    // Loop region wrap: when looping, never advance past `to`; jump back to `from`.
+    if (loopActive && loopBounds.from !== null && loopBounds.to !== null && loopBounds.to > loopBounds.from) {
+      if (nextTime >= loopBounds.to) {
+        nextTime = loopBounds.from;
+      } else if (nextTime < loopBounds.from) {
+        nextTime = loopBounds.from;
+      }
+    }
+
     if (nextTime >= totalTime) {
       syncPlaybackState(totalTime, replay.frames.length - 1);
       setIsPlaying(false);
@@ -900,7 +956,38 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
     }
 
     animationRef.current = requestAnimationFrame(animate);
-  }, [findFrameIndexForTime, loadedEndTime, onEnsureTimeLoaded, playbackSpeed, replay.frames.length, syncPlaybackState, totalTime]);
+  }, [findFrameIndexForTime, loadedEndTime, loopActive, loopBounds.from, loopBounds.to, onEnsureTimeLoaded, playbackSpeed, replay.frames.length, syncPlaybackState, totalTime]);
+
+  // Track loaded-time growth as a 0..1 progress value while a `Load full race`
+  // request is in flight. Once `loadedEndTime` reaches `totalTime` we clear the
+  // progress so the load-bar disappears.
+  useEffect(() => {
+    if (totalTime <= 0) return;
+    if (loadedEndTime >= totalTime) {
+      if (loadProgress > 0) setLoadProgress(0);
+      return;
+    }
+    if (loadProgress > 0) {
+      setLoadProgress(Math.min(0.99, loadedEndTime / totalTime));
+    }
+  }, [loadedEndTime, loadProgress, totalTime]);
+
+  // Fire a "purple sector" banner whenever a new fastest lap is set.
+  useEffect(() => {
+    if (!fastestLap || typeof fastestLap.lapTime !== "number") return;
+    const time = fastestLap.lapTime;
+    const last = lastFastestRef.current;
+    if (last === null) {
+      lastFastestRef.current = time;
+      return;
+    }
+    if (time < last - 0.01) {
+      lastFastestRef.current = time;
+      setFastestLapToast({ driver: fastestLap.driverCode, time, key: Date.now() });
+      const handle = window.setTimeout(() => setFastestLapToast(null), 3500);
+      return () => window.clearTimeout(handle);
+    }
+  }, [fastestLap]);
 
   useEffect(() => {
     onEnsureTimeLoaded?.(Math.min(totalTime, currentTime + Math.max(24, playbackSpeed * 28)));
@@ -987,11 +1074,31 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
       if (event.code === "KeyL") setShowDriverLabels((value) => !value);
       if (event.code === "KeyB") setShowEvents((value) => !value);
       if (event.code === "KeyM") setShowMarshalSectors((value) => !value);
+      if (event.code === "KeyI") {
+        event.preventDefault();
+        setLoopBounds((previous) => ({ ...previous, from: playheadTimeRef.current }));
+      }
+      if (event.code === "KeyO") {
+        event.preventDefault();
+        setLoopBounds((previous) => ({ ...previous, to: playheadTimeRef.current }));
+      }
+      if (event.code === "KeyP") {
+        event.preventDefault();
+        setLoopActive((value) => !value);
+      }
+      if (event.code === "Slash" && event.shiftKey) {
+        event.preventDefault();
+        setShowShortcuts((value) => !value);
+      }
+      if (event.code === "Escape" && showShortcuts) {
+        event.preventDefault();
+        setShowShortcuts(false);
+      }
     }
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [handleSeek, handleSkipLap, handleSkipTime]);
+  }, [handleSeek, handleSkipLap, handleSkipTime, showShortcuts]);
 
   return (
     <div className="replay-view replay-view--workspace">
@@ -1102,6 +1209,11 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
             {replayFocus ? <span className="replay-track-chip">Focus {replayFocus.title}</span> : null}
           </div>
           <div className="replay-track-panel__canvas">
+            {fastestLapToast ? (
+              <div key={fastestLapToast.key} className="fastest-lap-banner">
+                ⚡ Fastest lap · {fastestLapToast.driver} · {formatLapTime(fastestLapToast.time)}
+              </div>
+            ) : null}
             <TrackCanvas
               trackPath={replay.trackPath}
               drivers={replay.drivers}
@@ -1225,21 +1337,33 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
             totalLaps={totalLaps}
             trackStatus={trackStatus}
             events={replayEvents}
+            segments={replaySegments}
             showDriverLabels={showDriverLabels}
             showDrsZones={showDrsZones}
             showEvents={showEvents}
             showMarshalSectors={showMarshalSectors}
             estimatedLapDuration={estimatedLapDuration}
+            loopActive={loopActive}
+            loopFromTime={loopBounds.from}
+            loopToTime={loopBounds.to}
+            loadProgress={loadProgress}
             onToggleLabels={() => setShowDriverLabels((value) => !value)}
             onToggleDrsZones={() => setShowDrsZones((value) => !value)}
             onToggleEvents={() => setShowEvents((value) => !value)}
             onToggleMarshalSectors={() => setShowMarshalSectors((value) => !value)}
+            onToggleLoop={() => setLoopActive((value) => !value)}
+            onMarkLoopIn={() => setLoopBounds((previous) => ({ ...previous, from: playheadTimeRef.current }))}
+            onMarkLoopOut={() => setLoopBounds((previous) => ({ ...previous, to: playheadTimeRef.current }))}
+            onClearLoop={() => { setLoopBounds({ from: null, to: null }); setLoopActive(false); }}
+            onShowShortcuts={() => setShowShortcuts(true)}
+            onRestart={() => handleSeek(0)}
             onSpeedChange={setPlaybackSpeed}
             onSeek={handleSeek}
             onSkipLap={handleSkipLap}
             onSkipTime={handleSkipTime}
             onLoadFullRace={() => {
               if (totalTime > loadedEndTime && onEnsureTimeLoaded) {
+                setLoadProgress(loadedEndTime / Math.max(1, totalTime));
                 onEnsureTimeLoaded(totalTime);
               }
             }}
@@ -1305,7 +1429,9 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
                       ? "Strategy desk"
                       : analysisTab === "track"
                         ? "Track read"
-                        : "Race control"}
+                        : analysisTab === "waterfall"
+                          ? "Lap times waterfall"
+                          : "Race control"}
             </h2>
           </div>
           <div className="replay-support-panel__tabs">
@@ -1458,6 +1584,30 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
           </section>
         ) : null}
       </section>
+
+      {showShortcuts ? (
+        <div className="shortcut-overlay" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" onClick={() => setShowShortcuts(false)}>
+          <div className="shortcut-overlay__panel" onClick={(event) => event.stopPropagation()}>
+            <header>
+              <p className="eyebrow">Keyboard shortcuts</p>
+              <button type="button" onClick={() => setShowShortcuts(false)} aria-label="Close shortcuts">Close</button>
+            </header>
+            <ul>
+              <li><kbd>Space</kbd><span>Play / pause</span></li>
+              <li><kbd>← / →</kbd><span>Seek 5s</span></li>
+              <li><kbd>Shift</kbd> + <kbd>← / →</kbd><span>Seek 30s</span></li>
+              <li><kbd>[</kbd> / <kbd>]</kbd><span>Previous / next lap</span></li>
+              <li><kbd>R</kbd><span>Restart from start</span></li>
+              <li><kbd>1</kbd>–<kbd>5</kbd><span>Speed presets (0.5×, 1×, 2×, 4×, 8×)</span></li>
+              <li><kbd>I</kbd> / <kbd>O</kbd><span>Mark loop in / out</span></li>
+              <li><kbd>P</kbd><span>Toggle loop playback</span></li>
+              <li><kbd>L</kbd> / <kbd>D</kbd> / <kbd>B</kbd> / <kbd>M</kbd><span>Labels / DRS / events / marshals</span></li>
+              <li><kbd>?</kbd><span>Toggle this help</span></li>
+              <li><kbd>Esc</kbd><span>Close this help / clear selection</span></li>
+            </ul>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

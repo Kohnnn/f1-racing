@@ -63,6 +63,22 @@ export interface CanvasWindTunnelProps {
 
 export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", constructorSlug }: CanvasWindTunnelProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const isVisibleRef = useRef<boolean>(true);
+
+  useEffect(() => {
+    const node = canvasRef.current;
+    if (!node || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          isVisibleRef.current = entry.isIntersecting;
+        }
+      },
+      { threshold: 0.05 },
+    );
+    io.observe(node);
+    return () => io.disconnect();
+  }, []);
   const heatRef = useRef<HTMLCanvasElement | null>(null);
   const animationRef = useRef<number | null>(null);
   const particlesRef = useRef<ParticleState[]>([]);
@@ -350,6 +366,12 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
     }
 
     function frame() {
+      // Pause when canvas is offscreen so we don't burn CPU/battery on a
+      // simulator the user can't see (B22).
+      if (!isVisibleRef.current) {
+        animationRef.current = requestAnimationFrame(frame);
+        return;
+      }
       clearStage();
       drawAxes();
       drawDensityHeat();

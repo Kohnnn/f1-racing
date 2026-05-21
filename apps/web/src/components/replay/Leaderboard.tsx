@@ -23,6 +23,10 @@ interface ReplayLeaderboardRow {
   lastLapDeltaLabel?: string | null;
   /** When the last completed lap is the driver's first flying lap after a pit (or a stint start). */
   isOutLap?: boolean;
+  /** True when this driver currently holds the session fastest lap. */
+  isFastestLap?: boolean;
+  /** Position delta vs. the previous frame, used to render +N/-N arrows. */
+  positionDelta?: number;
   status?: "FINISHED" | "DNF" | "DNS" | "DSQ" | "LAPPED";
 }
 
@@ -173,7 +177,7 @@ export function Leaderboard({ drivers, selectedDrivers, onDriverSelect }: Leader
       <div className="replay-leaderboard__header">
         <span>Pos</span>
         <span>Driver</span>
-        <span>Gap</span>
+        <span title="Gap to leader">Gap to leader</span>
         <span>Tyre</span>
       </div>
 
@@ -183,15 +187,24 @@ export function Leaderboard({ drivers, selectedDrivers, onDriverSelect }: Leader
           const drsActive = isDrsActive(driver.drs);
           const retired = driver.status === "DNF" || driver.status === "DNS" || driver.status === "DSQ";
           const overrideGap = statusGapLabel(driver.status);
+          const fastest = driver.isFastestLap;
+          const positionDelta = driver.positionDelta ?? 0;
           return (
             <button
               key={driver.abbr}
               type="button"
-              className={`replay-leaderboard__row${isSelected ? " replay-leaderboard__row--selected" : ""}${retired ? " replay-leaderboard__row--retired" : ""}`}
+              className={`replay-leaderboard__row${isSelected ? " replay-leaderboard__row--selected" : ""}${retired ? " replay-leaderboard__row--retired" : ""}${fastest ? " replay-leaderboard__row--fastest" : ""}`}
               title={`${driver.fullName} · ${driver.team}${retired ? ` · ${driver.status}` : ` · ${formatSpeed(driver.speed)}`}`}
               onClick={(event) => onDriverSelect(driver.abbr, event.shiftKey || event.metaKey || event.ctrlKey)}
             >
-              <span className="replay-leaderboard__position">{driver.position ?? "-"}</span>
+              <span className="replay-leaderboard__position" style={{ borderLeft: `4px solid ${driver.color}` }}>
+                {driver.position ?? "-"}
+                {positionDelta !== 0 ? (
+                  <em className={positionDelta < 0 ? "replay-leaderboard__delta--gain" : "replay-leaderboard__delta--loss"}>
+                    {positionDelta < 0 ? `▲${Math.abs(positionDelta)}` : `▼${positionDelta}`}
+                  </em>
+                ) : null}
+              </span>
               <span className="replay-leaderboard__driver">
                 <span className="replay-leaderboard__stripe" style={{ backgroundColor: driver.color }} />
                 <span className="replay-leaderboard__identity">
