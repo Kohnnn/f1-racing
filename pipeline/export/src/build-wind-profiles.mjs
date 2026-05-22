@@ -1,334 +1,400 @@
 /**
- * Extract a normalized 2D side-profile silhouette polygon from each GLB in
- * the catalog. We read the GLB binary chunks directly (positions + indices),
- * project all vertices onto the XY plane (assuming +X is forward, +Y is up
- * in the F1 GLB convention), and run a marching-squares pass over a coarse
- * occupancy grid to extract a single closed outline polygon. The polygon is
- * normalized to fit the wind tunnel canvas's [0..1] x [0..1] frame.
+ * Wind-tunnel silhouette extractor (rewritten 2026-05-22).
+ *
+ * Old version hand-parsed GLB accessors. That broke on Draco-compressed
+ * exports (e.g. McLaren MCL39) and used naive axis-aligned heuristics, which
+ * produced wrong side profiles. This version uses @gltf-transform with Draco
+ * decoding, runs a PCA-style axis pass to find true forward / up / lateral,
+ * then traces a real silhouette via marching squares on a dilated occupancy
+ * grid.
  *
  * Output: data/wind-profiles/<constructor>.json
  *
  *   {
- *     constructor, constructorSlug, source: <glb path>,
- *     polygon: [[x0,y0], [x1,y1], ...],     // normalized [0,1]
+ *     constructor, constructorSlug, source,
+ *     polygon: [[x0,y0], [x1,y1], ...],   // closed loop, normalized to [0,1]
+ *     wheelArches: [{ cx, cy, r }, ...],  // approx wheel circle markers
  *     bbox: { minX, maxX, minY, maxY },
+ *     pointCount, samples, extractedAt
  *   }
  */
 
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile, copyFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { NodeIO } from "@gltf-transform/core";
+import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
+import draco3d from "draco3dgltf";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
-const GRID_NX = 256;
-const GRID_NY = 96;
+const GRID_NX = 384;
+const GRID_NY = 144;
 
-function parseGlb(buffer) {
-  const dataView = new DataView(buffer.buffer, buffer.byteOffset, buffer.byteLength);
-  const magic = dataView.getUint32(0, true);
-  if (magic !== 0x46546c67) {
-    throw new Error("Not a GLB: missing magic 'glTF'");
+// PCA over a sample of vertex positions to find principal axes.
+function pca(points) {
+  const n = points.length;
+  if (n === 0) return null;
+  let mx = 0;
+  let my = 0;
+  let mz = 0;
+  for (const p of points) { mx += p[0]; my += p[1]; mz += p[2]; }
+  mx /= n; my /= n; mz /= n;
+  let cxx = 0, cyy = 0, czz = 0, cxy = 0, cxz = 0, cyz = 0;
+  for (const p of points) {
+    const dx = p[0] - mx, dy = p[1] - my, dz = p[2] - mz;
+    cxx += dx * dx; cyy += dy * dy; czz += dz * dz;
+    cxy += dx * dy; cxz += dx * dz; cyz += dy * dz;
   }
-  const version = dataView.getUint32(4, true);
-  if (version !== 2) {
-    throw new Error(`Unsupported GLB version: ${version}`);
+  cxx /= n; cyy /= n; czz /= n; cxy /= n; cxz /= n; cyz /= n;
+  // Power iteration on a 3x3 symmetric covariance matrix to extract dominant
+  // axes. We need the first two principal components; the third we derive by
+  // cross product so it's orthonormal.
+  function multiply(m, v) {
+    return [
+      m[0] * v[0] + m[1] * v[1] + m[2] * v[2],
+      m[1] * v[0] + m[3] * v[1] + m[4] * v[2],
+      m[2] * v[0] + m[4] * v[1] + m[5] * v[2],
+    ];
   }
-  const length = dataView.getUint32(8, true);
-
-  let offset = 12;
-  let json = null;
-  let bin = null;
-  while (offset < length) {
-    const chunkLength = dataView.getUint32(offset, true);
-    const chunkType = dataView.getUint32(offset + 4, true);
-    const chunkStart = offset + 8;
-    const chunkEnd = chunkStart + chunkLength;
-    if (chunkType === 0x4e4f534a) {
-      const jsonBytes = buffer.subarray(chunkStart, chunkEnd);
-      json = JSON.parse(new TextDecoder().decode(jsonBytes));
-    } else if (chunkType === 0x004e4942) {
-      bin = buffer.subarray(chunkStart, chunkEnd);
-    }
-    offset = chunkEnd;
+  function norm(v) {
+    const len = Math.hypot(v[0], v[1], v[2]) || 1;
+    return [v[0] / len, v[1] / len, v[2] / len];
   }
-
-  if (!json || !bin) {
-    throw new Error("GLB missing JSON or BIN chunk");
+  const cov = [cxx, cxy, cxz, cyy, cyz, czz];
+  let v1 = norm([1, 0.7, 0.3]);
+  for (let i = 0; i < 60; i += 1) v1 = norm(multiply(cov, v1));
+  // Deflate.
+  function deflate(v) {
+    return [
+      [cov[0] - v[0] * v[0] * cov[0], cov[1] - v[0] * v[1] * cov[0], cov[2] - v[0] * v[2] * cov[0]],
+      [cov[1] - v[1] * v[0] * cov[3], cov[3] - v[1] * v[1] * cov[3], cov[4] - v[1] * v[2] * cov[3]],
+      [cov[2] - v[2] * v[0] * cov[5], cov[4] - v[2] * v[1] * cov[5], cov[5] - v[2] * v[2] * cov[5]],
+    ];
   }
-  return { json, bin };
+  const def = deflate(v1);
+  function multiplyMat(m, v) {
+    return [
+      m[0][0] * v[0] + m[0][1] * v[1] + m[0][2] * v[2],
+      m[1][0] * v[0] + m[1][1] * v[1] + m[1][2] * v[2],
+      m[2][0] * v[0] + m[2][1] * v[1] + m[2][2] * v[2],
+    ];
+  }
+  let v2 = norm([0.3, 1, 0.4]);
+  for (let i = 0; i < 60; i += 1) v2 = norm(multiplyMat(def, v2));
+  // Re-orthogonalize v2 against v1.
+  const dot = v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2];
+  v2 = norm([v2[0] - dot * v1[0], v2[1] - dot * v1[1], v2[2] - dot * v1[2]]);
+  const v3 = norm([
+    v1[1] * v2[2] - v1[2] * v2[1],
+    v1[2] * v2[0] - v1[0] * v2[2],
+    v1[0] * v2[1] - v1[1] * v2[0],
+  ]);
+  return { mean: [mx, my, mz], v1, v2, v3 };
 }
 
-const COMPONENT_BYTES = {
-  5120: 1, // BYTE
-  5121: 1, // UNSIGNED_BYTE
-  5122: 2, // SHORT
-  5123: 2, // UNSIGNED_SHORT
-  5125: 4, // UNSIGNED_INT
-  5126: 4, // FLOAT
-};
-
-const TYPE_COMPONENTS = {
-  SCALAR: 1,
-  VEC2: 2,
-  VEC3: 3,
-  VEC4: 4,
-  MAT4: 16,
-};
-
-function readAccessor(json, bin, accessorIndex) {
-  const accessor = json.accessors[accessorIndex];
-  if (typeof accessor.bufferView !== "number") {
-    // Sparse / generated accessor with no buffer view; return zeros.
-    const components = TYPE_COMPONENTS[accessor.type] ?? 1;
-    return { array: new Array(accessor.count * components).fill(0), components, count: accessor.count };
+// Decide which axis is forward / up / lateral. F1 cars are long, low, narrow.
+// Forward = longest principal axis. Up = the one with the smallest dot with
+// world Y (so the silhouette renders side-on). Lateral = remaining.
+function pickAxes(pcaResult, points) {
+  const axes = [pcaResult.v1, pcaResult.v2, pcaResult.v3];
+  // Project all points onto each axis, find ranges.
+  const ranges = axes.map((axis) => {
+    let lo = Infinity, hi = -Infinity;
+    for (const p of points) {
+      const dx = p[0] - pcaResult.mean[0];
+      const dy = p[1] - pcaResult.mean[1];
+      const dz = p[2] - pcaResult.mean[2];
+      const t = dx * axis[0] + dy * axis[1] + dz * axis[2];
+      if (t < lo) lo = t;
+      if (t > hi) hi = t;
+    }
+    return { axis, range: hi - lo, lo, hi };
+  });
+  // Forward = largest range.
+  ranges.sort((a, b) => b.range - a.range);
+  const forward = ranges[0];
+  // Up = of the remaining two, the one most aligned with world +Y (vertical).
+  const remain = ranges.slice(1);
+  remain.sort((a, b) => Math.abs(b.axis[1]) - Math.abs(a.axis[1]));
+  const up = remain[0];
+  const lateral = remain[1];
+  // Flip up so its world-Y component is positive (cars sit upright).
+  if (up.axis[1] < 0) {
+    up.axis = up.axis.map((c) => -c);
+    const tmp = up.lo; up.lo = -up.hi; up.hi = -tmp;
   }
-  const bufferView = json.bufferViews[accessor.bufferView];
-  const byteOffset = (bufferView.byteOffset || 0) + (accessor.byteOffset || 0);
-  const components = TYPE_COMPONENTS[accessor.type];
-  const componentBytes = COMPONENT_BYTES[accessor.componentType];
-  const count = accessor.count;
-  const stride = bufferView.byteStride ?? components * componentBytes;
-  const view = bin.buffer.slice(bin.byteOffset + byteOffset, bin.byteOffset + byteOffset + stride * count);
-  const dv = new DataView(view);
-  const out = new Array(count * components);
-  for (let i = 0; i < count; i += 1) {
-    for (let c = 0; c < components; c += 1) {
-      const o = i * stride + c * componentBytes;
-      let value;
-      switch (accessor.componentType) {
-        case 5126: value = dv.getFloat32(o, true); break;
-        case 5125: value = dv.getUint32(o, true); break;
-        case 5123: value = dv.getUint16(o, true); break;
-        case 5122: value = dv.getInt16(o, true); break;
-        case 5121: value = dv.getUint8(o); break;
-        case 5120: value = dv.getInt8(o); break;
-        default: value = 0;
+  // Flip forward so the nose lands on +X. We use a heuristic: nose tip is the
+  // narrow end; sample the body width in the lateral direction across forward
+  // bins and see which end is narrower.
+  const bins = 24;
+  const widths = new Array(bins).fill(0);
+  for (const p of points) {
+    const dx = p[0] - pcaResult.mean[0];
+    const dy = p[1] - pcaResult.mean[1];
+    const dz = p[2] - pcaResult.mean[2];
+    const fwdT = dx * forward.axis[0] + dy * forward.axis[1] + dz * forward.axis[2];
+    const latT = dx * lateral.axis[0] + dy * lateral.axis[1] + dz * lateral.axis[2];
+    const bin = Math.max(0, Math.min(bins - 1, Math.floor(((fwdT - forward.lo) / (forward.range || 1)) * bins)));
+    widths[bin] = Math.max(widths[bin], Math.abs(latT));
+  }
+  const front3 = (widths[0] + widths[1] + widths[2]) / 3;
+  const back3 = (widths[bins - 1] + widths[bins - 2] + widths[bins - 3]) / 3;
+  if (front3 > back3) {
+    forward.axis = forward.axis.map((c) => -c);
+    const tmp = forward.lo; forward.lo = -forward.hi; forward.hi = -tmp;
+  }
+  return { forward, up, lateral, mean: pcaResult.mean };
+}
+
+async function loadGlbPositions(glbPath) {
+  const io = new NodeIO()
+    .registerExtensions(ALL_EXTENSIONS)
+    .registerDependencies({
+      "draco3d.decoder": await draco3d.createDecoderModule(),
+      "draco3d.encoder": await draco3d.createEncoderModule(),
+    });
+  const document = await io.read(glbPath);
+  const points = [];
+  // Walk the scene graph collecting world-space vertex positions.
+  const root = document.getRoot();
+  const scene = root.getDefaultScene() || root.listScenes()[0];
+  if (!scene) throw new Error("GLB has no scene");
+
+  function multiplyMat4(a, b) {
+    const out = new Float64Array(16);
+    for (let r = 0; r < 4; r += 1) {
+      for (let c = 0; c < 4; c += 1) {
+        let sum = 0;
+        for (let k = 0; k < 4; k += 1) sum += a[k * 4 + r] * b[c * 4 + k];
+        out[c * 4 + r] = sum;
       }
-      out[i * components + c] = value;
     }
+    return out;
   }
-  return { array: out, components, count };
-}
+  function transformPoint(m, x, y, z) {
+    return [
+      m[0] * x + m[4] * y + m[8] * z + m[12],
+      m[1] * x + m[5] * y + m[9] * z + m[13],
+      m[2] * x + m[6] * y + m[10] * z + m[14],
+    ];
+  }
 
-function multiplyVec3Mat4(v, m, out) {
-  const [x, y, z] = v;
-  out[0] = m[0] * x + m[4] * y + m[8] * z + m[12];
-  out[1] = m[1] * x + m[5] * y + m[9] * z + m[13];
-  out[2] = m[2] * x + m[6] * y + m[10] * z + m[14];
-}
-
-function composeFromTRS(node) {
-  const t = node.translation || [0, 0, 0];
-  const r = node.rotation || [0, 0, 0, 1];
-  const s = node.scale || [1, 1, 1];
-  const xx = r[0] * r[0];
-  const yy = r[1] * r[1];
-  const zz = r[2] * r[2];
-  const xy = r[0] * r[1];
-  const zw = r[2] * r[3];
-  const zx = r[2] * r[0];
-  const yw = r[1] * r[3];
-  const yz = r[1] * r[2];
-  const xw = r[0] * r[3];
-  const m = new Float64Array(16);
-  m[0] = (1 - 2 * (yy + zz)) * s[0];
-  m[1] = (2 * (xy + zw)) * s[0];
-  m[2] = (2 * (zx - yw)) * s[0];
-  m[3] = 0;
-  m[4] = (2 * (xy - zw)) * s[1];
-  m[5] = (1 - 2 * (zz + xx)) * s[1];
-  m[6] = (2 * (yz + xw)) * s[1];
-  m[7] = 0;
-  m[8] = (2 * (zx + yw)) * s[2];
-  m[9] = (2 * (yz - xw)) * s[2];
-  m[10] = (1 - 2 * (yy + xx)) * s[2];
-  m[11] = 0;
-  m[12] = t[0];
-  m[13] = t[1];
-  m[14] = t[2];
-  m[15] = 1;
-  return m;
-}
-
-function multiplyMat4(a, b) {
-  const out = new Float64Array(16);
-  for (let r = 0; r < 4; r += 1) {
-    for (let c = 0; c < 4; c += 1) {
-      let sum = 0;
-      for (let k = 0; k < 4; k += 1) {
-        sum += a[k * 4 + r] * b[c * 4 + k];
+  function visit(node, parent) {
+    const local = new Float64Array(node.getMatrix());
+    const world = parent ? multiplyMat4(parent, local) : local;
+    const mesh = node.getMesh();
+    if (mesh) {
+      for (const primitive of mesh.listPrimitives()) {
+        const pos = primitive.getAttribute("POSITION");
+        if (!pos) continue;
+        const array = pos.getArray();
+        if (!array) continue;
+        const stride = pos.getElementSize();
+        const count = pos.getCount();
+        // Subsample very dense meshes so we don't blow memory; cap at ~200k pts.
+        const cap = 200000;
+        const step = Math.max(1, Math.floor(count / cap));
+        for (let i = 0; i < count; i += step) {
+          const o = i * stride;
+          const p = transformPoint(world, array[o], array[o + 1], array[o + 2]);
+          points.push(p);
+        }
       }
-      out[c * 4 + r] = sum;
     }
+    for (const child of node.listChildren()) visit(child, world);
+  }
+  for (const node of scene.listChildren()) visit(node, null);
+  return points;
+}
+
+function projectToSide(points, axes) {
+  const out = new Array(points.length);
+  for (let i = 0; i < points.length; i += 1) {
+    const p = points[i];
+    const dx = p[0] - axes.mean[0];
+    const dy = p[1] - axes.mean[1];
+    const dz = p[2] - axes.mean[2];
+    const fwd = dx * axes.forward.axis[0] + dy * axes.forward.axis[1] + dz * axes.forward.axis[2];
+    const upv = dx * axes.up.axis[0] + dy * axes.up.axis[1] + dz * axes.up.axis[2];
+    out[i] = [fwd, upv];
   }
   return out;
 }
 
-function nodeMatrix(node) {
-  if (Array.isArray(node.matrix) && node.matrix.length === 16) {
-    return new Float64Array(node.matrix);
-  }
-  return composeFromTRS(node);
-}
-
-function gatherWorldPositions(json, bin) {
-  const points = [];
-  const scene = json.scenes[json.scene ?? 0];
-  const meshes = json.meshes;
-  const nodes = json.nodes;
-  const stack = [];
-  for (const root of scene.nodes) stack.push({ index: root, parent: null });
-  const matrixCache = new Map();
-
-  function getWorldMatrix(index, parentMatrix) {
-    if (matrixCache.has(index)) return matrixCache.get(index);
-    const local = nodeMatrix(nodes[index]);
-    const world = parentMatrix ? multiplyMat4(parentMatrix, local) : local;
-    matrixCache.set(index, world);
-    return world;
-  }
-
-  while (stack.length) {
-    const { index, parent } = stack.pop();
-    const node = nodes[index];
-    const world = getWorldMatrix(index, parent);
-    if (typeof node.mesh === "number") {
-      const mesh = meshes[node.mesh];
-      for (const primitive of mesh.primitives) {
-        const posAccessor = primitive.attributes?.POSITION;
-        if (typeof posAccessor !== "number") continue;
-        const accessor = readAccessor(json, bin, posAccessor);
-        const xyz = [0, 0, 0];
-        const out = [0, 0, 0];
-        for (let i = 0; i < accessor.count; i += 1) {
-          xyz[0] = accessor.array[i * 3];
-          xyz[1] = accessor.array[i * 3 + 1];
-          xyz[2] = accessor.array[i * 3 + 2];
-          multiplyVec3Mat4(xyz, world, out);
-          points.push([out[0], out[1], out[2]]);
-        }
-      }
-    }
-    if (Array.isArray(node.children)) {
-      for (const child of node.children) {
-        stack.push({ index: child, parent: world });
-      }
-    }
-  }
-
-  return points;
-}
-
-function projectToSideProfile(points) {
-  // F1 GLBs in this catalog use +Z = forward, +Y = up in most exports.
-  // We'll auto-detect: the longest axis becomes "forward" (X), the next longest
-  // perpendicular axis becomes "up" (Y) so the silhouette renders side-on.
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity, minZ = Infinity, maxZ = -Infinity;
-  for (const p of points) {
+function buildOccupancyGrid(side2d) {
+  const grid = new Uint8Array(GRID_NX * GRID_NY);
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const p of side2d) {
     if (p[0] < minX) minX = p[0];
     if (p[0] > maxX) maxX = p[0];
     if (p[1] < minY) minY = p[1];
     if (p[1] > maxY) maxY = p[1];
-    if (p[2] < minZ) minZ = p[2];
-    if (p[2] > maxZ) maxZ = p[2];
-  }
-  const ranges = [
-    { axis: 0, range: maxX - minX, min: minX, max: maxX },
-    { axis: 1, range: maxY - minY, min: minY, max: maxY },
-    { axis: 2, range: maxZ - minZ, min: minZ, max: maxZ },
-  ];
-  ranges.sort((a, b) => b.range - a.range);
-  const fwdAxis = ranges[0].axis;
-  // up axis = the smallest range axis (height is usually shortest)
-  ranges.sort((a, b) => a.range - b.range);
-  const upAxis = ranges[0].axis;
-  // Side projection: use forward as X, up as Y.
-  return { fwdAxis, upAxis };
-}
-
-function buildOccupancyGrid(points, fwdAxis, upAxis) {
-  const grid = new Uint8Array(GRID_NX * GRID_NY);
-  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-  for (const p of points) {
-    const x = p[fwdAxis];
-    const y = p[upAxis];
-    if (x < minX) minX = x;
-    if (x > maxX) maxX = x;
-    if (y < minY) minY = y;
-    if (y > maxY) maxY = y;
   }
   const rx = maxX - minX || 1;
   const ry = maxY - minY || 1;
-  for (const p of points) {
-    const nx = (p[fwdAxis] - minX) / rx;
-    const ny = (p[upAxis] - minY) / ry;
-    const gx = Math.max(0, Math.min(GRID_NX - 1, Math.floor(nx * GRID_NX)));
-    const gy = Math.max(0, Math.min(GRID_NY - 1, Math.floor((1 - ny) * GRID_NY))); // flip Y so up is +y in canvas
+  // Pad a little so the silhouette isn't right at the canvas edge.
+  const pad = 0.05;
+  for (const p of side2d) {
+    const nx = (p[0] - minX) / rx;
+    const ny = (p[1] - minY) / ry;
+    const gx = Math.max(0, Math.min(GRID_NX - 1, Math.floor((pad + (1 - 2 * pad) * nx) * GRID_NX)));
+    const gy = Math.max(0, Math.min(GRID_NY - 1, Math.floor((pad + (1 - 2 * pad) * (1 - ny)) * GRID_NY)));
     grid[gy * GRID_NX + gx] = 1;
   }
-  // Dilate slightly so the silhouette closes up.
-  const dilated = new Uint8Array(grid);
+  // Two-pass dilation so the silhouette closes up.
+  const passes = 2;
+  let current = grid;
+  for (let pass = 0; pass < passes; pass += 1) {
+    const next = new Uint8Array(current);
+    for (let y = 1; y < GRID_NY - 1; y += 1) {
+      for (let x = 1; x < GRID_NX - 1; x += 1) {
+        if (current[y * GRID_NX + x]) continue;
+        let neighbors = 0;
+        for (let dy = -1; dy <= 1; dy += 1) {
+          for (let dx = -1; dx <= 1; dx += 1) {
+            if (current[(y + dy) * GRID_NX + (x + dx)]) neighbors += 1;
+          }
+        }
+        if (neighbors >= 3) next[y * GRID_NX + x] = 1;
+      }
+    }
+    current = next;
+  }
+  // One pass of erosion so we don't end up with a fat blob.
+  const eroded = new Uint8Array(current);
   for (let y = 1; y < GRID_NY - 1; y += 1) {
     for (let x = 1; x < GRID_NX - 1; x += 1) {
-      if (grid[y * GRID_NX + x]) continue;
+      if (!current[y * GRID_NX + x]) continue;
       let neighbors = 0;
       for (let dy = -1; dy <= 1; dy += 1) {
         for (let dx = -1; dx <= 1; dx += 1) {
-          if (grid[(y + dy) * GRID_NX + (x + dx)]) neighbors += 1;
+          if (current[(y + dy) * GRID_NX + (x + dx)]) neighbors += 1;
         }
       }
-      if (neighbors >= 2) dilated[y * GRID_NX + x] = 1;
+      if (neighbors < 5) eroded[y * GRID_NX + x] = 0;
     }
   }
-  return dilated;
+  return eroded;
 }
 
-function traceOutline(grid) {
-  // For each x column, find the topmost and bottommost occupied row.
-  // Walk top across columns left->right, then bottom right->left, to form a
-  // closed silhouette polygon.
-  const top = new Array(GRID_NX).fill(-1);
-  const bottom = new Array(GRID_NX).fill(-1);
-  for (let x = 0; x < GRID_NX; x += 1) {
-    for (let y = 0; y < GRID_NY; y += 1) {
-      if (grid[y * GRID_NX + x]) {
-        if (top[x] === -1) top[x] = y;
-        bottom[x] = y;
+// Marching-squares contour extraction. Walks the largest connected boundary.
+function traceContour(grid) {
+  // Build a binary helper.
+  function get(x, y) {
+    if (x < 0 || y < 0 || x >= GRID_NX || y >= GRID_NY) return 0;
+    return grid[y * GRID_NX + x];
+  }
+  // Find the largest connected component first; isolated debris from suspension
+  // arms or stray polygons would otherwise hijack the trace.
+  const visited = new Uint8Array(GRID_NX * GRID_NY);
+  const labels = new Int32Array(GRID_NX * GRID_NY);
+  const sizes = [0];
+  let nextLabel = 1;
+  const stack = [];
+  for (let y = 0; y < GRID_NY; y += 1) {
+    for (let x = 0; x < GRID_NX; x += 1) {
+      const idx = y * GRID_NX + x;
+      if (visited[idx] || !grid[idx]) continue;
+      stack.length = 0;
+      stack.push(idx);
+      visited[idx] = 1;
+      let size = 0;
+      while (stack.length) {
+        const i = stack.pop();
+        labels[i] = nextLabel;
+        size += 1;
+        const cy = Math.floor(i / GRID_NX);
+        const cx = i - cy * GRID_NX;
+        const neighbors = [
+          [cx + 1, cy], [cx - 1, cy], [cx, cy + 1], [cx, cy - 1],
+          [cx + 1, cy + 1], [cx - 1, cy - 1], [cx + 1, cy - 1], [cx - 1, cy + 1],
+        ];
+        for (const [nx, ny] of neighbors) {
+          if (nx < 0 || ny < 0 || nx >= GRID_NX || ny >= GRID_NY) continue;
+          const ni = ny * GRID_NX + nx;
+          if (visited[ni] || !grid[ni]) continue;
+          visited[ni] = 1;
+          stack.push(ni);
+        }
       }
+      sizes.push(size);
+      nextLabel += 1;
     }
   }
-  const polygon = [];
-  for (let x = 0; x < GRID_NX; x += 1) {
-    if (top[x] !== -1) polygon.push([x, top[x]]);
+  let bestLabel = 0;
+  let bestSize = 0;
+  for (let i = 1; i < sizes.length; i += 1) {
+    if (sizes[i] > bestSize) { bestSize = sizes[i]; bestLabel = i; }
   }
-  for (let x = GRID_NX - 1; x >= 0; x -= 1) {
-    if (bottom[x] !== -1) polygon.push([x, bottom[x]]);
+  if (!bestLabel) return [];
+  // Build a clean grid containing only the dominant component.
+  const filtered = new Uint8Array(GRID_NX * GRID_NY);
+  for (let i = 0; i < filtered.length; i += 1) {
+    if (labels[i] === bestLabel) filtered[i] = 1;
+  }
+
+  function getF(x, y) {
+    if (x < 0 || y < 0 || x >= GRID_NX || y >= GRID_NY) return 0;
+    return filtered[y * GRID_NX + x];
+  }
+
+  // Find a starting cell on the boundary of the dominant component.
+  let startX = -1, startY = -1;
+  outer:
+  for (let y = 0; y < GRID_NY; y += 1) {
+    for (let x = 0; x < GRID_NX; x += 1) {
+      if (getF(x, y)) { startX = x; startY = y; break outer; }
+    }
+  }
+  if (startX < 0) return [];
+
+  // Moore-neighborhood boundary tracing.
+  const dirs = [
+    [1, 0], [1, -1], [0, -1], [-1, -1], [-1, 0], [-1, 1], [0, 1], [1, 1],
+  ];
+  const polygon = [[startX, startY]];
+  let x = startX;
+  let y = startY;
+  let dir = 6; // start by checking south
+  let steps = 0;
+  const maxSteps = GRID_NX * GRID_NY * 4;
+  while (steps < maxSteps) {
+    let found = false;
+    for (let i = 0; i < 8; i += 1) {
+      const dirIdx = (dir + i) % 8;
+      const nx = x + dirs[dirIdx][0];
+      const ny = y + dirs[dirIdx][1];
+      if (getF(nx, ny)) {
+        polygon.push([nx, ny]);
+        if (nx === startX && ny === startY && polygon.length > 8) { found = false; break; }
+        x = nx; y = ny;
+        // Rotate so we start scanning from the "back-left" of the new cell.
+        dir = (dirIdx + 6) % 8;
+        found = true;
+        break;
+      }
+    }
+    if (!found) break;
+    if (polygon.length > 4 && x === startX && y === startY) break;
+    steps += 1;
   }
   return polygon;
 }
 
-function simplifyPolygon(polygon, tolerance = 1.0) {
+// Ramer-Douglas-Peucker simplification.
+function simplifyPolygon(polygon, tolerance = 1.4) {
   if (polygon.length < 4) return polygon;
-  // Ramer-Douglas-Peucker simplification.
   const sqTolerance = tolerance * tolerance;
   function sqSegDist(p, p1, p2) {
-    let x = p1[0];
-    let y = p1[1];
-    let dx = p2[0] - x;
-    let dy = p2[1] - y;
+    let x = p1[0]; let y = p1[1];
+    let dx = p2[0] - x; let dy = p2[1] - y;
     if (dx !== 0 || dy !== 0) {
       const t = ((p[0] - x) * dx + (p[1] - y) * dy) / (dx * dx + dy * dy);
-      if (t > 1) {
-        x = p2[0];
-        y = p2[1];
-      } else if (t > 0) {
-        x += dx * t;
-        y += dy * t;
-      }
+      if (t > 1) { x = p2[0]; y = p2[1]; }
+      else if (t > 0) { x += dx * t; y += dy * t; }
     }
-    dx = p[0] - x;
-    dy = p[1] - y;
+    dx = p[0] - x; dy = p[1] - y;
     return dx * dx + dy * dy;
   }
   function dpStep(points, first, last, simplified) {
@@ -336,10 +402,7 @@ function simplifyPolygon(polygon, tolerance = 1.0) {
     let index = -1;
     for (let i = first + 1; i < last; i += 1) {
       const dist = sqSegDist(points[i], points[first], points[last]);
-      if (dist > maxDist) {
-        index = i;
-        maxDist = dist;
-      }
+      if (dist > maxDist) { index = i; maxDist = dist; }
     }
     if (index !== -1) {
       if (index - first > 1) dpStep(points, first, index, simplified);
@@ -354,39 +417,90 @@ function simplifyPolygon(polygon, tolerance = 1.0) {
   return simplified;
 }
 
-function normalizePolygon(polygon) {
+// Best-effort wheel detection: project lateral spread by forward bins and
+// flag regions where there's a sharp increase in width. Then place a circle
+// at the center of each cluster, sized to the local width.
+function detectWheels(points, axes) {
+  const fwdLo = axes.forward.lo;
+  const fwdHi = axes.forward.hi;
+  const upLo = axes.up.lo;
+  const upHi = axes.up.hi;
+  const fwdRange = fwdHi - fwdLo || 1;
+  const upRange = upHi - upLo || 1;
+  const bins = 36;
+  const widths = new Array(bins).fill(0);
+  for (const p of points) {
+    const dx = p[0] - axes.mean[0];
+    const dy = p[1] - axes.mean[1];
+    const dz = p[2] - axes.mean[2];
+    const fwd = dx * axes.forward.axis[0] + dy * axes.forward.axis[1] + dz * axes.forward.axis[2];
+    const up = dx * axes.up.axis[0] + dy * axes.up.axis[1] + dz * axes.up.axis[2];
+    const lat = dx * axes.lateral.axis[0] + dy * axes.lateral.axis[1] + dz * axes.lateral.axis[2];
+    // Wheels live near the floor: bottom 35% of upRange.
+    const upN = (up - upLo) / upRange;
+    if (upN > 0.35) continue;
+    const bin = Math.max(0, Math.min(bins - 1, Math.floor(((fwd - fwdLo) / fwdRange) * bins)));
+    widths[bin] = Math.max(widths[bin], Math.abs(lat));
+  }
+  // Find two clusters with peak width.
+  const peaks = [];
+  for (let i = 1; i < bins - 1; i += 1) {
+    if (widths[i] > widths[i - 1] && widths[i] >= widths[i + 1] && widths[i] > 0.4) {
+      peaks.push({ bin: i, width: widths[i] });
+    }
+  }
+  peaks.sort((a, b) => b.width - a.width);
+  const top = peaks.slice(0, 2);
+  return top.map(({ bin }) => {
+    const fwdN = bin / bins;
+    return { cx: 0.05 + fwdN * 0.9, cy: 0.85, r: 0.055 };
+  });
+}
+
+function normalizePolygonToCanvas(polygon) {
+  // Convert grid cells to normalized [0,1] x [0,1] coordinates.
   return polygon.map(([x, y]) => [x / GRID_NX, y / GRID_NY]);
 }
 
-async function processGlb(catalogEntry, glbPath, outDir) {
-  const buffer = await readFile(glbPath);
-  const { json, bin } = parseGlb(buffer);
-  const points = gatherWorldPositions(json, bin);
+async function processModel(entry, glbPath, outDir) {
+  process.stdout.write(`Processing ${entry.constructor} (${entry.constructorSlug}) ...\n`);
+  let points;
+  try {
+    points = await loadGlbPositions(glbPath);
+  } catch (error) {
+    process.stdout.write(`  FAIL load: ${error instanceof Error ? error.message : error}\n`);
+    return false;
+  }
   if (!points.length) {
-    process.stdout.write(`  skip ${catalogEntry.constructorSlug}: no positions\n`);
+    process.stdout.write(`  skip: zero positions\n`);
     return false;
   }
-  const { fwdAxis, upAxis } = projectToSideProfile(points);
-  const grid = buildOccupancyGrid(points, fwdAxis, upAxis);
-  const polygon = simplifyPolygon(traceOutline(grid), 1.5);
-  if (polygon.length < 16) {
-    process.stdout.write(`  skip ${catalogEntry.constructorSlug}: polygon too small (${polygon.length})\n`);
+  const axes = pickAxes(pca(points), points);
+  const side2d = projectToSide(points, axes);
+  const grid = buildOccupancyGrid(side2d);
+  const rawContour = traceContour(grid);
+  if (rawContour.length < 16) {
+    process.stdout.write(`  skip: contour too small (${rawContour.length})\n`);
     return false;
   }
-  const normalized = normalizePolygon(polygon);
+  const simplified = simplifyPolygon(rawContour, 1.4);
+  const polygon = normalizePolygonToCanvas(simplified);
+  const wheelArches = detectWheels(points, axes);
   const payload = {
-    constructor: catalogEntry.constructor,
-    constructorSlug: catalogEntry.constructorSlug,
+    constructor: entry.constructor,
+    constructorSlug: entry.constructorSlug,
     source: path.relative(root, glbPath).replace(/\\/g, "/"),
-    polygon: normalized,
+    polygon,
+    wheelArches,
     bbox: { minX: 0, maxX: 1, minY: 0, maxY: 1 },
-    pointCount: normalized.length,
+    pointCount: polygon.length,
     samples: points.length,
+    axesNote: "PCA-derived forward/up/lateral",
     extractedAt: new Date().toISOString(),
   };
-  const outPath = path.join(outDir, `${catalogEntry.constructorSlug}.json`);
+  const outPath = path.join(outDir, `${entry.constructorSlug}.json`);
   await writeFile(outPath, `${JSON.stringify(payload, null, 2)}\n`, "utf-8");
-  process.stdout.write(`  ok ${catalogEntry.constructorSlug}: ${normalized.length} pts (${points.length} samples)\n`);
+  process.stdout.write(`  ok: ${polygon.length} pts (${points.length} samples)\n`);
   return true;
 }
 
@@ -399,30 +513,24 @@ async function main() {
   let ok = 0;
   let fail = 0;
   for (const entry of catalog.models) {
-    process.stdout.write(`Processing ${entry.constructor} (${entry.constructorSlug}) ...\n`);
     const glbPath = path.join(root, "apps", "web", "public", entry.file.replace(/^\//, ""));
     try {
-      const success = await processGlb(entry, glbPath, outDir);
-      if (success) ok += 1;
-      else fail += 1;
+      const success = await processModel(entry, glbPath, outDir);
+      if (success) ok += 1; else fail += 1;
     } catch (error) {
       fail += 1;
-      process.stdout.write(`  FAIL: ${error instanceof Error ? error.message : error}\n`);
+      process.stdout.write(`  FAIL: ${error instanceof Error ? error.stack || error.message : error}\n`);
     }
   }
 
-  // Mirror to public for client fetch
+  // Mirror to apps/web/public so the client can fetch them at runtime.
   const publicDir = path.join(root, "apps", "web", "public", "data", "wind-profiles");
   await mkdir(publicDir, { recursive: true });
-  const fs = await import("node:fs/promises");
-  const entries = await fs.readdir(outDir);
+  const entries = await readdir(outDir);
   for (const file of entries) {
     if (!file.endsWith(".json")) continue;
-    const src = path.join(outDir, file);
-    const dst = path.join(publicDir, file);
-    await fs.copyFile(src, dst);
+    await copyFile(path.join(outDir, file), path.join(publicDir, file));
   }
-
   process.stdout.write(`\nDone. ok=${ok} fail=${fail}\n`);
 }
 

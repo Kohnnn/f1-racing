@@ -1,7 +1,37 @@
 
 ---
 
-## Final UI / Replay Pass — shipped 2026-05-22
+## Modelview correctness pass — shipped 2026-05-22
+
+User reported the airflow simulation looked too noisy and the silhouette did not match the actual GLB. The previous wind-profile extractor only worked on a subset of GLBs and used naive axis heuristics; the worker shipped only the speed magnitude, so streaklines could only travel horizontally; and the inspect overlay promised an exploded view that did not exist on disk.
+
+### What changed
+
+| Area | Result |
+|------|--------|
+| Wind-profile extractor (`pipeline/export/src/build-wind-profiles.mjs`) | Rewritten with `@gltf-transform/core`, draco3d decoder, PCA-derived forward/up/lateral axes, dilation+erosion mask, largest-connected-component selection, Moore-neighborhood contour trace, and Ramer-Douglas-Peucker simplification. All 7 catalogued constructors now produce a real silhouette polygon. |
+| Wind-profile snapshots | New `pipeline/export/src/render-wind-profile-snapshots.mjs` writes per-constructor SVG+PNG snapshots into `pipeline/export/wind-profile-snapshots/` for visual review without rerunning the full export. |
+| Fluid-solver worker (`apps/web/src/components/wind/fluid-solver.worker.ts`) | Now ships the full `u`, `v`, and `pressure` fields per frame, not just speed magnitude. Particles now move along real 2D velocity instead of horizontal-only drift. |
+| Wind tunnel renderer (`apps/web/src/components/wind/canvas-wind-tunnel.tsx`) | Replaced the noisy density-fill + dust particles with fading 6-sample streaklines (`particles: 700`) and a Cp pressure tint along the silhouette boundary (red = stagnation, blue = suction). The parametric F1 cartoon fallback is gone — when a profile is missing the panel says so explicitly. Added inset legend for streaklines + Cp scale. Solver bootstrap shows `Solver warming up…` instead of cartoon flow. |
+| Exploded-view generator | New `pipeline/export/src/build-exploded-views.mjs` calls 9Router `cx/gpt-5.5-image` over SSE (Cloudflare proxy needs streaming to survive long-running thinking) with per-constructor prompts, livery palettes, real chassis names, and explicit subsystem labels. Outputs `apps/web/public/exploded-views/<season>/<constructor>.png`. |
+| Exploded-view assets | Generated 7 photorealistic exploded PNGs (`red-bull`, `mclaren`, `ferrari`, `mercedes`, `aston-martin`, `alpine`, `fia-2026`); each ~1.3-1.5 MB. |
+| Inspect overlay | Exploded view now has Expand / Collapse toggle. Expanded fills the canvas frame with `object-fit: contain` against a black backdrop so the part separation reads clearly. |
+| Modelview toolbar | Removed the "Coming soon: Williams, Racing Bulls, Haas, Kick Sauber" callout per user request. |
+
+### Verification
+
+- `node pipeline/export/src/build-wind-profiles.mjs` returned `Done. ok=7 fail=0`.
+- `node pipeline/export/src/build-exploded-views.mjs` returned `Done. ok=7 skipped=0 failed=0` after one alpine retry.
+- `npm run next:build -w @f1-racing/web` passed and exported 334 static pages.
+- Local export smoke returned 200 for `/`, `/cars/current-spec/`, `/data/wind-profiles/red-bull.json`, `/exploded-views/2025/red-bull.png`.
+
+### Notes
+
+- 9Router `cx/*` image models stream via SSE. Non-streaming requests hit Cloudflare 524 at 120 s. The generator now sends `stream: true` and parses SSE chunks for `b64_json` or `image_url`.
+- Wind-tunnel silhouettes are derived directly from each GLB and never fall back to the parametric F1 shape.
+- All exploded-view PNGs use a shared prompt template with per-constructor livery palette and the actual chassis name (RB21, MCL39, SF-25, W15, AMR25, A525, FIA 2026 prototype).
+
+
 
 Build verification: `npm run next:build -w @f1-racing/web` passed and exported 334 static pages.
 

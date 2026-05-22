@@ -1,22 +1,28 @@
 /**
- * Stable-Fluids Web Worker.
+ * Stable-Fluids Web Worker (rewritten 2026-05-22).
  *
  * 2D incompressible Navier-Stokes solver based on Jos Stam's "Stable Fluids"
  * (1999) approach: semi-Lagrangian advection + Jacobi pressure projection.
- * The solver runs in a Worker so the main UI stays responsive while it
- * iterates at ~30-60 Hz.
+ * Runs in a Worker so the main UI thread stays responsive.
  *
  * Wire protocol (postMessage):
  *
- *   IN  { type: "init", width, height, mask, uin, density }
- *   IN  { type: "tick", uin, dtMs, mask, drsOpen }
- *   IN  { type: "set-resolution", width, height }
- *   OUT { type: "frame", u: Float32Array, v: Float32Array, p: Float32Array,
- *         speed: Float32Array, density: Float32Array, drag, lift }
+ *   IN  { type: "init", airspeed, mask }
+ *   IN  { type: "set-mask", mask }
+ *   IN  { type: "tick", airspeed, drsOpen, mask?, subSteps? }
  *
- * The simulation is intentionally illustrative -- the physics constants are
- * tuned for visual clarity, not accuracy. The wind tunnel UI labels it as
- * such.
+ *   OUT { type: "frame", nx, ny,
+ *         u: ArrayBuffer (Float32Array NX*NY),
+ *         v: ArrayBuffer (Float32Array NX*NY),
+ *         speed: ArrayBuffer (Float32Array NX*NY),
+ *         pressure: ArrayBuffer (Float32Array NX*NY),
+ *         drag, lift }
+ *
+ * Compared to the previous version we now ship u + v separately (so particle
+ * streaklines can curl and deflect over the body) and the pressure field (so
+ * the renderer can paint a Cp tint along the boundary instead of a noisy
+ * volumetric heat-fill). The simulation is illustrative, not a measured
+ * aerodynamic result, and the wind tunnel UI labels it as such.
  */
 
 const NX = 320; // grid columns
@@ -24,26 +30,23 @@ const NY = 120; // grid rows
 const N = NX * NY;
 const DT = 0.045;
 const VISCOSITY = 0.00018;
-const DENSITY_DIFF = 0.00008;
-const PRESSURE_ITER = 18;
+const PRESSURE_ITER = 20;
 
 const u = new Float32Array(N);
 const v = new Float32Array(N);
 const u0 = new Float32Array(N);
 const v0 = new Float32Array(N);
-const dens = new Float32Array(N);
-const dens0 = new Float32Array(N);
 const p = new Float32Array(N);
 const div = new Float32Array(N);
 const speed = new Float32Array(N);
 let mask = new Uint8Array(N);
 let inletSpeed = 1.4;
 
-function idx(x: number, y: number): number {
+function idx(x: number, y: number) {
   return y * NX + x;
 }
 
-function setBoundaries(field: Float32Array, isVerticalComponent: boolean): void {
+function setBoundaries(field: Float32Array, isVerticalComponent: boolean) {
   // Walls: top + bottom slip, left = inlet (Dirichlet), right = outflow.
   for (let y = 0; y < NY; y += 1) {
     field[idx(0, y)] = isVerticalComponent ? 0 : inletSpeed;
@@ -53,16 +56,13 @@ function setBoundaries(field: Float32Array, isVerticalComponent: boolean): void 
     field[idx(x, 0)] = isVerticalComponent ? 0 : field[idx(x, 1)];
     field[idx(x, NY - 1)] = isVerticalComponent ? 0 : field[idx(x, NY - 2)];
   }
-
   // No-slip at obstacle cells.
   for (let i = 0; i < N; i += 1) {
-    if (mask[i]) {
-      field[i] = 0;
-    }
+    if (mask[i]) field[i] = 0;
   }
 }
 
-function diffuse(field: Float32Array, source: Float32Array, rate: number, isVertical: boolean): void {
+function diffuse(field: Float32Array, source: Float32Array, rate: number, isVertical: boolean) {
   const a = DT * rate * NX * NY;
   for (let iter = 0; iter < 4; iter += 1) {
     for (let y = 1; y < NY - 1; y += 1) {
@@ -78,16 +78,13 @@ function diffuse(field: Float32Array, source: Float32Array, rate: number, isVert
   }
 }
 
-function advect(field: Float32Array, source: Float32Array, fieldU: Float32Array, fieldV: Float32Array, isVertical: boolean): void {
+function advect(field: Float32Array, source: Float32Array, fieldU: Float32Array, fieldV: Float32Array, isVertical: boolean) {
   const dt0x = DT * NX;
   const dt0y = DT * NY;
   for (let y = 1; y < NY - 1; y += 1) {
     for (let x = 1; x < NX - 1; x += 1) {
       const c = idx(x, y);
-      if (mask[c]) {
-        field[c] = 0;
-        continue;
-      }
+      if (mask[c]) { field[c] = 0; continue; }
       let bx = x - dt0x * fieldU[c];
       let by = y - dt0y * fieldV[c];
       if (bx < 0.5) bx = 0.5;
@@ -109,16 +106,12 @@ function advect(field: Float32Array, source: Float32Array, fieldU: Float32Array,
   setBoundaries(field, isVertical);
 }
 
-function project(): void {
+function project() {
   const h = 1 / NX;
   for (let y = 1; y < NY - 1; y += 1) {
     for (let x = 1; x < NX - 1; x += 1) {
       const c = idx(x, y);
-      if (mask[c]) {
-        div[c] = 0;
-        p[c] = 0;
-        continue;
-      }
+      if (mask[c]) { div[c] = 0; p[c] = 0; continue; }
       div[c] = -0.5 * h * (
         u[idx(x + 1, y)] - u[idx(x - 1, y)]
         + v[idx(x, y + 1)] - v[idx(x, y - 1)]
@@ -147,8 +140,7 @@ function project(): void {
   setBoundaries(v, true);
 }
 
-function injectInlet(uinAtRow: Float32Array): void {
-  // Apply inlet velocity profile at column x=0,1.
+function injectInlet(uinAtRow: Float32Array) {
   for (let y = 1; y < NY - 1; y += 1) {
     const incoming = uinAtRow[y];
     u[idx(0, y)] = incoming;
@@ -158,18 +150,8 @@ function injectInlet(uinAtRow: Float32Array): void {
   }
 }
 
-function injectDensity(): void {
-  for (let y = 1; y < NY - 1; y += 1) {
-    dens[idx(0, y)] = 1;
-    dens[idx(1, y)] = 1;
-  }
-}
-
-function step(uinAtRow: Float32Array): void {
+function step(uinAtRow: Float32Array) {
   injectInlet(uinAtRow);
-  injectDensity();
-
-  // Velocity diffuse + project + advect.
   u0.set(u);
   v0.set(v);
   diffuse(u, u0, VISCOSITY, false);
@@ -180,20 +162,10 @@ function step(uinAtRow: Float32Array): void {
   advect(u, u0, u0, v0, false);
   advect(v, v0, u0, v0, true);
   project();
-
-  // Density (smoke) diffuse + advect.
-  dens0.set(dens);
-  diffuse(dens, dens0, DENSITY_DIFF, false);
-  dens0.set(dens);
-  advect(dens, dens0, u, v, false);
-
-  // Update speed magnitude scratch for the renderer.
-  for (let i = 0; i < N; i += 1) {
-    speed[i] = Math.hypot(u[i], v[i]);
-  }
+  for (let i = 0; i < N; i += 1) speed[i] = Math.hypot(u[i], v[i]);
 }
 
-function computeForces(): { drag: number; lift: number } {
+function computeForces() {
   // Approximate drag and lift on the obstacle by integrating the pressure
   // difference across mask boundary cells. Not a quantitative Cd/Cl, just an
   // illustrative readout.
@@ -202,11 +174,9 @@ function computeForces(): { drag: number; lift: number } {
   for (let y = 1; y < NY - 1; y += 1) {
     for (let x = 1; x < NX - 1; x += 1) {
       if (!mask[idx(x, y)]) continue;
-      // Horizontal pressure delta = drag.
       const left = mask[idx(x - 1, y)] ? 0 : p[idx(x - 1, y)];
       const right = mask[idx(x + 1, y)] ? 0 : p[idx(x + 1, y)];
       drag += left - right;
-      // Vertical pressure delta = lift (down-positive).
       const above = mask[idx(x, y - 1)] ? 0 : p[idx(x, y - 1)];
       const below = mask[idx(x, y + 1)] ? 0 : p[idx(x, y + 1)];
       lift += above - below;
@@ -215,7 +185,7 @@ function computeForces(): { drag: number; lift: number } {
   return { drag, lift };
 }
 
-function buildInletProfile(speedMps: number): Float32Array {
+function buildInletProfile(speedMps: number) {
   inletSpeed = speedMps / 60; // normalize against grid scale
   const out = new Float32Array(NY);
   for (let y = 0; y < NY; y += 1) {
@@ -234,10 +204,9 @@ self.addEventListener("message", (event) => {
     mask = data.mask instanceof Uint8Array ? data.mask : new Uint8Array(N);
     u.fill(0);
     v.fill(0);
-    dens.fill(0);
     p.fill(0);
     inletSpeed = (data.airspeed ?? 80) / 60;
-    (self as unknown as Worker).postMessage({ type: "ready", nx: NX, ny: NY });
+    self.postMessage({ type: "ready", nx: NX, ny: NY });
     return;
   }
 
@@ -252,20 +221,18 @@ self.addEventListener("message", (event) => {
     }
     const profile = buildInletProfile(data.airspeed ?? 80);
     const ticks = data.subSteps ?? 1;
-    for (let i = 0; i < ticks; i += 1) {
-      step(profile);
-    }
+    for (let i = 0; i < ticks; i += 1) step(profile);
     const forces = computeForces();
-    (self as unknown as Worker).postMessage(
-      {
-        type: "frame",
-        nx: NX,
-        ny: NY,
-        speed: speed.slice().buffer,
-        density: dens.slice().buffer,
-        drag: forces.drag,
-        lift: forces.lift,
-      },
-    );
+    self.postMessage({
+      type: "frame",
+      nx: NX,
+      ny: NY,
+      u: u.slice().buffer,
+      v: v.slice().buffer,
+      speed: speed.slice().buffer,
+      pressure: p.slice().buffer,
+      drag: forces.drag,
+      lift: forces.lift,
+    });
   }
 });

@@ -9,14 +9,25 @@ import { CanvasWindTunnel } from "@/components/wind/canvas-wind-tunnel";
 /**
  * Renders an AI-generated exploded technical illustration of the car
  * matched to the current constructor + season slug. Image lives at
- * `/exploded-views/<season>/<constructor>.png` (committed asset). Falls
- * back gracefully when the file is missing.
+ * `/exploded-views/<season>/<constructor>.png` (committed asset, generated
+ * via 9Router cx/gpt-5.5-image). Falls back gracefully when missing.
  */
-function ExplodedViewLayer({ constructorSlug, season }: { constructorSlug: string; season: number }) {
+function ExplodedViewLayer({
+  constructorSlug,
+  season,
+  expanded,
+  onToggle,
+}: {
+  constructorSlug: string;
+  season: number;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
   const [available, setAvailable] = useState<boolean | null>(null);
   const url = `/exploded-views/${season}/${constructorSlug}.png`;
   useEffect(() => {
     let cancelled = false;
+    setAvailable(null);
     fetch(url, { method: "HEAD" })
       .then((response) => {
         if (cancelled) return;
@@ -33,7 +44,7 @@ function ExplodedViewLayer({ constructorSlug, season }: { constructorSlug: strin
   if (available === false) {
     return (
       <div className="car-viewer-inspect-overlay__hint">
-        Exploded view not yet generated for this constructor.
+        Exploded view not yet generated for this constructor. Run <code>node pipeline/export/src/build-exploded-views.mjs --slug={constructorSlug}</code>.
       </div>
     );
   }
@@ -41,9 +52,19 @@ function ExplodedViewLayer({ constructorSlug, season }: { constructorSlug: strin
     return null;
   }
   return (
-    <figure className="car-viewer-inspect-overlay__exploded">
+    <figure
+      className={`car-viewer-inspect-overlay__exploded${expanded ? " car-viewer-inspect-overlay__exploded--expanded" : ""}`}
+    >
+      <button
+        type="button"
+        className="car-viewer-inspect-overlay__exploded-toggle"
+        onClick={onToggle}
+        aria-label={expanded ? "Collapse exploded view" : "Expand exploded view"}
+      >
+        {expanded ? "Collapse" : "Expand"}
+      </button>
       <img src={url} alt="Exploded technical view" loading="lazy" />
-      <figcaption>Exploded view · subsystems annotated</figcaption>
+      <figcaption>Exploded view · subsystems pulled apart along assembly axes</figcaption>
     </figure>
   );
 }
@@ -209,6 +230,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
   );
   const [interactionMode, setInteractionMode] = useState<"orbit" | "inspect">("orbit");
   const [compareSlug, setCompareSlug] = useState<string | null>(null);
+  const [explodedExpanded, setExplodedExpanded] = useState<boolean>(false);
 
   useEffect(() => {
     import("@google/model-viewer");
@@ -314,10 +336,6 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
             </select>
           </label>
         </div>
-
-        <p className="car-viewer-availability">
-          Coming soon: Williams, Racing Bulls, Haas, Kick Sauber. Drop a GLB into <code>glb_model/</code> to ingest a constructor.
-        </p>
 
         <div className="camera-preset-row" aria-label="Camera presets">
           {CAMERA_PRESETS.map((preset) => (
@@ -451,12 +469,16 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
 
             {/* Exploded-view annotation pin overlay shown only in Inspect mode. */}
             {interactionMode === "inspect" && modelReady ? (
-              <div className="car-viewer-inspect-overlay" aria-hidden="true">
+              <div
+                className={`car-viewer-inspect-overlay${explodedExpanded ? " car-viewer-inspect-overlay--expanded" : ""}`}
+              >
                 <p className="car-viewer-inspect-overlay__title">Inspect mode</p>
                 <p>Click any hotspot to lock the camera. Orbit drag is disabled so the click lands cleanly.</p>
                 <ExplodedViewLayer
                   constructorSlug={selected.constructorSlug}
                   season={selected.season}
+                  expanded={explodedExpanded}
+                  onToggle={() => setExplodedExpanded((prev) => !prev)}
                 />
               </div>
             ) : null}

@@ -48,28 +48,28 @@ report. Each pass touches one or more of these surfaces:
 
 ### Shipped in pass 2026-05-21
 
-- Per-constructor wind tunnel silhouettes (4/7 traced; Draco-compressed GLBs deferred).
+- Per-constructor wind tunnel silhouettes (7/7 GLBs traced via gltf-transform + Draco + PCA axes).
 - Lap times waterfall analysis tab.
 - Inline 3D in Learn modules.
 - Side-by-side Modelview compare.
 - Inspect / Orbit toggle on the modelview canvas.
 - Real corner labels via FastF1 hydration on 22/24 circuits.
 - OCI live-delay buffer.
+- Realistic AI exploded-view PNGs for every catalogued car (9Router cx/gpt-5.5-image).
+- Streakline + Cp boundary tint wind tunnel rewrite (replaces noisy density fill and dust particles).
 
 ### Long-tail / research
 
 - **Light theme** — deferred until the dark product shell is stable across all pages.
-- **Generated exploded-view assets** — current UI looks for `/exploded-views/<season>/<constructor>.png`. Generate with 9Router/image tooling and commit optimized PNGs per constructor.
-- **Decode Draco-compressed GLBs** so we can trace silhouettes for Ferrari, Mercedes, Alpine (needs `draco3d` or Three.js `DRACOLoader`). Deferred at user request — not in current scope.
 - **Williams / Racing Bulls / Haas / Kick Sauber GLBs** — blocked on source asset drop; deferred at user request.
 - **Tier 3 baked OpenFOAM Cp surface fields** projected onto the GLB.
 - **Live SignalR ingestion** from the Formula 1 timing feed behind an explicit OCI-only flag.
 - **Telemetry stream / debug route** that consumes the same replay/live frame state as the workspace.
 - **2026 practice (FP1/2/3) packs** — currently skipped to keep the OpenF1 request count down.
-- **Wind tunnel Cp legend strip** with gradient bar.
 - **Driver photo grid on Session Summary** (fix crop first).
 - **Scroll-spy for Modelview sections.**
 - **Session-key disambiguation for legacy 2026 `japan-grand-prix` slug** — already removed; keep an eye on stale links.
+- **Higher-resolution exploded views (1792×1024)** — current generation uses 1024×1024 to stay under 9Router's stream-friendly window; revisit when the gateway exposes longer timeouts.
 
 ## Operational notes
 

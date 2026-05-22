@@ -34,6 +34,11 @@
     "worker:deploy": "npm run deploy -w @f1-racing/metadata-api"
   },
   "devDependencies": {
+    "@gltf-transform/core": "^4.3.0",
+    "@gltf-transform/extensions": "^4.3.0",
+    "@gltf-transform/functions": "^4.3.0",
+    "@resvg/resvg-js": "^2.6.2",
+    "draco3dgltf": "^1.5.7",
     "wrangler": "^4.39.0"
   },
   "engines": {

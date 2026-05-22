@@ -1,24 +1,28 @@
 "use client";
 
 /**
- * Wind Tunnel V2.
+ * Wind Tunnel V3 (rewritten 2026-05-22).
  *
- * - Tier 1: legacy procedural Karman wake field (kept as the "Lite" mode for low-power devices).
- * - Tier 2 (default): real 2D incompressible Navier-Stokes solver running in a Web Worker.
+ * Visual goals:
+ * - Replace the noisy density-fill + horizontal-only particle drift with
+ *   real streaklines that follow the live u/v field. Each particle keeps a
+ *   fading 6-sample tail so the field reads as flow, not dust.
+ * - Replace the volumetric heat-fill with a sparse Cp boundary tint that
+ *   colours the silhouette edge: red on stagnation surfaces, blue on suction
+ *   surfaces. This is the diagram an aero engineer expects.
+ * - Always render a real GLB-derived silhouette for the selected
+ *   constructor. The parametric F1 cartoon is gone; we wait for the profile
+ *   JSON to arrive before drawing flow so we never show a wrong shape.
+ * - Pause when offscreen.
  *
- * The solver drives a smoke-style density field plus a velocity magnitude field. We render the
- * density on the main canvas (background, with pressure tint), then draw the obstacle silhouette
- * on top, then particles drifting along the live velocity field. A small heat ribbon at the top
- * shows velocity magnitude across the inlet column.
- *
- * The car silhouette is built from a parametric F1 profile (front wing, body, sidepod intake,
- * cockpit, rear wing, floor, optional DRS gap). Per-constructor color theming applied via the
- * stroke / accent colors.
+ * The simulation comes from `fluid-solver.worker.ts` which now ships full
+ * u/v fields and the pressure field. The worker is the source of truth for
+ * "real" flow; we only fall back to a still-frame placeholder while it
+ * boots, never the old procedural Karman wake.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-type SolverMode = "tier2-fluid" | "tier1-procedural";
 type GroundMode = "rolling" | "fixed";
 type WheelMode = "rotating" | "stationary";
 
@@ -29,8 +33,9 @@ interface WindTunnelControls {
   drsOpen: boolean;
   groundMode: GroundMode;
   wheelMode: WheelMode;
-  solver: SolverMode;
   particles: number;
+  showStreamlines: boolean;
+  showCp: boolean;
 }
 
 const DEFAULT_CONTROLS: WindTunnelControls = {
@@ -40,19 +45,29 @@ const DEFAULT_CONTROLS: WindTunnelControls = {
   drsOpen: false,
   groundMode: "rolling",
   wheelMode: "rotating",
-  solver: "tier2-fluid",
-  particles: 4000,
+  particles: 700,
+  showStreamlines: true,
+  showCp: true,
 };
 
 const STAGE_WIDTH = 1024;
 const STAGE_HEIGHT = 384;
 const SOLVER_NX = 320;
 const SOLVER_NY = 120;
+const TRAIL_LENGTH = 6;
 
 interface ParticleState {
   x: number;
   y: number;
   age: number;
+  trail: Float32Array; // [x0, y0, x1, y1, ...] length TRAIL_LENGTH * 2
+  trailHead: number;
+}
+
+interface WheelArch {
+  cx: number;
+  cy: number;
+  r: number;
 }
 
 export interface CanvasWindTunnelProps {
@@ -64,7 +79,6 @@ export interface CanvasWindTunnelProps {
 export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", constructorSlug }: CanvasWindTunnelProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const isVisibleRef = useRef<boolean>(true);
-
   useEffect(() => {
     const node = canvasRef.current;
     if (!node || typeof IntersectionObserver === "undefined") return;
@@ -79,68 +93,70 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
     io.observe(node);
     return () => io.disconnect();
   }, []);
-  const heatRef = useRef<HTMLCanvasElement | null>(null);
+
   const animationRef = useRef<number | null>(null);
   const particlesRef = useRef<ParticleState[]>([]);
   const workerRef = useRef<Worker | null>(null);
-  const fluidFrameRef = useRef<{ speed: Float32Array | null; density: Float32Array | null; drag: number; lift: number }>({
-    speed: null,
-    density: null,
-    drag: 0,
-    lift: 0,
-  });
+  const fluidFrameRef = useRef<{
+    u: Float32Array | null;
+    v: Float32Array | null;
+    speed: Float32Array | null;
+    pressure: Float32Array | null;
+    drag: number;
+    lift: number;
+    ready: boolean;
+  }>({ u: null, v: null, speed: null, pressure: null, drag: 0, lift: 0, ready: false });
+
   const [controls, setControls] = useState<WindTunnelControls>(DEFAULT_CONTROLS);
   const [readout, setReadout] = useState<{ drag: number; lift: number; reynolds: number } | null>(null);
-  const [constructorPolygon, setConstructorPolygon] = useState<Array<[number, number]> | null>(null);
+  const [profile, setProfile] = useState<{
+    polygon: Array<[number, number]>;
+    wheelArches: WheelArch[];
+  } | null>(null);
+  const [profileMissing, setProfileMissing] = useState(false);
 
-  // Try to load a per-constructor traced silhouette from data/wind-profiles. Falls back to the
-  // parametric F1 shape when no profile is available (e.g. Draco-compressed GLBs we cannot trace
-  // statically).
+  // Load constructor-specific silhouette JSON. We never fall back to a
+  // parametric F1 cartoon — if the profile is missing we tell the user.
   useEffect(() => {
     if (!constructorSlug) {
-      setConstructorPolygon(null);
+      setProfile(null);
+      setProfileMissing(true);
       return;
     }
     let cancelled = false;
+    setProfileMissing(false);
+    setProfile(null);
     fetch(`/data/wind-profiles/${constructorSlug}.json`)
       .then((response) => (response.ok ? response.json() : null))
       .then((payload) => {
         if (cancelled) return;
         if (payload && Array.isArray(payload.polygon) && payload.polygon.length >= 16) {
-          setConstructorPolygon(payload.polygon);
+          setProfile({
+            polygon: remapToTunnelFrame(payload.polygon),
+            wheelArches: Array.isArray(payload.wheelArches) ? payload.wheelArches : [],
+          });
+          setProfileMissing(false);
         } else {
-          setConstructorPolygon(null);
+          setProfileMissing(true);
         }
       })
       .catch(() => {
-        if (!cancelled) setConstructorPolygon(null);
+        if (!cancelled) setProfileMissing(true);
       });
     return () => {
       cancelled = true;
     };
   }, [constructorSlug]);
 
-  // Build the F1 silhouette polygon in normalized [0..1] coordinates.
-  const silhouettePolygon = useMemo(() => {
-    if (constructorPolygon) {
-      return remapToTunnelFrame(constructorPolygon);
-    }
-    return buildSilhouette(controls);
-  }, [constructorPolygon, controls]);
+  // Build the obstacle mask on the solver grid. Empty until the profile loads.
+  const mask = useMemo(() => {
+    if (!profile) return new Uint8Array(SOLVER_NX * SOLVER_NY);
+    return buildMask(profile.polygon, SOLVER_NX, SOLVER_NY);
+  }, [profile]);
 
-  // Build the obstacle mask as a Uint8Array on the solver grid.
-  const mask = useMemo(() => buildMask(silhouettePolygon, SOLVER_NX, SOLVER_NY), [silhouettePolygon]);
-
-  // Initialize / reinitialize Web Worker on solver mode change.
+  // Initialize / reinitialize the worker once we have a profile.
   useEffect(() => {
-    if (controls.solver !== "tier2-fluid") {
-      if (workerRef.current) {
-        workerRef.current.terminate();
-        workerRef.current = null;
-      }
-      return;
-    }
-
+    if (!profile) return;
     let cancelled = false;
     let worker: Worker | null = null;
     try {
@@ -149,7 +165,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
       return;
     }
     workerRef.current = worker;
-
+    fluidFrameRef.current = { u: null, v: null, speed: null, pressure: null, drag: 0, lift: 0, ready: false };
     worker.postMessage({ type: "init", airspeed: controls.airspeed, mask });
 
     function handleMessage(event: MessageEvent) {
@@ -157,20 +173,27 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
       const data = event.data;
       if (!data || data.type !== "frame") return;
       fluidFrameRef.current = {
+        u: new Float32Array(data.u),
+        v: new Float32Array(data.v),
         speed: new Float32Array(data.speed),
-        density: new Float32Array(data.density),
+        pressure: new Float32Array(data.pressure),
         drag: data.drag ?? 0,
         lift: data.lift ?? 0,
+        ready: true,
       };
     }
-
     worker.addEventListener("message", handleMessage);
 
     let stop = false;
     const tick = () => {
       if (stop || !worker) return;
-      worker.postMessage({ type: "tick", airspeed: controls.airspeed, mask, drsOpen: controls.drsOpen, subSteps: 1 });
-      // Throttle to ~30 Hz; the solver itself is the bottleneck.
+      worker.postMessage({
+        type: "tick",
+        airspeed: controls.airspeed,
+        mask,
+        drsOpen: controls.drsOpen,
+        subSteps: 1,
+      });
       window.setTimeout(tick, 32);
     };
     tick();
@@ -180,24 +203,32 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
       stop = true;
       worker?.removeEventListener("message", handleMessage);
       worker?.terminate();
-      if (workerRef.current === worker) {
-        workerRef.current = null;
-      }
+      if (workerRef.current === worker) workerRef.current = null;
     };
-  }, [controls.airspeed, controls.drsOpen, controls.solver, mask]);
+    // We intentionally do not include controls.airspeed here; the worker is
+    // re-initialised when the profile changes, and live airspeed flows through
+    // the per-tick postMessage payload below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile]);
 
-  // Push fresh mask to the worker whenever the silhouette changes (yaw, ride height, DRS).
+  // Push fresh mask whenever the silhouette changes (yaw, ride height, DRS).
   useEffect(() => {
-    if (controls.solver === "tier2-fluid" && workerRef.current) {
-      workerRef.current.postMessage({ type: "set-mask", mask });
-    }
-  }, [controls.solver, mask]);
+    if (workerRef.current) workerRef.current.postMessage({ type: "set-mask", mask });
+  }, [mask]);
 
-  // Initialize particle pool.
+  // Initialise particle pool. Each particle has a fading trail so the field
+  // reads as streaklines instead of dust.
   useEffect(() => {
     const list: ParticleState[] = [];
     for (let i = 0; i < controls.particles; i += 1) {
-      list.push({ x: Math.random() * 0.05, y: Math.random(), age: Math.random() * 200 });
+      const trail = new Float32Array(TRAIL_LENGTH * 2);
+      const x = Math.random() * 0.05;
+      const y = Math.random();
+      for (let t = 0; t < TRAIL_LENGTH; t += 1) {
+        trail[t * 2] = x;
+        trail[t * 2 + 1] = y;
+      }
+      list.push({ x, y, age: Math.random() * 200, trail, trailHead: 0 });
     }
     particlesRef.current = list;
   }, [controls.particles]);
@@ -221,165 +252,228 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
         canvas.height = targetH;
       }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.fillStyle = "rgba(7, 9, 15, 0.16)";
+      // Soft persistence for streaklines.
+      ctx.fillStyle = "rgba(7, 9, 15, 0.32)";
       ctx.fillRect(0, 0, STAGE_WIDTH, STAGE_HEIGHT);
     }
 
-    function drawDensityHeat() {
+    function drawAxes() {
       if (!ctx) return;
+      ctx.fillStyle = "rgba(40, 50, 65, 0.55)";
+      ctx.fillRect(0, STAGE_HEIGHT - 14, STAGE_WIDTH, 14);
+      for (let x = 0; x < STAGE_WIDTH; x += 32) {
+        ctx.fillStyle = "rgba(140, 160, 200, 0.18)";
+        ctx.fillRect(x, STAGE_HEIGHT - 14, 22, 3);
+      }
+    }
+
+    function sampleField(nx: number, ny: number) {
       const frame = fluidFrameRef.current;
-      if (controls.solver !== "tier2-fluid" || !frame.density || !frame.speed) return;
-      const cellW = STAGE_WIDTH / SOLVER_NX;
-      const cellH = STAGE_HEIGHT / SOLVER_NY;
-      for (let y = 0; y < SOLVER_NY; y += 1) {
-        for (let x = 0; x < SOLVER_NX; x += 1) {
-          const i = y * SOLVER_NX + x;
-          const sp = frame.speed[i];
-          if (sp < 0.05) continue;
-          const t = Math.min(1, sp / 2.4);
-          // Faster flow -> warmer, cooler -> blue
-          const r = Math.round(80 + (255 - 80) * t);
-          const g = Math.round(150 + (130 - 150) * t);
-          const b = Math.round(220 + (60 - 220) * t);
-          ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${0.06 + t * 0.18})`;
-          ctx.fillRect(x * cellW, y * cellH, cellW + 1, cellH + 1);
+      if (frame.ready && frame.u && frame.v) {
+        const xi = Math.max(0, Math.min(SOLVER_NX - 1, Math.floor(nx * SOLVER_NX)));
+        const yi = Math.max(0, Math.min(SOLVER_NY - 1, Math.floor(ny * SOLVER_NY)));
+        const i = yi * SOLVER_NX + xi;
+        return { u: frame.u[i], v: frame.v[i], speed: frame.speed?.[i] ?? Math.hypot(frame.u[i], frame.v[i]) };
+      }
+      return null;
+    }
+
+    function drawStreaklines() {
+      if (!ctx || !controls.showStreamlines) return;
+      const particles = particlesRef.current;
+      const yawRad = (controls.yawDeg * Math.PI) / 180;
+      const yawCos = Math.cos(yawRad);
+      const yawSin = Math.sin(yawRad);
+      for (const particle of particles) {
+        const sample = sampleField(particle.x, particle.y);
+        const baseU = (controls.airspeed / 80) * 0.012;
+        const u = sample ? sample.u * 0.012 : baseU * yawCos;
+        const v = sample ? sample.v * 0.012 : baseU * yawSin;
+        if (
+          particle.age <= 0
+          || particle.x > 1.05
+          || particle.x < -0.05
+          || particle.y < -0.02
+          || particle.y > 1.02
+          || (sample && sample.speed === 0)
+        ) {
+          particle.x = -0.04 + Math.random() * 0.08;
+          particle.y = Math.random();
+          particle.age = 100 + Math.random() * 80;
+          for (let t = 0; t < TRAIL_LENGTH; t += 1) {
+            particle.trail[t * 2] = particle.x;
+            particle.trail[t * 2 + 1] = particle.y;
+          }
+          continue;
+        }
+        // Push current position into the ring buffer first, then advance.
+        particle.trail[particle.trailHead * 2] = particle.x;
+        particle.trail[particle.trailHead * 2 + 1] = particle.y;
+        particle.trailHead = (particle.trailHead + 1) % TRAIL_LENGTH;
+        particle.x += u;
+        particle.y += v;
+        particle.age -= 1;
+        // Render the trail oldest -> newest.
+        const intensity = Math.min(1, sample ? sample.speed * 0.85 : 0.4);
+        const r = Math.round(120 + 135 * intensity);
+        const g = Math.round(190 + 30 * intensity);
+        const b = 255;
+        ctx.lineCap = "round";
+        ctx.lineWidth = 1.0 + intensity * 1.4;
+        for (let t = 0; t < TRAIL_LENGTH - 1; t += 1) {
+          const i0 = (particle.trailHead + t) % TRAIL_LENGTH;
+          const i1 = (particle.trailHead + t + 1) % TRAIL_LENGTH;
+          const alpha = (t + 1) / TRAIL_LENGTH * (0.45 + 0.4 * intensity);
+          ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(3)})`;
+          ctx.beginPath();
+          ctx.moveTo(particle.trail[i0 * 2] * STAGE_WIDTH, particle.trail[i0 * 2 + 1] * STAGE_HEIGHT);
+          ctx.lineTo(particle.trail[i1 * 2] * STAGE_WIDTH, particle.trail[i1 * 2 + 1] * STAGE_HEIGHT);
+          ctx.stroke();
         }
       }
     }
 
-    function sampleVelocity(nx: number, ny: number) {
-      const frame = fluidFrameRef.current;
-      if (controls.solver === "tier2-fluid" && frame.speed) {
-        const x = Math.max(0, Math.min(SOLVER_NX - 1, Math.floor(nx * SOLVER_NX)));
-        const y = Math.max(0, Math.min(SOLVER_NY - 1, Math.floor(ny * SOLVER_NY)));
-        const sp = frame.speed[y * SOLVER_NX + x];
-        // Approximate u/v split: mostly horizontal, with a small vertical component derived from
-        // the gradient of the speed field. This avoids passing the full u/v from the worker which
-        // would double the payload.
-        return { u: sp, v: 0, speed: sp };
-      }
-      // Procedural fallback: stable doublet + Karman wake.
-      const dx = (nx - 0.5) * 2;
-      const dy = (ny - 0.5) * 2;
-      const ax = 0.42;
-      const bx = 0.16;
-      const r2 = (dx * dx) / (ax * ax) + (dy * dy) / (bx * bx);
-      const inside = r2 < 1;
-      if (inside) return { u: 0, v: 0, speed: 0 };
-      const yawRad = (controls.yawDeg * Math.PI) / 180;
-      const u0 = (controls.airspeed / 80) * Math.cos(yawRad);
-      const v0 = (controls.airspeed / 80) * Math.sin(yawRad);
-      const denom = Math.max(0.05, dx * dx + dy * dy);
-      const ud = 0.7 * ((dx * dx - dy * dy) / (denom * denom));
-      const vd = 0.7 * ((2 * dx * dy) / (denom * denom));
-      const phase = (dx - 0.45) * 6 - performance.now() / 480;
-      const wakeFactor = dx > 0.45 ? Math.exp(-Math.abs(dy) * 6) : 0;
-      const intensity = controls.drsOpen ? 0.18 : 0.32;
-      const uw = -Math.cos(phase) * intensity * wakeFactor;
-      const vw = Math.sin(phase) * intensity * wakeFactor * (dy < 0 ? -1 : 1);
-      const u = u0 + ud + uw;
-      const v = v0 - vd + vw;
-      return { u, v, speed: Math.hypot(u, v) };
-    }
-
-    function drawSilhouette() {
+    function silhouettePath(polygon: Array<[number, number]>) {
       if (!ctx) return;
-      ctx.save();
-      ctx.translate(STAGE_WIDTH / 2, STAGE_HEIGHT / 2);
-      ctx.rotate((controls.yawDeg * Math.PI) / 180 / 4);
-      ctx.translate(-STAGE_WIDTH / 2, -STAGE_HEIGHT / 2);
-      ctx.fillStyle = "rgba(247, 250, 255, 0.96)";
-      ctx.strokeStyle = `${accentColor}cc`;
-      ctx.lineWidth = 2;
       ctx.beginPath();
-      for (let i = 0; i < silhouettePolygon.length; i += 1) {
-        const [nx, ny] = silhouettePolygon[i];
+      for (let i = 0; i < polygon.length; i += 1) {
+        const [nx, ny] = polygon[i];
         const px = nx * STAGE_WIDTH;
         const py = ny * STAGE_HEIGHT;
         if (i === 0) ctx.moveTo(px, py);
         else ctx.lineTo(px, py);
       }
       ctx.closePath();
+    }
+
+    function pressureAtSegment(nx: number, ny: number) {
+      const frame = fluidFrameRef.current;
+      if (!frame.ready || !frame.pressure) return 0;
+      const xi = Math.max(0, Math.min(SOLVER_NX - 1, Math.floor(nx * SOLVER_NX)));
+      const yi = Math.max(0, Math.min(SOLVER_NY - 1, Math.floor(ny * SOLVER_NY)));
+      // Sample the pressure one cell outside the silhouette by stepping in the
+      // direction of the edge normal. We approximate the normal by perturbing
+      // both axes and averaging; the solver's own no-slip mask zeros pressure
+      // inside the body so a 1-cell offset lands in a meaningful cell.
+      const samples = [
+        frame.pressure[yi * SOLVER_NX + xi],
+        frame.pressure[Math.max(0, yi - 1) * SOLVER_NX + xi],
+        frame.pressure[Math.min(SOLVER_NY - 1, yi + 1) * SOLVER_NX + xi],
+      ];
+      let total = 0;
+      let count = 0;
+      for (const s of samples) {
+        if (Number.isFinite(s)) { total += s; count += 1; }
+      }
+      return count ? total / count : 0;
+    }
+
+    function drawSilhouette() {
+      if (!ctx || !profile) return;
+      const polygon = profile.polygon;
+      if (!polygon.length) return;
+
+      // Body fill: clean off-white so the shape reads as the car.
+      ctx.save();
+      ctx.fillStyle = "rgba(247, 250, 255, 0.96)";
+      silhouettePath(polygon);
       ctx.fill();
-      ctx.stroke();
+
+      // Cp boundary tint: walk segment-by-segment and stroke each segment with
+      // a colour ramped from blue (low pressure / suction) to red (stagnation).
+      if (controls.showCp) {
+        // Two passes: collect pressures, normalise, then draw.
+        const pressures: number[] = new Array(polygon.length).fill(0);
+        let pMin = Infinity;
+        let pMax = -Infinity;
+        for (let i = 0; i < polygon.length; i += 1) {
+          const [nx, ny] = polygon[i];
+          const pv = pressureAtSegment(nx, ny);
+          pressures[i] = pv;
+          if (pv < pMin) pMin = pv;
+          if (pv > pMax) pMax = pv;
+        }
+        const range = pMax - pMin || 1;
+        ctx.lineCap = "round";
+        ctx.lineWidth = 4;
+        for (let i = 0; i < polygon.length; i += 1) {
+          const [x1, y1] = polygon[i];
+          const [x2, y2] = polygon[(i + 1) % polygon.length];
+          const t = (pressures[i] - pMin) / range; // 0 = suction (blue), 1 = stagnation (red)
+          const r = Math.round(60 + (235 - 60) * t);
+          const g = Math.round(160 + (90 - 160) * t);
+          const b = Math.round(220 + (40 - 220) * t);
+          ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.85)`;
+          ctx.beginPath();
+          ctx.moveTo(x1 * STAGE_WIDTH, y1 * STAGE_HEIGHT);
+          ctx.lineTo(x2 * STAGE_WIDTH, y2 * STAGE_HEIGHT);
+          ctx.stroke();
+        }
+      } else {
+        ctx.strokeStyle = `${accentColor}cc`;
+        ctx.lineWidth = 2;
+        silhouettePath(polygon);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // Wheel arches.
+      ctx.save();
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 4]);
+      ctx.strokeStyle = `${accentColor}aa`;
+      for (const arch of profile.wheelArches) {
+        ctx.beginPath();
+        ctx.arc(arch.cx * STAGE_WIDTH, arch.cy * STAGE_HEIGHT, arch.r * STAGE_HEIGHT, 0, Math.PI * 2);
+        ctx.stroke();
+      }
       ctx.restore();
     }
 
-    function drawParticles() {
+    function drawLegend() {
       if (!ctx) return;
-      const particles = particlesRef.current;
-      for (const particle of particles) {
-        const sample = sampleVelocity(particle.x, particle.y);
-        if (particle.age <= 0 || particle.x > 1.05 || particle.x < -0.05 || particle.y < -0.02 || particle.y > 1.02) {
-          particle.x = -0.04 + Math.random() * 0.08;
-          particle.y = Math.random();
-          particle.age = 100 + Math.random() * 80;
-          continue;
-        }
-        const speedScale = 0.012;
-        particle.x += (sample.u || 0.4) * speedScale;
-        particle.y += (sample.v || (Math.random() - 0.5) * 0.001) * speedScale * 0.6;
-        particle.age -= 1;
-        const screenX = particle.x * STAGE_WIDTH;
-        const screenY = particle.y * STAGE_HEIGHT;
-        const intensity = Math.min(1, sample.speed * 0.85);
-        ctx.fillStyle = `rgba(${Math.round(120 + 135 * intensity)}, ${Math.round(190 + 30 * intensity)}, 255, ${0.35 + 0.45 * intensity})`;
-        ctx.beginPath();
-        ctx.arc(screenX, screenY, 1.0 + intensity * 1.6, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-
-    function drawAxes() {
-      if (!ctx) return;
-      // Ground band at the bottom for orientation.
-      ctx.fillStyle = "rgba(40, 50, 65, 0.4)";
-      ctx.fillRect(0, STAGE_HEIGHT - 18, STAGE_WIDTH, 18);
-      for (let x = 0; x < STAGE_WIDTH; x += 32) {
-        ctx.fillStyle = "rgba(140, 160, 200, 0.18)";
-        ctx.fillRect(x, STAGE_HEIGHT - 18, 22, 4);
-      }
-    }
-
-    function drawHeatRibbon() {
-      const heatCanvas = heatRef.current;
-      if (!heatCanvas) return;
-      const heatCtx = heatCanvas.getContext("2d");
-      if (!heatCtx) return;
-      const dpr = window.devicePixelRatio || 1;
-      const heatW = heatCanvas.clientWidth || STAGE_WIDTH;
-      const heatH = heatCanvas.clientHeight || 18;
-      heatCanvas.width = Math.round(heatW * dpr);
-      heatCanvas.height = Math.round(heatH * dpr);
-      heatCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const grad = heatCtx.createLinearGradient(0, 0, heatW, 0);
-      grad.addColorStop(0, "#5096dc");
-      grad.addColorStop(0.5, "#bd8260");
-      grad.addColorStop(1, "#ff7a1a");
-      heatCtx.fillStyle = grad;
-      heatCtx.fillRect(0, 0, heatW, heatH);
-      heatCtx.fillStyle = "rgba(11, 15, 24, 0.9)";
-      heatCtx.font = "600 10px IBM Plex Mono, Consolas, monospace";
-      heatCtx.fillText("Cp HIGH (slow)", 8, heatH - 4);
-      heatCtx.textAlign = "right";
-      heatCtx.fillText("Cp LOW (fast)", heatW - 8, heatH - 4);
+      const x = 16;
+      const y = STAGE_HEIGHT - 78;
+      ctx.fillStyle = "rgba(8, 12, 20, 0.8)";
+      ctx.fillRect(x, y, 220, 60);
+      ctx.strokeStyle = "rgba(120, 140, 170, 0.4)";
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x, y, 220, 60);
+      ctx.font = "600 11px IBM Plex Mono, Consolas, monospace";
+      ctx.fillStyle = "rgba(220, 230, 250, 0.95)";
+      ctx.fillText("Streaklines · velocity direction", x + 10, y + 16);
+      ctx.fillText("Boundary tint · pressure (Cp)", x + 10, y + 32);
+      // Cp colour scale.
+      const scaleX = x + 10;
+      const scaleY = y + 40;
+      const scaleW = 200;
+      const scaleH = 8;
+      const grad = ctx.createLinearGradient(scaleX, scaleY, scaleX + scaleW, scaleY);
+      grad.addColorStop(0, "rgba(60,160,220,1)");
+      grad.addColorStop(1, "rgba(235,90,40,1)");
+      ctx.fillStyle = grad;
+      ctx.fillRect(scaleX, scaleY, scaleW, scaleH);
+      ctx.fillStyle = "rgba(160, 180, 210, 0.85)";
+      ctx.font = "10px IBM Plex Mono, Consolas, monospace";
+      ctx.fillText("low Cp", scaleX, scaleY + scaleH + 11);
+      ctx.textAlign = "right";
+      ctx.fillText("high Cp", scaleX + scaleW, scaleY + scaleH + 11);
+      ctx.textAlign = "start";
     }
 
     function frame() {
-      // Pause when canvas is offscreen so we don't burn CPU/battery on a
-      // simulator the user can't see (B22).
       if (!isVisibleRef.current) {
         animationRef.current = requestAnimationFrame(frame);
         return;
       }
       clearStage();
       drawAxes();
-      drawDensityHeat();
-      drawSilhouette();
-      drawParticles();
-      drawHeatRibbon();
+      if (profile) {
+        drawStreaklines();
+        drawSilhouette();
+      }
+      drawLegend();
 
-      // Update readout once a second.
       const now = performance.now();
       if (now - lastForceRead > 1000) {
         lastForceRead = now;
@@ -387,7 +481,6 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
         const reynolds = (controls.airspeed * 5.5) / 1.5e-5;
         setReadout({ drag: f.drag, lift: f.lift, reynolds });
       }
-
       animationRef.current = requestAnimationFrame(frame);
     }
 
@@ -396,25 +489,35 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
       animationRef.current = null;
     };
-  }, [accentColor, controls, silhouettePolygon]);
+  }, [accentColor, controls, profile]);
 
   return (
     <div className="wind-tunnel" data-constructor={constructorSlug ?? "default"}>
       <div className="wind-tunnel__header">
-        <p className="eyebrow">Canvas wind tunnel · {controls.solver === "tier2-fluid" ? "Tier 2 fluid" : "Tier 1 sketch"}</p>
+        <p className="eyebrow">Canvas wind tunnel · live solver</p>
         <h3>Airflow simulation around {modelTitle}</h3>
         <p className="wind-tunnel__copy">
-          {controls.solver === "tier2-fluid"
-            ? "2D incompressible Navier-Stokes solver running in a Web Worker on a 320 by 120 grid (semi-Lagrangian advection plus Jacobi pressure projection). Particle drift follows the live velocity field. Visual guide only -- not a measured aerodynamic result."
-            : "Procedural Karman wake sketch. Lite mode for low-power devices. Switch to Tier 2 for real fluid-solver behaviour."}
+          2D incompressible Navier-Stokes solver running in a Web Worker on a {SOLVER_NX} by {SOLVER_NY} grid.
+          Streaklines follow the live velocity field. Boundary tint shows local pressure (Cp).
+          Visual guide only -- not a measured aerodynamic result.
         </p>
       </div>
 
       <div className="wind-tunnel__stage">
         <canvas ref={canvasRef} width={STAGE_WIDTH} height={STAGE_HEIGHT} className="wind-tunnel__canvas" />
-        <div className="wind-tunnel__heat">
-          <canvas ref={heatRef} className="wind-tunnel__heat-canvas" />
-        </div>
+        {!profile && profileMissing ? (
+          <div className="wind-tunnel__overlay">
+            <p>Silhouette not available for this constructor yet.</p>
+            <p className="wind-tunnel__overlay-sub">
+              Run <code>node pipeline/export/src/build-wind-profiles.mjs</code> after dropping the GLB into <code>apps/web/public/models/</code>.
+            </p>
+          </div>
+        ) : null}
+        {profile && !fluidFrameRef.current.ready ? (
+          <div className="wind-tunnel__overlay wind-tunnel__overlay--soft">
+            <p>Solver warming up...</p>
+          </div>
+        ) : null}
         <div className="wind-tunnel__readout">
           <span>Drag <strong>{readout?.drag.toFixed(2) ?? "-"}</strong></span>
           <span>Lift <strong>{readout?.lift.toFixed(2) ?? "-"}</strong></span>
@@ -486,10 +589,18 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
         <label className="wind-tunnel__toggle">
           <input
             type="checkbox"
-            checked={controls.solver === "tier2-fluid"}
-            onChange={(event) => setControls((prev) => ({ ...prev, solver: event.target.checked ? "tier2-fluid" : "tier1-procedural" }))}
+            checked={controls.showStreamlines}
+            onChange={(event) => setControls((prev) => ({ ...prev, showStreamlines: event.target.checked }))}
           />
-          <span>Tier 2 fluid solver</span>
+          <span>Streaklines</span>
+        </label>
+        <label className="wind-tunnel__toggle">
+          <input
+            type="checkbox"
+            checked={controls.showCp}
+            onChange={(event) => setControls((prev) => ({ ...prev, showCp: event.target.checked }))}
+          />
+          <span>Pressure tint</span>
         </label>
       </div>
     </div>
@@ -497,56 +608,27 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
 }
 
 /**
- * Build the F1 silhouette polygon in normalized [0,1] x [0,1] coordinates.
- * The polygon is hand-tuned to look like a side-profile F1 car: front wing at
- * the left, low body, sidepod intake, cockpit + halo bump, rear wing pillar,
- * floor running underneath. The DRS toggle opens a notch at the top of the
- * rear wing, and ride height moves the floor up/down.
- */
-function buildSilhouette(controls: WindTunnelControls): Array<[number, number]> {
-  const ride = controls.rideHeightMm / 50; // 0.4 .. 1.0
-  const floorY = 0.74 - 0.1 * (1 - ride); // higher ride -> floor lower (display)
-  const drsLift = controls.drsOpen ? 0.04 : 0;
-  return [
-    [0.16, floorY],
-    [0.18, 0.66],
-    [0.22, 0.6],
-    [0.28, 0.58],
-    [0.34, 0.55],
-    [0.4, 0.5],
-    [0.45, 0.46],
-    [0.5, 0.46],
-    [0.55, 0.42], // halo
-    [0.6, 0.42],
-    [0.65, 0.46],
-    [0.7, 0.5],
-    [0.74, 0.5],
-    [0.78, 0.5],
-    [0.82, 0.36 - drsLift], // rear wing top
-    [0.84, 0.36 - drsLift],
-    [0.84, 0.5 - (controls.drsOpen ? 0.02 : 0)],
-    [0.82, 0.55],
-    [0.83, 0.66],
-    [0.83, floorY - 0.01],
-    [0.16, floorY - 0.01],
-  ];
-}
-
-/**
  * Remap a per-constructor polygon (normalized 0..1) to fit the wind tunnel's
- * preferred 16% .. 84% horizontal band and 30% .. 76% vertical band. The
- * traced silhouette spans the full 0..1 box but the tunnel canvas reserves
- * room for the inlet on the left and the wake region on the right.
+ * preferred 12% .. 88% horizontal band and 28% .. 78% vertical band so the
+ * silhouette reads centered on the canvas.
  */
 function remapToTunnelFrame(polygon: Array<[number, number]>): Array<[number, number]> {
   if (!polygon.length) return polygon;
-  const xMin = 0.16;
-  const xMax = 0.84;
-  const yMin = 0.3;
-  const yMax = 0.76;
+  const xs = polygon.map(([x]) => x);
+  const ys = polygon.map(([, y]) => y);
+  const xMinSrc = Math.min(...xs);
+  const xMaxSrc = Math.max(...xs);
+  const yMinSrc = Math.min(...ys);
+  const yMaxSrc = Math.max(...ys);
+  const sx = xMaxSrc - xMinSrc || 1;
+  const sy = yMaxSrc - yMinSrc || 1;
+  const xMin = 0.12;
+  const xMax = 0.88;
+  const yMin = 0.28;
+  const yMax = 0.78;
   return polygon.map(([x, y]) => [
-    xMin + x * (xMax - xMin),
-    yMin + y * (yMax - yMin),
+    xMin + ((x - xMinSrc) / sx) * (xMax - xMin),
+    yMin + ((y - yMinSrc) / sy) * (yMax - yMin),
   ]);
 }
 
