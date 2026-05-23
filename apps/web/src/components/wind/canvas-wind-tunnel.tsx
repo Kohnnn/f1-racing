@@ -45,7 +45,7 @@ const DEFAULT_CONTROLS: WindTunnelControls = {
   drsOpen: false,
   groundMode: "rolling",
   wheelMode: "rotating",
-  particles: 260,
+  particles: 0,
   showStreamlines: true,
   showCp: false,
 };
@@ -55,6 +55,7 @@ const STAGE_HEIGHT = 384;
 const SOLVER_NX = 320;
 const SOLVER_NY = 120;
 const TRAIL_LENGTH = 18;
+const FLOW_LANES = [0.18, 0.25, 0.32, 0.39, 0.47, 0.55, 0.63, 0.71, 0.8];
 
 interface ParticleState {
   x: number;
@@ -297,6 +298,10 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
 
     function drawStreaklines() {
       if (!ctx || !controls.showStreamlines) return;
+      if (profile) {
+        drawFlowRibbons(profile.polygon);
+        return;
+      }
       const particles = particlesRef.current;
       const yawRad = (controls.yawDeg * Math.PI) / 180;
       const yawCos = Math.cos(yawRad);
@@ -350,6 +355,80 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
           if (t === 0) ctx.moveTo(px, py);
           else ctx.lineTo(px, py);
         }
+        ctx.stroke();
+      }
+    }
+
+    function drawFlowRibbons(polygon: Array<[number, number]>) {
+      if (!ctx) return;
+      const xs = polygon.map(([x]) => x);
+      const ys = polygon.map(([, y]) => y);
+      const noseX = Math.min(...xs);
+      const tailX = Math.max(...xs);
+      const topY = Math.min(...ys);
+      const bottomY = Math.max(...ys);
+      const centerY = (topY + bottomY) * 0.5;
+      const yawOffset = controls.yawDeg / 15;
+      const speedAlpha = Math.min(1, Math.max(0.35, controls.airspeed / 130));
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      for (let i = 0; i < FLOW_LANES.length; i += 1) {
+        const y = FLOW_LANES[i];
+        const overBody = y < centerY;
+        const isBodyLane = y > topY - 0.06 && y < bottomY + 0.06;
+        const laneOffset = isBodyLane ? (overBody ? -0.09 : 0.09) : 0;
+        const wakeOffset = isBodyLane ? (overBody ? -0.035 : 0.035) : 0;
+        const inletY = y + yawOffset * 0.018;
+        const pinchY = y + laneOffset + yawOffset * 0.026;
+        const exitY = y + wakeOffset + yawOffset * 0.04;
+        const alpha = isBodyLane ? 0.72 : 0.38;
+        const width = isBodyLane ? 2.2 : 1.25;
+        ctx.strokeStyle = `rgba(137, 207, 255, ${(alpha * speedAlpha).toFixed(3)})`;
+        ctx.lineWidth = width;
+        ctx.beginPath();
+        ctx.moveTo(0.025 * STAGE_WIDTH, inletY * STAGE_HEIGHT);
+        ctx.bezierCurveTo(
+          (noseX - 0.12) * STAGE_WIDTH,
+          inletY * STAGE_HEIGHT,
+          (noseX - 0.04) * STAGE_WIDTH,
+          pinchY * STAGE_HEIGHT,
+          (noseX + 0.08) * STAGE_WIDTH,
+          pinchY * STAGE_HEIGHT,
+        );
+        ctx.bezierCurveTo(
+          (tailX - 0.12) * STAGE_WIDTH,
+          pinchY * STAGE_HEIGHT,
+          (tailX + 0.02) * STAGE_WIDTH,
+          exitY * STAGE_HEIGHT,
+          0.98 * STAGE_WIDTH,
+          exitY * STAGE_HEIGHT,
+        );
+        ctx.stroke();
+      }
+      drawWakeLines(tailX, centerY, bottomY - topY, yawOffset, speedAlpha);
+      ctx.restore();
+    }
+
+    function drawWakeLines(tailX: number, centerY: number, bodyHeight: number, yawOffset: number, speedAlpha: number) {
+      if (!ctx) return;
+      const wakeTop = centerY - bodyHeight * 0.3;
+      const wakeBottom = centerY + bodyHeight * 0.32;
+      for (let i = 0; i < 5; i += 1) {
+        const t = i / 4;
+        const y = wakeTop + (wakeBottom - wakeTop) * t;
+        ctx.strokeStyle = `rgba(255, 142, 72, ${(0.22 * speedAlpha).toFixed(3)})`;
+        ctx.lineWidth = 1.2;
+        ctx.beginPath();
+        ctx.moveTo((tailX + 0.02) * STAGE_WIDTH, (y + yawOffset * 0.018) * STAGE_HEIGHT);
+        ctx.bezierCurveTo(
+          (tailX + 0.14) * STAGE_WIDTH,
+          (y + 0.018 * Math.sin(i)) * STAGE_HEIGHT,
+          0.86 * STAGE_WIDTH,
+          (y - 0.012 * Math.cos(i) + yawOffset * 0.04) * STAGE_HEIGHT,
+          0.98 * STAGE_WIDTH,
+          (y + yawOffset * 0.05) * STAGE_HEIGHT,
+        );
         ctx.stroke();
       }
     }

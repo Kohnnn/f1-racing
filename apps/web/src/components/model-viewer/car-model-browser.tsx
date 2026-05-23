@@ -575,28 +575,26 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
 
         <aside className="car-inspector">
           <article className="car-inspector-card">
-            <p className="eyebrow">Focus point</p>
-            <h3>{activeFocus ? activeFocus.title : "Select a hotspot or focus list"}</h3>
+            <p className="eyebrow">Focus</p>
+            <h3>{activeFocus ? activeFocus.title : "Hotspots"}</h3>
             {activeFocus ? <p className="car-inspector-copy">{activeFocus.summary}</p> : null}
-            <div className="car-focus-actions">
-              {activeFocus ? (
+            {activeFocus ? (
+              <div className="car-focus-actions">
                 <>
                   <a className="button button--ghost" href={activeFocus.learnHref}>{activeFocus.learnLabel}</a>
                   <a className="button button--secondary" href={`${latestReplayHref}?focus=${activeFocus.id}`}>
                     Open focus replay
                   </a>
+                  <button
+                    type="button"
+                    className="camera-preset"
+                    onClick={() => handleFocusChange(null)}
+                  >
+                    Reset
+                  </button>
                 </>
-              ) : (
-                <a className="button button--ghost" href="/learn/car">Open car primer</a>
-              )}
-              <button
-                type="button"
-                className="camera-preset"
-                onClick={() => handleFocusChange(null)}
-              >
-                Return to studio
-              </button>
-            </div>
+              </div>
+            ) : null}
             <div className="car-focus-list">
               {focusPoints.map((point) => (
                 <button
