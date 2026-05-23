@@ -74,7 +74,7 @@ follow-up questions before moving to the next.
 
 ---
 
-## Track 1 — Replay smoothness, full-width track, interactive canvas (after Track 3 review)
+## Track 1 — Replay smoothness, full-width track, interactive canvas
 
 ### Items
 - T1.1 Smooth interpolation between frames using `currentFrame` and
@@ -82,10 +82,24 @@ follow-up questions before moving to the next.
 - T1.2 Full-width track stage; leaderboard moves below; new
   `replay-readout-rail` row for current-read + live-order strip.
 - T1.3 Leaderboard layout toggle: vertical list / horizontal ticker.
-- T1.4 Canvas interactivity: drag pan, wheel zoom toward cursor,
-  shift+drag rotate, double-click reset, hover detail tooltip
-  (driver code, gap, lap, sector colour, last sector time).
+- T1.4 Canvas interactivity: drag pan, Ctrl/Cmd+wheel zoom toward
+  cursor, shift+drag rotate, double-click reset, hover tooltip with
+  toggleable fields (position / team / gap / last lap / best lap /
+  tyre / speed / DRS).
 - T1.5 Build / deploy / smoke.
+
+### Track 1 progress
+- [x] T1.1 Smooth interpolation (linear distA->distB by smoothstep
+  localT plus residual smoother, with lap-rollover unwrap)
+- [x] T1.2 Full-width track stage; leaderboard moved below in
+  `replay-side-column--stacked` (current-read + leaderboard)
+- [x] T1.3 Leaderboard layout toggle: vertical default, horizontal
+  ticker option, propagated through Leaderboard props
+- [x] T1.4 Canvas interactivity: drag pan, Ctrl+wheel zoom toward
+  cursor, shift+drag rotate, double-click reset, hover tooltip with
+  toggleable F1 TV style fields
+- [x] T1.5 Build passed; local smoke passed; deploy + prod smoke
+  pending
 
 ---
 

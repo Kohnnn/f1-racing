@@ -111,7 +111,16 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
 
   const [controls, setControls] = useState<WindTunnelControls>(DEFAULT_CONTROLS);
   const [readout, setReadout] = useState<{ drag: number; lift: number; reynolds: number; live: boolean } | null>(null);
-  const [hoverData, setHoverData] = useState<{ speed: number; pressure: number; nx: number; ny: number } | null>(null);
+  const [hoverData, setHoverData] = useState<{
+    speed: number;
+    speedMs: number;
+    pressure: number;
+    vorticity: number;
+    distance: number | null;
+    inside: boolean;
+    nx: number;
+    ny: number;
+  } | null>(null);
   const [profile, setProfile] = useState<WindProfileData | null>(null);
   const [profileMissing, setProfileMissing] = useState(false);
 
@@ -547,7 +556,55 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
         if (hover.active) {
           const sample = sampleField(hover.nx, hover.ny);
           if (sample) {
-            setHoverData({ speed: sample.speed, pressure: sample.pressure, nx: hover.nx, ny: hover.ny });
+            const xi = Math.max(0, Math.min(SOLVER_NX - 1, Math.floor(hover.nx * SOLVER_NX)));
+            const yi = Math.max(0, Math.min(SOLVER_NY - 1, Math.floor(hover.ny * SOLVER_NY)));
+            const f = fluidFrameRef.current;
+            // Curl / vorticity = dv/dx - du/dy. Central difference where possible.
+            let vorticity = 0;
+            if (f.ready && f.u && f.v) {
+              const xL = Math.max(0, xi - 1);
+              const xR = Math.min(SOLVER_NX - 1, xi + 1);
+              const yU = Math.max(0, yi - 1);
+              const yD = Math.min(SOLVER_NY - 1, yi + 1);
+              const dvdx = (f.v[yi * SOLVER_NX + xR] - f.v[yi * SOLVER_NX + xL]) * 0.5;
+              const dudy = (f.u[yD * SOLVER_NX + xi] - f.u[yU * SOLVER_NX + xi]) * 0.5;
+              vorticity = dvdx - dudy;
+            }
+            // Distance to nearest body cell, in normalized units (0..1).
+            let distance: number | null = null;
+            let inside = false;
+            if (mask && mask.length === SOLVER_NX * SOLVER_NY) {
+              if (mask[yi * SOLVER_NX + xi]) {
+                inside = true;
+                distance = 0;
+              } else {
+                const radius = 24;
+                let bestSq = Infinity;
+                for (let ry = -radius; ry <= radius; ry += 1) {
+                  const yy = yi + ry;
+                  if (yy < 0 || yy >= SOLVER_NY) continue;
+                  for (let rx = -radius; rx <= radius; rx += 1) {
+                    const xx = xi + rx;
+                    if (xx < 0 || xx >= SOLVER_NX) continue;
+                    if (mask[yy * SOLVER_NX + xx]) {
+                      const d = rx * rx + ry * ry;
+                      if (d < bestSq) bestSq = d;
+                    }
+                  }
+                }
+                distance = bestSq < Infinity ? Math.sqrt(bestSq) / SOLVER_NX : null;
+              }
+            }
+            setHoverData({
+              speed: sample.speed,
+              speedMs: sample.speed * controls.airspeed,
+              pressure: sample.pressure,
+              vorticity,
+              distance,
+              inside,
+              nx: hover.nx,
+              ny: hover.ny,
+            });
           }
         }
       }
@@ -605,12 +662,18 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
           <div
             className="wind-tunnel__hover"
             style={{
-              left: `${Math.min(85, Math.max(2, hoverData.nx * 100 + 2))}%`,
-              top: `${Math.min(85, Math.max(2, hoverData.ny * 100 - 14))}%`,
+              left: `${Math.min(78, Math.max(2, hoverData.nx * 100 + 2))}%`,
+              top: `${Math.min(70, Math.max(2, hoverData.ny * 100 - 14))}%`,
             }}
           >
-            <span>U <strong>{(hoverData.speed * controls.airspeed / 1).toFixed(1)} m/s</strong></span>
+            <span>U <strong>{hoverData.speedMs.toFixed(1)} m/s</strong></span>
             <span>Cp <strong>{hoverData.pressure.toFixed(3)}</strong></span>
+            <span>ω <strong>{hoverData.vorticity.toFixed(3)}</strong></span>
+            <span>
+              {hoverData.inside
+                ? <em>inside body</em>
+                : <>d <strong>{hoverData.distance == null ? "-" : `${(hoverData.distance * 100).toFixed(1)}%`}</strong></>}
+            </span>
           </div>
         ) : null}
       </div>

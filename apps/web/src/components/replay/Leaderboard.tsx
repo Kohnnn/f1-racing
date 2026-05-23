@@ -34,6 +34,10 @@ interface LeaderboardProps {
   drivers: ReplayLeaderboardRow[];
   selectedDrivers: string[];
   onDriverSelect: (driverCode: string | null, append: boolean) => void;
+  /** Layout mode: vertical scroll list (default) or horizontal ticker. */
+  layout?: "vertical" | "horizontal";
+  /** Layout setter; renders a small toggle in the toolbar when provided. */
+  onLayoutChange?: (layout: "vertical" | "horizontal") => void;
 }
 
 function tyreShort(compound: string | null) {
@@ -98,7 +102,7 @@ function isDrsActive(drs: number | null | undefined) {
   return Number(drs ?? 0) >= 10;
 }
 
-export function Leaderboard({ drivers, selectedDrivers, onDriverSelect }: LeaderboardProps) {
+export function Leaderboard({ drivers, selectedDrivers, onDriverSelect, layout = "vertical", onLayoutChange }: LeaderboardProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [comparePinned, setComparePinned] = useState(false);
 
@@ -137,7 +141,7 @@ export function Leaderboard({ drivers, selectedDrivers, onDriverSelect }: Leader
       : "Click to inspect · Shift-click for compare";
 
   return (
-    <div className="replay-leaderboard">
+    <div className={`replay-leaderboard replay-leaderboard--${layout}`}>
       <div className="replay-leaderboard__toolbar">
         <div className="replay-leaderboard__toolbar-main">
           <p className="eyebrow">Live order</p>
@@ -153,6 +157,30 @@ export function Leaderboard({ drivers, selectedDrivers, onDriverSelect }: Leader
             onChange={(event) => setSearchTerm(event.target.value)}
             aria-label="Search leaderboard"
           />
+          {onLayoutChange ? (
+            <div className="replay-leaderboard__layout-toggle" role="tablist" aria-label="Leaderboard layout">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={layout === "vertical"}
+                className={`replay-leaderboard__layout-button${layout === "vertical" ? " replay-leaderboard__layout-button--active" : ""}`}
+                onClick={() => onLayoutChange("vertical")}
+                title="Vertical list"
+              >
+                List
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={layout === "horizontal"}
+                className={`replay-leaderboard__layout-button${layout === "horizontal" ? " replay-leaderboard__layout-button--active" : ""}`}
+                onClick={() => onLayoutChange("horizontal")}
+                title="Horizontal ticker"
+              >
+                Ticker
+              </button>
+            </div>
+          ) : null}
           {selectedDrivers.length >= 2 ? (
             <button
               type="button"
@@ -174,14 +202,16 @@ export function Leaderboard({ drivers, selectedDrivers, onDriverSelect }: Leader
         </div>
       </div>
 
-      <div className="replay-leaderboard__header">
-        <span>Pos</span>
-        <span>Driver</span>
-        <span title="Gap to leader">Gap to leader</span>
-        <span>Tyre</span>
-      </div>
+      {layout === "vertical" ? (
+        <div className="replay-leaderboard__header">
+          <span>Pos</span>
+          <span>Driver</span>
+          <span title="Gap to leader">Gap to leader</span>
+          <span>Tyre</span>
+        </div>
+      ) : null}
 
-      <div className="replay-leaderboard__rows">
+      <div className={`replay-leaderboard__rows replay-leaderboard__rows--${layout}`}>
         {visibleDrivers.length ? visibleDrivers.map((driver) => {
           const isSelected = selectedDrivers.includes(driver.abbr);
           const drsActive = isDrsActive(driver.drs);

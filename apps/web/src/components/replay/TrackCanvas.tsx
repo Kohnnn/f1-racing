@@ -19,16 +19,33 @@ import {
 } from "./track-renderer";
 
 export interface PitPulse {
-  /** stable identifier so we can dedupe re-emitted pulses */
   id: string;
-  /** along-track normalised ratio (0..1) */
   ratio: number;
-  /** absolute time (replay clock seconds) when the pulse fires */
   startedAt: number;
-  /** team color for the pulse stroke */
   color?: string;
-  /** optional small label rendered above the pulse */
   label?: string;
+}
+
+export interface DriverHoverFields {
+  position?: boolean;
+  team?: boolean;
+  gap?: boolean;
+  lastLap?: boolean;
+  bestLap?: boolean;
+  tyre?: boolean;
+  speed?: boolean;
+  drs?: boolean;
+  sector?: boolean;
+}
+
+export interface DriverHoverMeta {
+  team?: string;
+  tyreCompound?: string | null;
+  tyreAge?: number | null;
+  lastLapMs?: number | null;
+  bestLapMs?: number | null;
+  gap?: string | null;
+  interval?: string | null;
 }
 
 interface TrackCanvasProps {
@@ -39,44 +56,54 @@ interface TrackCanvasProps {
   selectedDrivers: string[];
   showDriverLabels?: boolean;
   showDrsZones?: boolean;
-  /** Show corner number labels (drawn from trackMetadata when available). */
   showCorners?: boolean;
-  /** Show marshal-sector flag overlays. */
   showMarshalSectors?: boolean;
   corners?: CornerMarker[];
   drsZones?: DrsZoneMarker[];
   marshalSectors?: MarshalSectorMarker[];
-  /** Sector index → flag string. Indexed sectors will tint when present. */
   activeMarshalFlagBySector?: Map<number, string>;
   pitPulses?: PitPulse[];
-  /** Optional clock used to age pit-pulses (typically the replay clock seconds). */
   clockSeconds?: number;
+  /** Live wall-clock playhead time in seconds, refreshes every animation frame. */
+  playheadTimeRef?: { current: number };
   trackTotalLength?: number;
   projectMarkersToTrack?: boolean;
   estimatedLapDuration?: number;
   width?: number;
   height?: number;
+  /** Optional extended hover metadata, keyed by driver code. */
+  hoverMetaByCode?: Map<string, DriverHoverMeta>;
+  hoverFields?: DriverHoverFields;
   onDriverClick?: (driverCode: string | null, append: boolean) => void;
 }
 
 interface DriverTarget {
-  /** target along-track distance (cumulative, including lap offset) */
-  targetDistance: number;
-  /** smoothed displayed distance, advanced via easing */
+  /** distance at currentFrame.t */
+  distA: number;
+  /** distance at nextFrame.t (or distA when nextFrame missing) */
+  distB: number;
+  /** smoothed displayed distance */
   displayDistance: number;
-  /** stable lateral offset assigned per driver to keep cars in their lane */
   laneOffset: number;
   position: number | null;
   color: string;
   speed: number | null;
   drs: number | null;
   lap: number | null;
+  /** team color for label tint */
+  team?: string;
 }
 
 const LANE_SPACING = 2.4;
-// How fast the displayed distance catches up to the target distance.
-// 0.18 means ~18% of the gap is closed each animation frame.
-const SMOOTHING_FACTOR = 0.18;
+const RESIDUAL_EASE = 0.35;
+const MIN_SCALE = 0.6;
+const MAX_SCALE = 5;
+const ROT_LIMIT = (Math.PI / 180) * 80;
+
+function ease(t: number) {
+  // smoothstep
+  return t * t * (3 - 2 * t);
+}
 
 export function TrackCanvas({
   trackPath,
@@ -94,18 +121,18 @@ export function TrackCanvas({
   activeMarshalFlagBySector,
   pitPulses,
   clockSeconds,
+  playheadTimeRef,
   trackTotalLength,
   projectMarkersToTrack = false,
   estimatedLapDuration = 90,
   width = 920,
   height = 610,
+  hoverMetaByCode,
+  hoverFields,
   onDriverClick,
 }: TrackCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  // Auto-fit the canvas size to the actual rendered DOM size so wide ovals
-  // (Melbourne) and tall layouts (Monaco) both fit without aspect-ratio
-  // distortion. We start with the static fallback then update on layout.
   const [renderSize, setRenderSize] = useState<{ width: number; height: number }>({ width, height });
   const animationFrameRef = useRef<number | null>(null);
   const driverTargetsRef = useRef<Map<string, DriverTarget>>(new Map());
@@ -126,9 +153,33 @@ export function TrackCanvas({
   const trackTotalLengthRef = useRef<number>(trackTotalLength ?? 0);
   const safetyCarRef = useRef<SafetyCarMarker | null>(null);
   const renderedMarkersRef = useRef<DriverMarker[]>([]);
+  const currentFrameRef = useRef<ReplayFrame | null>(currentFrame);
+  const nextFrameRef = useRef<ReplayFrame | null>(nextFrame);
+
+  // User transform state (drag pan, ctrl-wheel zoom, shift-drag rotate).
+  const transformRef = useRef<{ tx: number; ty: number; scale: number; rot: number }>({ tx: 0, ty: 0, scale: 1, rot: 0 });
+  const interactionRef = useRef<{
+    pointerId: number | null;
+    mode: "idle" | "pan" | "rotate";
+    startX: number;
+    startY: number;
+    startTx: number;
+    startTy: number;
+    startRot: number;
+  }>({ pointerId: null, mode: "idle", startX: 0, startY: 0, startTx: 0, startTy: 0, startRot: 0 });
+  const [hover, setHover] = useState<{
+    abbr: string;
+    px: number;
+    py: number;
+  } | null>(null);
+  const hoverRefState = useRef<{ x: number; y: number } | null>(null);
 
   const driverColorByCode = useMemo(
     () => new Map(drivers.map((driver) => [driver.driverCode, driver.teamColor])),
+    [drivers],
+  );
+  const driverTeamByCode = useMemo(
+    () => new Map(drivers.map((driver) => [driver.driverCode, driver.team])),
     [drivers],
   );
 
@@ -137,8 +188,6 @@ export function TrackCanvas({
     [trackPath, renderSize.width, renderSize.height],
   );
 
-  // Watch the container for resize so the geometry rebuilds with the actual
-  // aspect ratio of the box on screen (B3 Melbourne distortion fix).
   useEffect(() => {
     const node = containerRef.current;
     if (!node || typeof ResizeObserver === "undefined") return;
@@ -158,7 +207,6 @@ export function TrackCanvas({
     return () => ro.disconnect();
   }, []);
 
-  // Stable per-driver lane offset, hashed from driver code so it does not change as positions swap.
   function laneOffsetForDriver(driverCode: string) {
     const cached = laneAssignmentsRef.current.get(driverCode);
     if (cached !== undefined) return cached;
@@ -182,12 +230,9 @@ export function TrackCanvas({
       if (driver.x !== null && driver.y !== null) {
         return lapOffset + geom.project({ x: driver.x, y: driver.y }).distance;
       }
-      // No coordinates at all: fall back to interval-derived position relative to the leader.
       return computeIntervalDistance(driver, frame, geom, lapOffset);
     }
 
-    // For non-leaders, prefer the leader's projected distance minus the gap so all cars stay
-    // anchored to the actual leader position rather than drifting on noisy raw coordinates.
     if (driver.position > 1) {
       return computeIntervalDistance(driver, frame, geom, lapOffset);
     }
@@ -218,7 +263,7 @@ export function TrackCanvas({
     return lapOffset + leaderDistance - intervalDistance;
   }
 
-  // Snap targets to new frame data whenever the active frame changes.
+  // Snap distA/distB whenever currentFrame or nextFrame changes.
   useEffect(() => {
     trackStatusRef.current = currentFrame?.trackStatus || "GREEN";
     selectedDriversRef.current = selectedDrivers;
@@ -233,6 +278,8 @@ export function TrackCanvas({
     pitPulsesRef.current = pitPulses ?? [];
     clockSecondsRef.current = clockSeconds ?? 0;
     trackTotalLengthRef.current = trackTotalLength ?? 0;
+    currentFrameRef.current = currentFrame;
+    nextFrameRef.current = nextFrame;
 
     const safetyCar = currentFrame?.safetyCar;
     safetyCarRef.current = safetyCar && safetyCar.x !== null && safetyCar.y !== null && safetyCar.phase !== "none"
@@ -246,7 +293,6 @@ export function TrackCanvas({
     }
 
     if (lastSnappedFrameRef.current === currentFrame) {
-      // Same frame instance, just update reactive flags.
       return;
     }
     lastSnappedFrameRef.current = currentFrame;
@@ -255,18 +301,31 @@ export function TrackCanvas({
     for (const driver of Object.values(currentFrame.drivers)) {
       if (!driver) continue;
       seen.add(driver.driverCode);
-      const targetDistance = computeTargetDistance(driver, currentFrame, geometry);
+      const distA = computeTargetDistance(driver, currentFrame, geometry);
+      let distB = distA;
+      if (nextFrame) {
+        const nextDriver = nextFrame.drivers[driver.driverCode];
+        if (nextDriver) {
+          let candidateB = computeTargetDistance(nextDriver, nextFrame, geometry);
+          // Lap rollover: if next is far behind current, unwrap.
+          if (candidateB - distA < -geometry.totalLength * 0.4) {
+            candidateB += geometry.totalLength;
+          }
+          distB = candidateB;
+        }
+      }
       const lane = laneOffsetForDriver(driver.driverCode);
       const existing = driverTargetsRef.current.get(driver.driverCode);
 
       if (!existing) {
-        // First sighting: snap displayDistance directly so we don't get a startup sweep.
         driverTargetsRef.current.set(driver.driverCode, {
-          targetDistance,
-          displayDistance: targetDistance,
+          distA,
+          distB,
+          displayDistance: distA,
           laneOffset: lane,
           position: driver.position,
           color: driverColorByCode.get(driver.driverCode) || "#9ca3af",
+          team: driverTeamByCode.get(driver.driverCode),
           speed: driver.speed,
           drs: driver.drs,
           lap: driver.lap,
@@ -274,36 +333,35 @@ export function TrackCanvas({
         continue;
       }
 
-      // Detect a lap rollover: if the new target is very far behind the displayed value,
-      // assume the driver crossed the start/finish line and unwrap by adding a lap.
-      let nextTarget = targetDistance;
-      const wrapDelta = nextTarget - existing.displayDistance;
-      if (wrapDelta < -geometry.totalLength * 0.4) {
-        nextTarget += geometry.totalLength;
+      // Lap rollover handling for displayed distance.
+      let nextDisplay = existing.displayDistance;
+      if (distA - nextDisplay < -geometry.totalLength * 0.4) {
+        nextDisplay -= geometry.totalLength;
       }
 
       driverTargetsRef.current.set(driver.driverCode, {
         ...existing,
-        targetDistance: nextTarget,
+        distA,
+        distB,
+        displayDistance: nextDisplay,
         laneOffset: lane,
         position: driver.position,
         color: driverColorByCode.get(driver.driverCode) || existing.color,
+        team: driverTeamByCode.get(driver.driverCode) ?? existing.team,
         speed: driver.speed,
         drs: driver.drs,
         lap: driver.lap,
       });
     }
 
-    // Drop drivers no longer present in this frame.
     for (const code of Array.from(driverTargetsRef.current.keys())) {
       if (!seen.has(code)) {
         driverTargetsRef.current.delete(code);
       }
     }
-  }, [currentFrame, nextFrame, selectedDrivers, showDriverLabels, showDrsZones, showCorners, showMarshalSectors, corners, drsZones, marshalSectors, activeMarshalFlagBySector, pitPulses, clockSeconds, trackTotalLength, geometry, driverColorByCode, projectMarkersToTrack, estimatedLapDuration]);
+  }, [currentFrame, nextFrame, selectedDrivers, showDriverLabels, showDrsZones, showCorners, showMarshalSectors, corners, drsZones, marshalSectors, activeMarshalFlagBySector, pitPulses, clockSeconds, trackTotalLength, geometry, driverColorByCode, driverTeamByCode, projectMarkersToTrack, estimatedLapDuration]);
 
-  // Continuous render loop. Display distance eases toward target distance every frame, and
-  // marker positions are read off the dense polyline so cars never cut across corners.
+  // Continuous render loop.
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -320,12 +378,23 @@ export function TrackCanvas({
         canvas.height = targetHeight;
       }
 
+      // Apply DPR scaling, then user transform around centre of viewport.
+      const t = transformRef.current;
+      const cx = renderSize.width * 0.5;
+      const cy = renderSize.height * 0.5;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, renderSize.width, renderSize.height);
       ctx.fillStyle = "#0a0d13";
       ctx.fillRect(0, 0, renderSize.width, renderSize.height);
+      // Compose: translate to centre + user pan, rotate, scale, translate back.
+      ctx.save();
+      ctx.translate(cx + t.tx, cy + t.ty);
+      ctx.rotate(t.rot);
+      ctx.scale(t.scale, t.scale);
+      ctx.translate(-cx, -cy);
 
       if (!geometry) {
+        ctx.restore();
         ctx.fillStyle = "#7f8797";
         ctx.font = "600 16px Aptos, sans-serif";
         ctx.textAlign = "center";
@@ -358,7 +427,6 @@ export function TrackCanvas({
         );
       }
 
-      // Draw decaying pit-out pulses if any are still alive.
       if (pitPulsesRef.current.length) {
         const nowSeconds = clockSecondsRef.current;
         const ageMillis = pitPulsesRef.current.map((pulse) => ({
@@ -370,16 +438,26 @@ export function TrackCanvas({
         drawPitPulses(ctx, geometry, ageMillis);
       }
 
+      // Compute interpolation parameter localT = (now - tA) / (tB - tA).
+      const cur = currentFrameRef.current;
+      const nxt = nextFrameRef.current;
+      const playhead = playheadTimeRef?.current ?? clockSecondsRef.current;
+      let localT = 0;
+      if (cur && nxt && nxt.t > cur.t) {
+        localT = Math.min(1, Math.max(0, (playhead - cur.t) / (nxt.t - cur.t)));
+      }
+      const eased = ease(localT);
+
       const interpolated: DriverMarker[] = [];
       for (const [abbr, target] of driverTargetsRef.current.entries()) {
-        // Ease the displayed distance toward the target distance.
-        const delta = target.targetDistance - target.displayDistance;
-        const next = target.displayDistance + delta * SMOOTHING_FACTOR;
-        target.displayDistance = next;
+        // Linear interp distA -> distB by eased localT.
+        const interpolatedDistance = target.distA + (target.distB - target.distA) * eased;
+        // Apply a tiny residual smoother so micro-jitter is eaten without losing
+        // sample-step responsiveness.
+        const delta = interpolatedDistance - target.displayDistance;
+        target.displayDistance = target.displayDistance + delta * RESIDUAL_EASE;
 
-        // Resolve the screen position by reading the dense track polyline at the
-        // displayed distance, then offsetting laterally by the per-driver lane.
-        const trackPoint = geometry.pointAtDistance(next);
+        const trackPoint = geometry.pointAtDistance(target.displayDistance);
         interpolated.push({
           abbr,
           x: trackPoint.x + trackPoint.nx * target.laneOffset,
@@ -399,8 +477,48 @@ export function TrackCanvas({
       drawSafetyCar(ctx, geometry, safetyCarRef.current);
       drawDrivers(ctx, interpolated, geometry, selectedDriversRef.current, showDriverLabelsRef.current);
       renderedMarkersRef.current = interpolated;
+      ctx.restore();
+
+      // Hover tooltip placement.
+      const hoverPoint = hoverRefState.current;
+      if (hoverPoint && interpolated.length) {
+        const hovered = pickNearestDriver(hoverPoint.x, hoverPoint.y, geometry, t, cx, cy);
+        if (hovered) {
+          setHover((prev) => {
+            if (prev && prev.abbr === hovered.abbr && Math.abs(prev.px - hovered.screenX) < 1 && Math.abs(prev.py - hovered.screenY) < 1) {
+              return prev;
+            }
+            return { abbr: hovered.abbr, px: hovered.screenX, py: hovered.screenY };
+          });
+        } else {
+          setHover(null);
+        }
+      }
+
       animationFrameRef.current = requestAnimationFrame(drawFrame);
     };
+
+    function pickNearestDriver(px: number, py: number, geom: TrackGeometry, transform: { tx: number; ty: number; scale: number; rot: number }, ccx: number, ccy: number) {
+      let best: { abbr: string; distance: number; screenX: number; screenY: number } | null = null;
+      for (const marker of renderedMarkersRef.current) {
+        const screen = geom.toScreen(marker);
+        // Apply the same composite transform as the canvas.
+        const dx = screen.x - ccx;
+        const dy = screen.y - ccy;
+        const cos = Math.cos(transform.rot);
+        const sin = Math.sin(transform.rot);
+        const rx = (dx * cos - dy * sin) * transform.scale;
+        const ry = (dx * sin + dy * cos) * transform.scale;
+        const sx = ccx + transform.tx + rx;
+        const sy = ccy + transform.ty + ry;
+        const d = Math.hypot(px - sx, py - sy);
+        if (!best || d < best.distance) {
+          best = { abbr: marker.abbr, distance: d, screenX: sx, screenY: sy };
+        }
+      }
+      if (best && best.distance < 22) return best;
+      return null;
+    }
 
     drawFrame();
 
@@ -410,24 +528,121 @@ export function TrackCanvas({
         animationFrameRef.current = null;
       }
     };
-  }, [geometry, renderSize.height, renderSize.width]);
+  }, [geometry, renderSize.height, renderSize.width, playheadTimeRef]);
+
+  // Pointer + wheel handlers for pan / zoom / rotate.
+  function handlePointerDown(event: React.PointerEvent<HTMLCanvasElement>) {
+    if (event.button !== 0 && event.button !== 2) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    const mode = (event.shiftKey || event.button === 2) ? "rotate" : "pan";
+    interactionRef.current = {
+      pointerId: event.pointerId,
+      mode,
+      startX: x,
+      startY: y,
+      startTx: transformRef.current.tx,
+      startTy: transformRef.current.ty,
+      startRot: transformRef.current.rot,
+    };
+    canvas.setPointerCapture(event.pointerId);
+  }
+
+  function handlePointerMove(event: React.PointerEvent<HTMLCanvasElement>) {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    hoverRefState.current = { x, y };
+    const interaction = interactionRef.current;
+    if (interaction.mode === "pan" && interaction.pointerId === event.pointerId) {
+      transformRef.current.tx = interaction.startTx + (x - interaction.startX);
+      transformRef.current.ty = interaction.startTy + (y - interaction.startY);
+    } else if (interaction.mode === "rotate" && interaction.pointerId === event.pointerId) {
+      const cx = rect.width * 0.5;
+      const cy = rect.height * 0.5;
+      const startAngle = Math.atan2(interaction.startY - cy, interaction.startX - cx);
+      const currentAngle = Math.atan2(y - cy, x - cx);
+      let nextRot = interaction.startRot + (currentAngle - startAngle);
+      if (nextRot > ROT_LIMIT) nextRot = ROT_LIMIT;
+      if (nextRot < -ROT_LIMIT) nextRot = -ROT_LIMIT;
+      transformRef.current.rot = nextRot;
+    }
+  }
+
+  function handlePointerUp(event: React.PointerEvent<HTMLCanvasElement>) {
+    const interaction = interactionRef.current;
+    const canvas = canvasRef.current;
+    if (canvas && interaction.pointerId === event.pointerId) {
+      try { canvas.releasePointerCapture(event.pointerId); } catch { /* ignore */ }
+    }
+    interactionRef.current = { pointerId: null, mode: "idle", startX: 0, startY: 0, startTx: 0, startTy: 0, startRot: 0 };
+  }
+
+  function handlePointerLeave() {
+    hoverRefState.current = null;
+    setHover(null);
+  }
+
+  function handleWheel(event: React.WheelEvent<HTMLCanvasElement>) {
+    if (!event.ctrlKey && !event.metaKey) return; // require Ctrl/Cmd for zoom
+    event.preventDefault();
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const cursorX = event.clientX - rect.left;
+    const cursorY = event.clientY - rect.top;
+    const cx = rect.width * 0.5;
+    const cy = rect.height * 0.5;
+    const t = transformRef.current;
+    const scaleDelta = Math.pow(1.0015, -event.deltaY);
+    const nextScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, t.scale * scaleDelta));
+    const ratio = nextScale / t.scale;
+    // Zoom toward cursor: anchor cursor relative to centre + tx/ty.
+    const ax = cursorX - (cx + t.tx);
+    const ay = cursorY - (cy + t.ty);
+    t.tx -= ax * (ratio - 1);
+    t.ty -= ay * (ratio - 1);
+    t.scale = nextScale;
+  }
+
+  function resetTransform() {
+    transformRef.current = { tx: 0, ty: 0, scale: 1, rot: 0 };
+  }
+
+  function handleDoubleClick() {
+    resetTransform();
+  }
 
   function handleCanvasClick(event: React.MouseEvent<HTMLCanvasElement>) {
     if (!onDriverClick || !renderedMarkersRef.current.length || !geometry) {
       return;
     }
-
     const canvas = canvasRef.current;
     if (!canvas) return;
-
     const rect = canvas.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
+    const cx = rect.width * 0.5;
+    const cy = rect.height * 0.5;
+    const t = transformRef.current;
+    const cos = Math.cos(t.rot);
+    const sin = Math.sin(t.rot);
 
     let nearest: { abbr: string; distance: number } | null = null;
     for (const marker of renderedMarkersRef.current) {
       const screen = geometry.toScreen(marker);
-      const distance = Math.hypot(x - screen.x, y - screen.y);
+      const dx = screen.x - cx;
+      const dy = screen.y - cy;
+      const rx = (dx * cos - dy * sin) * t.scale;
+      const ry = (dx * sin + dy * cos) * t.scale;
+      const sx = cx + t.tx + rx;
+      const sy = cy + t.ty + ry;
+      const distance = Math.hypot(x - sx, y - sy);
       if (!nearest || distance < nearest.distance) {
         nearest = { abbr: marker.abbr, distance };
       }
@@ -441,6 +656,11 @@ export function TrackCanvas({
     onDriverClick(null, false);
   }
 
+  // Compute hover meta for tooltip.
+  const hoverMeta = hover ? hoverMetaByCode?.get(hover.abbr) ?? null : null;
+  const hoverTarget = hover ? driverTargetsRef.current.get(hover.abbr) ?? null : null;
+  const fields = hoverFields ?? { position: true, team: true, gap: true, lastLap: true, tyre: true, speed: true, drs: true };
+
   return (
     <div
       ref={containerRef}
@@ -452,9 +672,63 @@ export function TrackCanvas({
         width={renderSize.width}
         height={renderSize.height}
         onClick={handleCanvasClick}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        onPointerLeave={handlePointerLeave}
+        onWheel={handleWheel}
+        onDoubleClick={handleDoubleClick}
+        onContextMenu={(e) => e.preventDefault()}
         className="replay-track-canvas"
-        style={{ width: "100%", height: "100%", display: "block" }}
+        style={{ width: "100%", height: "100%", display: "block", touchAction: "none" }}
       />
+      {hover && hoverTarget ? (
+        <div
+          className="replay-track-canvas__tooltip"
+          style={{
+            left: Math.min(renderSize.width - 220, Math.max(8, hover.px + 14)),
+            top: Math.max(8, hover.py - 14),
+          }}
+        >
+          <div className="replay-track-canvas__tooltip-head">
+            <span className="replay-track-canvas__tooltip-stripe" style={{ background: hoverTarget.color }} />
+            <strong>{hover.abbr}</strong>
+            {fields.position && hoverTarget.position ? <span className="replay-track-canvas__tooltip-pos">P{hoverTarget.position}</span> : null}
+          </div>
+          {fields.team && (hoverMeta?.team || hoverTarget.team) ? (
+            <p className="replay-track-canvas__tooltip-line"><span>Team</span><strong>{hoverMeta?.team ?? hoverTarget.team}</strong></p>
+          ) : null}
+          {fields.gap && hoverMeta?.gap ? (
+            <p className="replay-track-canvas__tooltip-line"><span>Gap</span><strong>{hoverMeta.gap}</strong></p>
+          ) : null}
+          {fields.lastLap && typeof hoverMeta?.lastLapMs === "number" && hoverMeta.lastLapMs > 0 ? (
+            <p className="replay-track-canvas__tooltip-line"><span>Last lap</span><strong>{formatLap(hoverMeta.lastLapMs)}</strong></p>
+          ) : null}
+          {fields.bestLap && typeof hoverMeta?.bestLapMs === "number" && hoverMeta.bestLapMs > 0 ? (
+            <p className="replay-track-canvas__tooltip-line"><span>Best lap</span><strong>{formatLap(hoverMeta.bestLapMs)}</strong></p>
+          ) : null}
+          {fields.tyre && hoverMeta?.tyreCompound ? (
+            <p className="replay-track-canvas__tooltip-line"><span>Tyre</span><strong>{hoverMeta.tyreCompound}{typeof hoverMeta.tyreAge === "number" ? ` · ${hoverMeta.tyreAge}L` : ""}</strong></p>
+          ) : null}
+          {fields.speed && typeof hoverTarget.speed === "number" ? (
+            <p className="replay-track-canvas__tooltip-line"><span>Speed</span><strong>{Math.round(hoverTarget.speed)} km/h</strong></p>
+          ) : null}
+          {fields.drs && typeof hoverTarget.drs === "number" ? (
+            <p className="replay-track-canvas__tooltip-line"><span>DRS</span><strong>{hoverTarget.drs ? "open" : "closed"}</strong></p>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
+}
+
+function formatLap(ms: number) {
+  if (!Number.isFinite(ms) || ms <= 0) return "-";
+  const totalSeconds = ms / 1000;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds - minutes * 60;
+  return minutes > 0
+    ? `${minutes}:${seconds.toFixed(3).padStart(6, "0")}`
+    : `${seconds.toFixed(3)}s`;
 }

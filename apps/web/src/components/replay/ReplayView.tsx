@@ -310,6 +310,18 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [fastestLapToast, setFastestLapToast] = useState<{ driver: string; time: number; key: number } | null>(null);
   const lastFastestRef = useRef<number | null>(null);
+  const [leaderboardLayout, setLeaderboardLayout] = useState<"vertical" | "horizontal">("vertical");
+  const [hoverFields, setHoverFields] = useState<{
+    position: boolean;
+    team: boolean;
+    gap: boolean;
+    lastLap: boolean;
+    bestLap: boolean;
+    tyre: boolean;
+    speed: boolean;
+    drs: boolean;
+  }>({ position: true, team: true, gap: true, lastLap: true, bestLap: false, tyre: true, speed: true, drs: true });
+  const [showHoverFieldsMenu, setShowHoverFieldsMenu] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -782,6 +794,40 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
   const leadDriver = displayedDrivers[0] || null;
   const stageDrivers = displayedDrivers.slice(0, 3);
 
+  // Build per-driver hover metadata for the track tooltip.
+  const hoverMetaByCode = useMemo(() => {
+    const map = new Map<string, {
+      team?: string;
+      tyreCompound?: string | null;
+      tyreAge?: number | null;
+      lastLapMs?: number | null;
+      bestLapMs?: number | null;
+      gap?: string | null;
+      interval?: string | null;
+    }>();
+    for (const driver of displayedDrivers) {
+      const driverLaps = lapHistoryByDriver.get(driver.abbr) ?? [];
+      let bestLapMs: number | null = null;
+      let lastLapMs: number | null = null;
+      for (const lap of driverLaps) {
+        if (typeof lap.lapTime !== "number") continue;
+        const ms = lap.lapTime * 1000;
+        if (bestLapMs === null || ms < bestLapMs) bestLapMs = ms;
+        if (lap.lapNumber < (driver.lap ?? 0) || lastLapMs === null) lastLapMs = ms;
+      }
+      map.set(driver.abbr, {
+        team: driver.team,
+        tyreCompound: driver.compound,
+        tyreAge: driver.tyreAge,
+        gap: driver.intervalLabel,
+        interval: driver.intervalLabel,
+        lastLapMs,
+        bestLapMs,
+      });
+    }
+    return map;
+  }, [displayedDrivers, lapHistoryByDriver]);
+
   const featuredCompareKey = Object.keys(manifest.compare ?? {})[0] ?? null;
   const featuredCompareHref = featuredCompareKey
     ? `/compare/${route.season}/${route.grandPrix}/${route.session}/${featuredCompareKey.split("-")[0]}/${featuredCompareKey.split("-")[1]}`
@@ -1168,14 +1214,14 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
         </section>
       ) : null}
 
-      <div className="replay-workspace-grid">
+      <div className="replay-workspace-grid replay-workspace-grid--stacked">
         <section className="replay-track-panel">
           <div className="replay-track-panel__header">
             <div className="replay-track-panel__title">
               <p className="eyebrow">Track stage</p>
               <h2>{trackLabel}</h2>
               <p>
-                Click any marker to inspect a car. Shift-click keeps up to four drivers pinned for a denser compare workflow.
+                Drag to pan · Ctrl+wheel to zoom · Shift-drag to rotate · Double-click to reset · Click a marker to inspect.
               </p>
             </div>
             <div className="replay-track-panel__stats">
@@ -1189,6 +1235,16 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
               </div>
               <button
                 type="button"
+                className={`replay-track-panel__messages-button${showHoverFieldsMenu ? " replay-track-panel__messages-button--open" : ""}`}
+                onClick={() => setShowHoverFieldsMenu((value) => !value)}
+                aria-expanded={showHoverFieldsMenu}
+                aria-label="Configure hover tooltip fields"
+              >
+                <span>Tooltip</span>
+                <strong>{Object.values(hoverFields).filter(Boolean).length}</strong>
+              </button>
+              <button
+                type="button"
                 className={`replay-track-panel__messages-button${showMessageList ? " replay-track-panel__messages-button--open" : ""}`}
                 onClick={() => setShowMessageList((value) => !value)}
                 aria-expanded={showMessageList}
@@ -1200,6 +1256,30 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
               </button>
             </div>
           </div>
+
+          {showHoverFieldsMenu ? (
+            <div className="replay-track-panel__hover-menu" role="group" aria-label="Track tooltip fields">
+              {([
+                ["position", "Position"],
+                ["team", "Team"],
+                ["gap", "Gap"],
+                ["lastLap", "Last lap"],
+                ["bestLap", "Best lap"],
+                ["tyre", "Tyre"],
+                ["speed", "Speed"],
+                ["drs", "DRS"],
+              ] as const).map(([key, label]) => (
+                <label key={key} className={`replay-track-panel__hover-toggle${hoverFields[key] ? " replay-track-panel__hover-toggle--active" : ""}`}>
+                  <input
+                    type="checkbox"
+                    checked={hoverFields[key]}
+                    onChange={(event) => setHoverFields((prev) => ({ ...prev, [key]: event.target.checked }))}
+                  />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
+          ) : null}
 
           <div className="replay-track-panel__chips">
             <span className="replay-track-chip replay-track-chip--accent">{replaySourceLabel}</span>
@@ -1230,9 +1310,12 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
               activeMarshalFlagBySector={activeMarshalFlagBySector}
               pitPulses={activePitPulses}
               clockSeconds={currentTime}
+              playheadTimeRef={playheadTimeRef}
               trackTotalLength={replay.trackMetadata?.length}
               projectMarkersToTrack={projectMarkers}
               estimatedLapDuration={estimatedLapDuration}
+              hoverMetaByCode={hoverMetaByCode}
+              hoverFields={hoverFields}
               onDriverClick={handleDriverSelect}
             />
 
@@ -1377,7 +1460,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
           />
         </section>
 
-        <aside className="replay-side-column">
+        <aside className="replay-side-column replay-side-column--stacked">
           <section className="replay-side-card">
             <p className="eyebrow">Current read</p>
             <h3>{selectedTelemetryDrivers.length ? `Telemetry on ${selectedDriverLabel}` : leadDriver ? `${leadDriver.abbr} anchors the replay` : "Pick a driver to inspect"}</h3>
@@ -1408,6 +1491,8 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
             drivers={displayedDrivers}
             selectedDrivers={selectedDrivers}
             onDriverSelect={handleDriverSelect}
+            layout={leaderboardLayout}
+            onLayoutChange={setLeaderboardLayout}
           />
         </aside>
       </div>
