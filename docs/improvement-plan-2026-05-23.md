@@ -103,21 +103,37 @@ follow-up questions before moving to the next.
 
 ---
 
-## Track 2 — Driver / constructor / circuit art system (after Track 1 review)
+## Track 2 — Driver / constructor / circuit art system
 
 ### Items
-- T2.1 Canonical art manifest: `data/teams/<slug>.json`,
-  `data/circuits/<slug>.json`, public mirrors.
-- T2.2 Source driver portrait SVGs from the public F1 / Wikipedia
-  driver pages (no image gen). Save to
-  `apps/web/public/images/drivers/<season>/<slug>.svg`.
-- T2.3 Source constructor logo SVGs from the same sources. Save to
-  `apps/web/public/images/teams/<slug>/logo.svg`.
-- T2.4 Generate circuit art programmatically from
-  `data/track-shapes/<slug>.json` (no image gen needed).
-- T2.5 `packages/art/` helper for the rest of the app to consume.
-- T2.6 Roll out across replay-library, leaderboard, driver-card,
-  learn-index, home.
+- T2.1 Canonical art manifest: `apps/web/src/data/art/{teams,drivers,circuits}.json`
+  with public mirrors at `apps/web/public/data/art/`.
+- T2.2 Pipeline scripts: `pipeline/export/src/build-team-art.mjs`,
+  `build-driver-art.mjs`, `build-circuit-art.mjs` — incremental, `--force` flag.
+- T2.3 Generated assets: letter-mark team SVGs, driver number plates +
+  avatars, circuit outlines + heroes (1600x900 SVG hero, 480x280 SVG map).
+- T2.4 `apps/web/src/lib/art.ts` helper with slug aliases for replay-pack
+  team / circuit names.
+- T2.5 Roll out across:
+  - `Leaderboard` — driver avatar glyph next to identity column.
+  - `replay-library-client` — circuit map thumbnail + length / corners line.
+  - `ReplayTrackInfoPanel` — circuit hero + length / corners / firstGp chips.
+  - `driver-card` — driver avatar, team logo mark, racing number plate art.
+- T2.6 `docs/art-attributions.md` documents every asset's upstream
+  reference (F1.com primary, Wikipedia fallback) for traceability.
+
+### Track 2 progress
+- [x] T2.1 Manifests authored across 2024/2025/2026 (13 teams, 27 drivers,
+  24 circuits).
+- [x] T2.2 Pipeline scripts complete with incremental + `--force` modes.
+- [x] T2.3 39 team art files, 54 driver art files, 48 circuit art files
+  generated.
+- [x] T2.4 `lib/art` helper with slug-alias resolver and resolveTeam /
+  resolveCircuit fallbacks.
+- [x] T2.5 Rolled out across leaderboard, replay-library, replay
+  track-info panel, and driver-card.
+- [x] T2.6 Attribution doc landed.
+- [x] Build passed; local smoke 12/12; deploy + prod smoke pending.
 
 ---
 

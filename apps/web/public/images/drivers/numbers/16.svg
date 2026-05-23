@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 160" role="img" aria-label="Charles Leclerc #16">
+  <defs>
+    <linearGradient id="numbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#E80020"/>
+      <stop offset="100%" stop-color="#FFF200" stop-opacity="0.78"/>
+    </linearGradient>
+  </defs>
+  <rect x="6" y="6" width="208" height="148" rx="20" fill="url(#numbg)"/>
+  <rect x="6" y="6" width="208" height="148" rx="20" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="3"/>
+  <text x="110" y="100" text-anchor="middle" dominant-baseline="middle"
+        font-family="Aptos, 'Segoe UI', system-ui, sans-serif"
+        font-weight="900" font-size="110" fill="#ffffff" letter-spacing="-3">16</text>
+  <text x="110" y="142" text-anchor="middle" dominant-baseline="middle"
+        font-family="'IBM Plex Mono', Consolas, monospace"
+        font-weight="700" font-size="14" fill="rgba(255,255,255,0.82)" letter-spacing="3">LEC</text>
+</svg>

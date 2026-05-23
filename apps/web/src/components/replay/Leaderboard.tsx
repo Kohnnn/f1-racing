@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { getDriverArt, getTeamArt } from "@/lib/art";
 
 interface ReplayLeaderboardRow {
   abbr: string;
@@ -237,6 +238,7 @@ export function Leaderboard({ drivers, selectedDrivers, onDriverSelect, layout =
               </span>
               <span className="replay-leaderboard__driver">
                 <span className="replay-leaderboard__stripe" style={{ backgroundColor: driver.color }} />
+                <DriverGlyph code={driver.abbr} color={driver.color} />
                 <span className="replay-leaderboard__identity">
                   <strong>{driver.abbr}</strong>
                   <span>{driver.fullName}</span>
@@ -286,3 +288,30 @@ export function Leaderboard({ drivers, selectedDrivers, onDriverSelect, layout =
 }
 
 export type { ReplayLeaderboardRow };
+
+/**
+ * Small avatar glyph for a driver. Uses the driver's generated SVG avatar
+ * (`/images/drivers/avatars/<slug>.svg`) when available, falling back to
+ * an initials chip in team colour if the resolver doesn't recognise the
+ * code.
+ */
+function DriverGlyph({ code, color }: { code: string; color: string }) {
+  const art = getDriverArt(code);
+  if (art.driver) {
+    return (
+      <span className="replay-leaderboard__avatar" aria-hidden="true">
+        <img src={art.avatar} alt="" loading="lazy" />
+      </span>
+    );
+  }
+  return (
+    <span className="replay-leaderboard__avatar replay-leaderboard__avatar--fallback" aria-hidden="true" style={{ backgroundColor: color }}>
+      {code.slice(0, 3)}
+    </span>
+  );
+}
+
+// Re-export to silence unused-import warnings; the helper is consumed
+// indirectly via DriverGlyph above. getTeamArt is reserved for future
+// rollouts (e.g. team logo on hover detail).
+void getTeamArt;

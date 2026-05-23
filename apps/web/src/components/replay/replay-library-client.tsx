@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { LatestManifest, SeasonIndex } from "@/lib/data";
+import { getCircuitArt } from "@/lib/art";
 
 interface ReplayLibraryClientProps {
   aliasMode: boolean;
@@ -190,14 +191,26 @@ export function ReplayLibraryClient({ aliasMode, latestManifest, index }: Replay
                 const sessionNames = sortedSessions.map((session) => session.sessionName);
                 const coverageNote = buildCoverageNote(coverageLabel, sessionNames);
                 const sessionCount = grandPrix.sessions.length;
+                const trackId = grandPrix.sessions[0]?.trackId ?? grandPrix.grandPrixSlug;
+                const circuitArt = getCircuitArt(trackId);
                 return (
                   <article className="panel panel--nested replay-session-cluster" key={grandPrix.grandPrixSlug}>
+                    {circuitArt.map ? (
+                      <figure className="replay-session-cluster__art" aria-hidden="true">
+                        <img src={circuitArt.map} alt="" loading="lazy" />
+                      </figure>
+                    ) : null}
                     <div>
                       <p className="eyebrow">{coverageLabel}</p>
                       <h3>
                         {grandPrix.grandPrixName}
                         <span className="replay-session-cluster__badge">{sessionCount} session{sessionCount === 1 ? "" : "s"}</span>
                       </h3>
+                      {circuitArt.circuit.lengthKm > 0 ? (
+                        <p className="replay-session-cluster__circuit">
+                          {circuitArt.circuit.displayName} · {circuitArt.circuit.lengthKm.toFixed(3)} km · {circuitArt.circuit.corners} corners
+                        </p>
+                      ) : null}
                       <p className="replay-session-cluster__note">{coverageNote}</p>
                     </div>
                     <div className="replay-session-links">

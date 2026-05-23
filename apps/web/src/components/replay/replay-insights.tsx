@@ -1,5 +1,6 @@
 import { formatDeltaMs, formatLapTime } from "@f1-racing/telemetry-utils";
 import type { ComparePack, ReplayPack, StintPack, StrategyPack } from "@/lib/data";
+import { getCircuitArt } from "@/lib/art";
 
 function buildTrendLabel(value: number) {
   if (value > 0.08) {
@@ -368,14 +369,28 @@ export function ReplayTrackInfoPanel({ replay, trackId }: ReplayTrackInfoPanelPr
   const trackLength = replay.trackPath?.length ?? 0;
   const drsZoneCount = replay.trackPath && trackLength > 20 ? 3 : 0;
   const totalLaps = replay.totalLaps ?? Math.max(...replay.laps.map((lap) => lap.lapNumber), 0);
+  const circuitArt = getCircuitArt(trackId);
+  const circuitName = circuitArt.circuit.displayName !== "Unknown circuit"
+    ? circuitArt.circuit.displayName
+    : trackId.replace(/-/g, " ").replace(/(^|\s)\S/g, (match) => match.toUpperCase());
   return (
     <section className="replay-insight-panel replay-insight-panel--embedded">
       <div className="section-header">
         <div>
           <p className="eyebrow">Track</p>
-          <h2>{trackId.replace(/-/g, " ").replace(/(^|\s)\S/g, (match) => match.toUpperCase())}</h2>
+          <h2>{circuitName}</h2>
+          {circuitArt.circuit.grandPrix !== "Unknown Grand Prix" ? (
+            <p className="replay-insight-panel__lead">
+              {circuitArt.circuit.grandPrix} · {circuitArt.circuit.city}, {circuitArt.circuit.country}
+            </p>
+          ) : null}
         </div>
       </div>
+      {circuitArt.hero ? (
+        <figure className="replay-track-info__hero">
+          <img src={circuitArt.hero} alt={`${circuitName} hero`} loading="lazy" />
+        </figure>
+      ) : null}
       <p className="replay-insight-panel__lead">
         Track read built from the dense reference polyline. Corner labels and marshal sectors land here when an explicit `track.json` pack is exported. DRS zone bands are illustrative until session-specific zones are wired in.
       </p>
@@ -396,6 +411,24 @@ export function ReplayTrackInfoPanel({ replay, trackId }: ReplayTrackInfoPanelPr
           <span>Source</span>
           <strong>{replay.source.toUpperCase()}</strong>
         </div>
+        {circuitArt.circuit.lengthKm > 0 ? (
+          <div className="metric-chip">
+            <span>Length</span>
+            <strong>{circuitArt.circuit.lengthKm.toFixed(3)} km</strong>
+          </div>
+        ) : null}
+        {circuitArt.circuit.corners > 0 ? (
+          <div className="metric-chip">
+            <span>Corners</span>
+            <strong>{circuitArt.circuit.corners}</strong>
+          </div>
+        ) : null}
+        {circuitArt.circuit.firstGp > 0 ? (
+          <div className="metric-chip">
+            <span>First GP</span>
+            <strong>{circuitArt.circuit.firstGp}</strong>
+          </div>
+        ) : null}
       </div>
       <p className="replay-track-info-note">
         Press <strong>D</strong> to toggle DRS zones, <strong>L</strong> for driver labels, <strong>B</strong> for race-control event markers on the timeline.
