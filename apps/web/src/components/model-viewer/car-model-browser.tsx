@@ -577,11 +577,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
           <article className="car-inspector-card">
             <p className="eyebrow">Focus point</p>
             <h3>{activeFocus ? activeFocus.title : "Select a hotspot or focus list"}</h3>
-            <p className="car-inspector-copy">
-              {activeFocus
-                ? activeFocus.summary
-                : "Use the stage hotspots or the list below to snap the camera toward one subsystem and branch into the matching learn module."}
-            </p>
+            {activeFocus ? <p className="car-inspector-copy">{activeFocus.summary}</p> : null}
             <div className="car-focus-actions">
               {activeFocus ? (
                 <>
@@ -609,8 +605,8 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
                   className={`car-focus-item${point.id === activeFocusId ? " car-focus-item--active" : ""}`}
                   onClick={() => handleFocusChange(point.id === activeFocusId ? null : point.id)}
                 >
-                  <strong>{point.title}</strong>
-                  <span>{point.learnLabel}</span>
+                  <strong>{point.shortLabel}</strong>
+                  <span>{point.title}</span>
                 </button>
               ))}
             </div>

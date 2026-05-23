@@ -1462,11 +1462,11 @@ code {
 
 .car-inspector {
   display: grid;
-  gap: 16px;
+  gap: 12px;
 }
 
 .car-inspector-card {
-  padding: 18px;
+  padding: 14px;
 }
 
 .car-inspector-copy,
@@ -1479,18 +1479,23 @@ code {
 .car-focus-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
-  margin-top: 14px;
+  gap: 8px;
+  margin-top: 10px;
 }
 
-.car-focus-list,
 .flow-overlay-controls {
   display: grid;
   gap: 10px;
   margin-top: 14px;
 }
 
-.car-focus-item,
+.car-focus-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
 .flow-overlay-toggle {
   display: grid;
   gap: 4px;
@@ -1498,6 +1503,22 @@ code {
   border: 1px solid rgba(19, 28, 45, 0.08);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.58);
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+}
+
+.car-focus-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 7px 10px;
+  border: 1px solid rgba(167, 189, 219, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
   color: var(--ink);
   font: inherit;
   text-align: left;
@@ -1519,10 +1540,27 @@ code {
 }
 
 .car-focus-item strong {
-  font-size: 0.98rem;
+  display: inline-grid;
+  place-items: center;
+  min-width: 28px;
+  min-height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(255, 122, 26, 0.14);
+  color: #fff2e8;
+  font-family: "IBM Plex Mono", Consolas, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
-.car-focus-item span,
+.car-focus-item span {
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
 .flow-overlay-toggle span {
   color: var(--ink-soft);
   line-height: 1.5;

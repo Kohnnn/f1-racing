@@ -45,16 +45,16 @@ const DEFAULT_CONTROLS: WindTunnelControls = {
   drsOpen: false,
   groundMode: "rolling",
   wheelMode: "rotating",
-  particles: 700,
+  particles: 260,
   showStreamlines: true,
-  showCp: true,
+  showCp: false,
 };
 
 const STAGE_WIDTH = 1024;
 const STAGE_HEIGHT = 384;
 const SOLVER_NX = 320;
 const SOLVER_NY = 120;
-const TRAIL_LENGTH = 6;
+const TRAIL_LENGTH = 18;
 
 interface ParticleState {
   x: number;
@@ -252,18 +252,35 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
         canvas.height = targetH;
       }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      // Soft persistence for streaklines.
-      ctx.fillStyle = "rgba(7, 9, 15, 0.32)";
+      // Hard clear so streaklines don't pile up into a hazy fog. We redraw
+      // the trails fresh each frame from the ring buffer.
+      ctx.fillStyle = "#070912";
       ctx.fillRect(0, 0, STAGE_WIDTH, STAGE_HEIGHT);
     }
 
     function drawAxes() {
       if (!ctx) return;
-      ctx.fillStyle = "rgba(40, 50, 65, 0.55)";
-      ctx.fillRect(0, STAGE_HEIGHT - 14, STAGE_WIDTH, 14);
-      for (let x = 0; x < STAGE_WIDTH; x += 32) {
-        ctx.fillStyle = "rgba(140, 160, 200, 0.18)";
-        ctx.fillRect(x, STAGE_HEIGHT - 14, 22, 3);
+      // Subtle grid.
+      ctx.strokeStyle = "rgba(120, 138, 168, 0.06)";
+      ctx.lineWidth = 1;
+      for (let x = 0; x <= STAGE_WIDTH; x += 64) {
+        ctx.beginPath();
+        ctx.moveTo(x + 0.5, 0);
+        ctx.lineTo(x + 0.5, STAGE_HEIGHT);
+        ctx.stroke();
+      }
+      for (let y = 0; y <= STAGE_HEIGHT; y += 64) {
+        ctx.beginPath();
+        ctx.moveTo(0, y + 0.5);
+        ctx.lineTo(STAGE_WIDTH, y + 0.5);
+        ctx.stroke();
+      }
+      // Floor band.
+      ctx.fillStyle = "rgba(40, 50, 65, 0.6)";
+      ctx.fillRect(0, STAGE_HEIGHT - 12, STAGE_WIDTH, 12);
+      ctx.fillStyle = "rgba(140, 160, 200, 0.14)";
+      for (let x = 0; x < STAGE_WIDTH; x += 28) {
+        ctx.fillRect(x, STAGE_HEIGHT - 12, 18, 2);
       }
     }
 
@@ -284,6 +301,8 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
       const yawRad = (controls.yawDeg * Math.PI) / 180;
       const yawCos = Math.cos(yawRad);
       const yawSin = Math.sin(yawRad);
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
       for (const particle of particles) {
         const sample = sampleField(particle.x, particle.y);
         const baseU = (controls.airspeed / 80) * 0.012;
@@ -299,7 +318,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
         ) {
           particle.x = -0.04 + Math.random() * 0.08;
           particle.y = Math.random();
-          particle.age = 100 + Math.random() * 80;
+          particle.age = 220 + Math.random() * 120;
           for (let t = 0; t < TRAIL_LENGTH; t += 1) {
             particle.trail[t * 2] = particle.x;
             particle.trail[t * 2 + 1] = particle.y;
@@ -313,35 +332,45 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
         particle.x += u;
         particle.y += v;
         particle.age -= 1;
-        // Render the trail oldest -> newest.
+        // Render the trail as a single soft path so it reads as a streamline,
+        // not a chain of dashes. Color ramp goes from cool blue (slow) to
+        // warm cyan-white (fast).
         const intensity = Math.min(1, sample ? sample.speed * 0.85 : 0.4);
-        const r = Math.round(120 + 135 * intensity);
-        const g = Math.round(190 + 30 * intensity);
+        const alpha = (0.32 + 0.42 * intensity).toFixed(3);
+        const r = Math.round(120 + 110 * intensity);
+        const g = Math.round(200 + 35 * intensity);
         const b = 255;
-        ctx.lineCap = "round";
-        ctx.lineWidth = 1.0 + intensity * 1.4;
-        for (let t = 0; t < TRAIL_LENGTH - 1; t += 1) {
-          const i0 = (particle.trailHead + t) % TRAIL_LENGTH;
-          const i1 = (particle.trailHead + t + 1) % TRAIL_LENGTH;
-          const alpha = (t + 1) / TRAIL_LENGTH * (0.45 + 0.4 * intensity);
-          ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${alpha.toFixed(3)})`;
-          ctx.beginPath();
-          ctx.moveTo(particle.trail[i0 * 2] * STAGE_WIDTH, particle.trail[i0 * 2 + 1] * STAGE_HEIGHT);
-          ctx.lineTo(particle.trail[i1 * 2] * STAGE_WIDTH, particle.trail[i1 * 2 + 1] * STAGE_HEIGHT);
-          ctx.stroke();
+        ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        ctx.lineWidth = 0.9 + intensity * 1.1;
+        ctx.beginPath();
+        for (let t = 0; t < TRAIL_LENGTH; t += 1) {
+          const ringIdx = (particle.trailHead + t) % TRAIL_LENGTH;
+          const px = particle.trail[ringIdx * 2] * STAGE_WIDTH;
+          const py = particle.trail[ringIdx * 2 + 1] * STAGE_HEIGHT;
+          if (t === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
         }
+        ctx.stroke();
       }
     }
 
     function silhouettePath(polygon: Array<[number, number]>) {
       if (!ctx) return;
       ctx.beginPath();
-      for (let i = 0; i < polygon.length; i += 1) {
-        const [nx, ny] = polygon[i];
-        const px = nx * STAGE_WIDTH;
-        const py = ny * STAGE_HEIGHT;
-        if (i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
+      // Quadratic-curve through midpoints so the closed polygon reads as a
+      // smooth airfoil-style outline instead of a connect-the-dots zigzag.
+      const len = polygon.length;
+      if (len === 0) return;
+      const first = polygon[0];
+      const startX = (first[0] + polygon[len - 1][0]) * 0.5 * STAGE_WIDTH;
+      const startY = (first[1] + polygon[len - 1][1]) * 0.5 * STAGE_HEIGHT;
+      ctx.moveTo(startX, startY);
+      for (let i = 0; i < len; i += 1) {
+        const [cx, cy] = polygon[i];
+        const [nx, ny] = polygon[(i + 1) % len];
+        const midX = (cx + nx) * 0.5 * STAGE_WIDTH;
+        const midY = (cy + ny) * 0.5 * STAGE_HEIGHT;
+        ctx.quadraticCurveTo(cx * STAGE_WIDTH, cy * STAGE_HEIGHT, midX, midY);
       }
       ctx.closePath();
     }
@@ -375,9 +404,12 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
 
       // Body fill: clean off-white so the shape reads as the car.
       ctx.save();
-      ctx.fillStyle = "rgba(247, 250, 255, 0.96)";
+      ctx.shadowColor = "rgba(140, 200, 255, 0.18)";
+      ctx.shadowBlur = 14;
+      ctx.fillStyle = "rgba(247, 250, 255, 0.94)";
       silhouettePath(polygon);
       ctx.fill();
+      ctx.shadowBlur = 0;
 
       // Cp boundary tint: walk segment-by-segment and stroke each segment with
       // a colour ramped from blue (low pressure / suction) to red (stagnation).
@@ -395,7 +427,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
         }
         const range = pMax - pMin || 1;
         ctx.lineCap = "round";
-        ctx.lineWidth = 4;
+        ctx.lineWidth = 2.25;
         for (let i = 0; i < polygon.length; i += 1) {
           const [x1, y1] = polygon[i];
           const [x2, y2] = polygon[(i + 1) % polygon.length];
@@ -403,7 +435,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
           const r = Math.round(60 + (235 - 60) * t);
           const g = Math.round(160 + (90 - 160) * t);
           const b = Math.round(220 + (40 - 220) * t);
-          ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.85)`;
+          ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.56)`;
           ctx.beginPath();
           ctx.moveTo(x1 * STAGE_WIDTH, y1 * STAGE_HEIGHT);
           ctx.lineTo(x2 * STAGE_WIDTH, y2 * STAGE_HEIGHT);
@@ -498,7 +530,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
         <h3>Airflow simulation around {modelTitle}</h3>
         <p className="wind-tunnel__copy">
           2D incompressible Navier-Stokes solver running in a Web Worker on a {SOLVER_NX} by {SOLVER_NY} grid.
-          Streaklines follow the live velocity field. Boundary tint shows local pressure (Cp).
+          Streaklines follow the live velocity field. Optional boundary tint shows local pressure (Cp).
           Visual guide only -- not a measured aerodynamic result.
         </p>
       </div>

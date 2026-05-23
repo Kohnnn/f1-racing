@@ -417,6 +417,24 @@ function simplifyPolygon(polygon, tolerance = 1.4) {
   return simplified;
 }
 
+// Chaikin corner-cutting smoothing. Each pass produces 2x points, replacing
+// every corner with a Q1/Q3 pair. Two passes turns the jagged marching-squares
+// outline into a smooth airfoil-style curve.
+function smoothPolygon(polygon, passes = 2) {
+  let current = polygon;
+  for (let p = 0; p < passes; p += 1) {
+    const next = [];
+    for (let i = 0; i < current.length; i += 1) {
+      const [x1, y1] = current[i];
+      const [x2, y2] = current[(i + 1) % current.length];
+      next.push([x1 * 0.75 + x2 * 0.25, y1 * 0.75 + y2 * 0.25]);
+      next.push([x1 * 0.25 + x2 * 0.75, y1 * 0.25 + y2 * 0.75]);
+    }
+    current = next;
+  }
+  return current;
+}
+
 // Best-effort wheel detection: project lateral spread by forward bins and
 // flag regions where there's a sharp increase in width. Then place a circle
 // at the center of each cluster, sized to the local width.
@@ -483,8 +501,9 @@ async function processModel(entry, glbPath, outDir) {
     process.stdout.write(`  skip: contour too small (${rawContour.length})\n`);
     return false;
   }
-  const simplified = simplifyPolygon(rawContour, 1.4);
-  const polygon = normalizePolygonToCanvas(simplified);
+  const simplified = simplifyPolygon(rawContour, 2.2);
+  const smoothed = smoothPolygon(simplified, 2);
+  const polygon = normalizePolygonToCanvas(smoothed);
   const wheelArches = detectWheels(points, axes);
   const payload = {
     constructor: entry.constructor,
