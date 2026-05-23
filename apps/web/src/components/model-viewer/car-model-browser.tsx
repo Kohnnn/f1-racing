@@ -3,7 +3,7 @@
 import { createElement, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { CarModelCatalog } from "@/lib/data";
-import { focusPoints, getFocusPoint, type FlowOverlayId } from "./focus-points";
+import { focusPoints, getFocusPoint } from "./focus-points";
 import { CanvasWindTunnel } from "@/components/wind/canvas-wind-tunnel";
 
 /**
@@ -77,6 +77,9 @@ interface CarModelBrowserProps {
 type ModelViewerElement = HTMLElement & {
   cameraOrbit?: string;
   cameraTarget?: string;
+  fieldOfView?: string;
+  resetTurntableRotation?: () => void;
+  jumpCameraToGoal?: () => void;
 };
 
 const CAMERA_PRESETS = [
@@ -109,71 +112,6 @@ const CAMERA_PRESETS = [
     note: "Quick read of planform and packaging balance.",
   },
 ] as const;
-
-const FLOW_OVERLAYS = [
-  {
-    id: "off",
-    label: "Overlay off",
-    description: "Keep the stage clean and study the bodywork without any illustrative flow guides.",
-  },
-  {
-    id: "front",
-    label: "Front load",
-    description: "Shows the first airflow split around the nose and front wing before it reaches the rest of the car.",
-  },
-  {
-    id: "floor",
-    label: "Floor channel",
-    description: "Highlights the low path under the sidepods and floor where the diffuser story begins.",
-  },
-  {
-    id: "rear",
-    label: "Rear wake",
-    description: "Emphasizes the exit flow around the rear wing and the wake left behind the car.",
-  },
-] as const satisfies ReadonlyArray<{
-  id: FlowOverlayId;
-  label: string;
-  description: string;
-}>;
-
-
-function AirflowOverlay({ mode }: { mode: FlowOverlayId }) {
-  if (mode === "off") {
-    return null;
-  }
-
-  if (mode === "front") {
-    return (
-      <svg className="airflow-overlay" viewBox="0 0 1000 680" aria-hidden="true">
-        <path d="M56 238 C188 220, 286 214, 392 240" />
-        <path d="M56 304 C196 284, 302 286, 426 318" />
-        <path d="M76 374 C214 356, 326 356, 446 384" />
-        <path d="M222 232 C246 276, 252 332, 236 386" />
-      </svg>
-    );
-  }
-
-  if (mode === "floor") {
-    return (
-      <svg className="airflow-overlay" viewBox="0 0 1000 680" aria-hidden="true">
-        <path d="M214 446 C324 458, 468 462, 644 444" />
-        <path d="M192 500 C334 518, 508 520, 714 498" />
-        <path d="M242 560 C376 576, 536 578, 728 560" />
-        <path d="M482 404 C506 470, 520 524, 532 580" />
-      </svg>
-    );
-  }
-
-  return (
-    <svg className="airflow-overlay" viewBox="0 0 1000 680" aria-hidden="true">
-      <path d="M624 232 C736 214, 842 230, 946 284" />
-      <path d="M646 302 C752 286, 852 306, 952 358" />
-      <path d="M662 372 C770 360, 864 382, 964 438" />
-      <path d="M676 438 C782 438, 870 468, 964 528" />
-    </svg>
-  );
-}
 
 function writeSelectionToUrl(season: number, constructorSlug: string, focusId: string | null = null) {
   if (typeof window === "undefined") {
@@ -225,12 +163,11 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
   const [activeFocusId, setActiveFocusId] = useState<(typeof focusPoints)[number]["id"] | null>(
     getFocusPoint(searchParams.get("focus"))?.id ?? null,
   );
-  const [activeFlowId, setActiveFlowId] = useState<FlowOverlayId>(
-    getFocusPoint(searchParams.get("focus"))?.flowOverlay ?? "off",
-  );
   const [interactionMode, setInteractionMode] = useState<"orbit" | "inspect">("orbit");
   const [compareSlug, setCompareSlug] = useState<string | null>(null);
   const [explodedExpanded, setExplodedExpanded] = useState<boolean>(false);
+  const [studioQuality, setStudioQuality] = useState<"clean" | "studio">("studio");
+  const [zoomHint, setZoomHint] = useState<string>("");
 
   useEffect(() => {
     import("@google/model-viewer");
@@ -248,12 +185,10 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
   const currentView = activeFocus
     ? { orbit: activeFocus.orbit, target: activeFocus.target, note: activeFocus.note }
     : activeCamera;
-  const activeFlow = FLOW_OVERLAYS.find((overlay) => overlay.id === activeFlowId) || FLOW_OVERLAYS[0];
 
   function handleFocusChange(nextFocusId: (typeof focusPoints)[number]["id"] | null) {
     if (!nextFocusId) {
       setActiveFocusId(null);
-      setActiveFlowId("off");
       writeSelectionToUrl(season, constructorSlug, null);
       return;
     }
@@ -264,7 +199,6 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
     }
 
     setActiveFocusId(nextFocus.id);
-    setActiveFlowId(nextFocus.flowOverlay);
     writeSelectionToUrl(season, constructorSlug, nextFocus.id);
   }
 
@@ -277,6 +211,98 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
     viewerRef.current.cameraTarget = currentView.target;
   }, [currentView]);
 
+  // Keyboard nudges for camera control: +/- zoom, arrows orbit, R reset.
+  useEffect(() => {
+    function handleKey(event: KeyboardEvent) {
+      const viewer = viewerRef.current;
+      if (!viewer) return;
+      // Skip when focus is in an input.
+      const target = event.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "SELECT" || target.tagName === "TEXTAREA")) {
+        return;
+      }
+      const orbit = viewer.cameraOrbit ?? currentView.orbit;
+      const parts = orbit.split(/\s+/);
+      if (parts.length < 3) return;
+      const theta = parseFloat(parts[0]);
+      const phi = parseFloat(parts[1]);
+      const radiusMatch = parts[2].match(/([\d.]+)([a-zA-Z%]+)/);
+      if (!radiusMatch) return;
+      const radius = parseFloat(radiusMatch[1]);
+      const unit = radiusMatch[2];
+      let nextTheta = theta;
+      let nextPhi = phi;
+      let nextRadius = radius;
+      let handled = false;
+      switch (event.key) {
+        case "ArrowLeft":
+          nextTheta -= 8;
+          handled = true;
+          break;
+        case "ArrowRight":
+          nextTheta += 8;
+          handled = true;
+          break;
+        case "ArrowUp":
+          nextPhi = Math.max(5, nextPhi - 5);
+          handled = true;
+          break;
+        case "ArrowDown":
+          nextPhi = Math.min(170, nextPhi + 5);
+          handled = true;
+          break;
+        case "+":
+        case "=":
+          nextRadius = Math.max(0.6, nextRadius - 0.18);
+          setZoomHint(`zoom ${nextRadius.toFixed(2)}${unit}`);
+          handled = true;
+          break;
+        case "-":
+        case "_":
+          nextRadius = Math.min(8, nextRadius + 0.18);
+          setZoomHint(`zoom ${nextRadius.toFixed(2)}${unit}`);
+          handled = true;
+          break;
+        case "r":
+        case "R":
+          handleFocusChange(null);
+          setActiveCameraId("studio");
+          handled = true;
+          break;
+        default:
+          break;
+      }
+      if (handled) {
+        event.preventDefault();
+        viewer.cameraOrbit = `${nextTheta}deg ${nextPhi}deg ${nextRadius}${unit}`;
+      }
+    }
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [currentView.orbit]);
+
+  // Clear zoom hint after a short delay.
+  useEffect(() => {
+    if (!zoomHint) return;
+    const t = window.setTimeout(() => setZoomHint(""), 1400);
+    return () => window.clearTimeout(t);
+  }, [zoomHint]);
+
+  function handleZoomButton(delta: number) {
+    const viewer = viewerRef.current;
+    if (!viewer) return;
+    const orbit = viewer.cameraOrbit ?? currentView.orbit;
+    const parts = orbit.split(/\s+/);
+    if (parts.length < 3) return;
+    const radiusMatch = parts[2].match(/([\d.]+)([a-zA-Z%]+)/);
+    if (!radiusMatch) return;
+    const radius = parseFloat(radiusMatch[1]);
+    const unit = radiusMatch[2];
+    const nextRadius = Math.max(0.6, Math.min(8, radius + delta));
+    viewer.cameraOrbit = `${parts[0]} ${parts[1]} ${nextRadius}${unit}`;
+    setZoomHint(`zoom ${nextRadius.toFixed(2)}${unit}`);
+  }
+
   const selected = catalog.models.find(
     (m) => m.season === season && m.constructorSlug === constructorSlug,
   );
@@ -288,6 +314,10 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
   if (!selected) {
     return <div className="panel">No models available.</div>;
   }
+
+  const studioAttrs = studioQuality === "studio"
+    ? { exposure: "1.05", "shadow-intensity": "1.4", "shadow-softness": "0.7", "tone-mapping": "commerce" }
+    : { exposure: "1.0", "shadow-intensity": "1", "shadow-softness": "0.85", "tone-mapping": "neutral" };
 
   return (
     <section className="panel car-viewer-shell">
@@ -375,6 +405,29 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
             </button>
           </div>
           <span className="camera-preset-row__divider" aria-hidden="true" />
+          <div className="camera-preset-row__group" role="tablist" aria-label="Studio quality">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={studioQuality === "clean"}
+              className={`camera-preset${studioQuality === "clean" ? " camera-preset--active" : ""}`}
+              onClick={() => setStudioQuality("clean")}
+              title="Neutral lighting"
+            >
+              Clean
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={studioQuality === "studio"}
+              className={`camera-preset${studioQuality === "studio" ? " camera-preset--active" : ""}`}
+              onClick={() => setStudioQuality("studio")}
+              title="Commerce-style HDR with softer shadows"
+            >
+              Studio
+            </button>
+          </div>
+          <span className="camera-preset-row__divider" aria-hidden="true" />
           <button
             type="button"
             className={`camera-preset${compareSlug ? " camera-preset--active" : ""}`}
@@ -422,18 +475,22 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
                 loading: "eager",
                 "camera-orbit": currentView.orbit,
                 "camera-target": currentView.target,
-                exposure: "1.0",
-                "shadow-intensity": "1",
-                "shadow-softness": "0.85",
+                "min-camera-orbit": "auto auto 0.6m",
+                "max-camera-orbit": "auto auto 6m",
+                "interpolation-decay": "100",
+                exposure: studioAttrs.exposure,
+                "shadow-intensity": studioAttrs["shadow-intensity"],
+                "shadow-softness": studioAttrs["shadow-softness"],
+                "tone-mapping": studioAttrs["tone-mapping"],
                 "touch-action": interactionMode === "orbit" ? "pan-y" : "none",
                 "interaction-prompt": "auto",
-                "interaction-prompt-style": "wiggle",
+                "interaction-prompt-style": "basic",
                 "environment-image": "neutral",
                 onLoad: () => setModelReady(true),
                 onError: () => setModelReady(true),
                 style: {
                   width: "100%",
-                  height: compareSlug ? "min(58vh, 560px)" : "min(68vh, 680px)",
+                  height: compareSlug ? "min(60vh, 600px)" : "min(74vh, 760px)",
                   background:
                     "radial-gradient(circle at top, rgba(20,28,42,0.95), rgba(8,11,18,0.96) 58%, rgba(4,6,12,1))",
                   borderRadius: "22px",
@@ -463,7 +520,17 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
             {/* First-load drag hint that fades after a couple of seconds. */}
             {modelReady ? (
               <div className="car-viewer-drag-hint" aria-hidden="true">
-                Drag to rotate · scroll to zoom · click hotspots
+                Drag to orbit · scroll to zoom · R resets · arrows nudge
+              </div>
+            ) : null}
+
+            {/* Floating zoom controls. */}
+            {modelReady ? (
+              <div className="car-viewer-zoom-controls" aria-hidden="true">
+                <button type="button" onClick={() => handleZoomButton(-0.18)} aria-label="Zoom in">+</button>
+                <button type="button" onClick={() => handleZoomButton(0.18)} aria-label="Zoom out">-</button>
+                <button type="button" onClick={() => { handleFocusChange(null); setActiveCameraId("studio"); }} aria-label="Reset view" title="Reset (R)">R</button>
+                {zoomHint ? <span className="car-viewer-zoom-controls__hint">{zoomHint}</span> : null}
               </div>
             ) : null}
 
@@ -524,9 +591,12 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
                       loading: "lazy",
                       "camera-orbit": currentView.orbit,
                       "camera-target": currentView.target,
-                      exposure: "1.0",
-                      "shadow-intensity": "1",
-                      "shadow-softness": "0.85",
+                      "min-camera-orbit": "auto auto 0.6m",
+                      "max-camera-orbit": "auto auto 6m",
+                      exposure: studioAttrs.exposure,
+                      "shadow-intensity": studioAttrs["shadow-intensity"],
+                      "shadow-softness": studioAttrs["shadow-softness"],
+                      "tone-mapping": studioAttrs["tone-mapping"],
                       "touch-action": interactionMode === "orbit" ? "pan-y" : "none",
                       "environment-image": "neutral",
                       style: {
@@ -550,7 +620,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
                           "data-normal": point.hotspotNormal,
                           "data-visibility-attribute": "visible",
                           onClick: () => handleFocusChange(isActive ? null : point.id),
-                          "aria-label": `${compareModel.displayName} — ${point.title}`,
+                          "aria-label": `${compareModel.displayName} - ${point.title}`,
                         },
                         point.shortLabel,
                       );
@@ -558,12 +628,6 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
                   );
                 })()}
               </div>
-            ) : null}
-
-            <AirflowOverlay mode={activeFlowId} />
-
-            {activeFlowId !== "off" ? (
-              <div className="airflow-overlay-badge">Illustrative airflow overlay</div>
             ) : null}
           </div>
 
@@ -580,19 +644,17 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
             {activeFocus ? <p className="car-inspector-copy">{activeFocus.summary}</p> : null}
             {activeFocus ? (
               <div className="car-focus-actions">
-                <>
-                  <a className="button button--ghost" href={activeFocus.learnHref}>{activeFocus.learnLabel}</a>
-                  <a className="button button--secondary" href={`${latestReplayHref}?focus=${activeFocus.id}`}>
-                    Open focus replay
-                  </a>
-                  <button
-                    type="button"
-                    className="camera-preset"
-                    onClick={() => handleFocusChange(null)}
-                  >
-                    Reset
-                  </button>
-                </>
+                <a className="button button--ghost" href={activeFocus.learnHref}>{activeFocus.learnLabel}</a>
+                <a className="button button--secondary" href={`${latestReplayHref}?focus=${activeFocus.id}`}>
+                  Open focus replay
+                </a>
+                <button
+                  type="button"
+                  className="camera-preset"
+                  onClick={() => handleFocusChange(null)}
+                >
+                  Reset
+                </button>
               </div>
             ) : null}
             <div className="car-focus-list">
@@ -610,26 +672,16 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
             </div>
           </article>
 
-          <article className="car-inspector-card">
-            <p className="eyebrow">Airflow layer</p>
-            <h3>{activeFlow.label}</h3>
-            <p className="car-inspector-copy">{activeFlow.description}</p>
-            <div className="flow-overlay-controls">
-              {FLOW_OVERLAYS.map((overlay) => (
-                <button
-                  key={overlay.id}
-                  type="button"
-                  className={`flow-overlay-toggle${overlay.id === activeFlowId ? " flow-overlay-toggle--active" : ""}`}
-                  onClick={() => setActiveFlowId(overlay.id)}
-                >
-                  {overlay.label}
-                </button>
-              ))}
-            </div>
-            <p className="car-inspector-note">
-              Visual guide only. This overlay is for explanation and orientation, not a measured aerodynamic result.
-            </p>
-          </article>
+          {activeFocus ? (
+            <article className="car-inspector-card">
+              <p className="eyebrow">Airflow story</p>
+              <h3>{activeFocus.flowSummary.title}</h3>
+              <p className="car-inspector-copy">{activeFocus.flowSummary.body}</p>
+              <p className="car-inspector-note">
+                Static reference text. The wind tunnel below runs a real 2D solver.
+              </p>
+            </article>
+          ) : null}
 
           <article className="car-inspector-card">
             <p className="eyebrow">Current model</p>

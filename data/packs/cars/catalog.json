@@ -20,6 +20,7 @@
         "minOrbit": "auto auto 7.2m",
         "maxOrbit": "auto auto 11m"
       },
+      "axesOverride": { "forward": "+z", "up": "+y" },
       "notes": "Current Red Bull race car shown as the main 3D reference for model inspection and replay context."
     },
     {
@@ -32,6 +33,7 @@
       "poster": "/posters/2025/mclaren/mcl39.svg",
       "sizeLabel": "~36.2 MB (compressed)",
       "surfaceReady": true,
+      "axesOverride": { "forward": "+z", "up": "+y" },
       "notes": "McLaren 2025 model for comparing bodywork shape, proportions, and visible aero surfaces against the Red Bull reference."
     },
     {
@@ -44,6 +46,7 @@
       "poster": "/posters/2025/ferrari/sf25.svg",
       "sizeLabel": "~5.6 MB",
       "surfaceReady": true,
+      "axesOverride": { "forward": "+z", "up": "+y" },
       "notes": "2025 Ferrari prancing horse for comparing chassis lines, sidepod undercut, and rear-end packaging."
     },
     {
@@ -56,6 +59,7 @@
       "poster": "/posters/2025/mercedes/w15.svg",
       "sizeLabel": "~2.7 MB",
       "surfaceReady": true,
+      "axesOverride": { "forward": "+z", "up": "+y" },
       "notes": "Mercedes W15 reference body. Useful for checking front wing and Y250 detail against the Red Bull baseline."
     },
     {
@@ -68,6 +72,7 @@
       "poster": "/posters/2025/aston-martin/amr25.svg",
       "sizeLabel": "~3.1 MB",
       "surfaceReady": true,
+      "axesOverride": { "forward": "+z", "up": "+y" },
       "notes": "Aston Martin AMR25 for comparing rear wing endplate evolution and cooling outlet shapes."
     },
     {
@@ -80,6 +85,7 @@
       "poster": "/posters/2025/alpine/a525.svg",
       "sizeLabel": "~9.9 MB",
       "surfaceReady": true,
+      "axesOverride": { "forward": "+z", "up": "+y" },
       "notes": "Alpine A525 chassis for comparing sidepod intake geometry and floor edge treatment."
     },
     {
@@ -92,6 +98,7 @@
       "poster": "/posters/2026/fia-spec/fia-2026.svg",
       "sizeLabel": "~3.7 MB",
       "surfaceReady": true,
+      "axesOverride": { "forward": "+z", "up": "+y" },
       "notes": "FIA reference concept for the 2026 regulation set. Use it to compare proportions and active aero surfaces against today's car."
     }
   ]

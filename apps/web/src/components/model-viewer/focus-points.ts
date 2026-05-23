@@ -1,5 +1,11 @@
-export type FlowOverlayId = "off" | "front" | "floor" | "rear";
 export type FocusMetricId = "speed" | "gear" | "throttle" | "brake" | "drs" | "lap";
+
+export interface FlowSummary {
+  /** Headline phrase shown in the inspector. */
+  title: string;
+  /** One-paragraph honest description of the airflow story for this focus point. */
+  body: string;
+}
 
 export const focusPoints = [
   {
@@ -20,7 +26,10 @@ export const focusPoints = [
     watchMetrics: ["speed", "throttle"],
     orbit: "6deg 81deg 1.78m",
     target: "0m 0.24m 0m",
-    flowOverlay: "front",
+    flowSummary: {
+      title: "Front-end load",
+      body: "First stagnation point sits on the nose, then the wing splits flow outboard around the front tyre and inboard down the venturi inlets. Watch how the wing angle balances outwash against the floor's appetite for clean air.",
+    },
     hotspotPosition: "-0.35m 0.2m 2.15m",
     hotspotNormal: "0 0 1",
   },
@@ -42,7 +51,10 @@ export const focusPoints = [
     watchMetrics: ["speed", "throttle"],
     orbit: "0deg 18deg 2.18m",
     target: "0m 0.18m 0m",
-    flowOverlay: "floor",
+    flowSummary: {
+      title: "Floor channel",
+      body: "Air enters the venturi inlets, accelerates through the throat where local pressure drops sharply, then expands into the diffuser. Lower pressure under the floor is what generates the dominant share of downforce on a modern car.",
+    },
     hotspotPosition: "0.05m 0.02m 0.55m",
     hotspotNormal: "0 1 0",
   },
@@ -64,7 +76,10 @@ export const focusPoints = [
     watchMetrics: ["speed", "drs", "throttle"],
     orbit: "186deg 78deg 1.82m",
     target: "0m 0.26m 0m",
-    flowOverlay: "rear",
+    flowSummary: {
+      title: "Rear wake",
+      body: "Pressure recovers behind the rear wing, leaving a turbulent wake that costs drag and disturbs cars following closely. Opening DRS reduces the wing's projected area and drops both downforce and drag for top-speed gain.",
+    },
     hotspotPosition: "0.18m 0.58m -1.9m",
     hotspotNormal: "0 0.5 0.5",
   },
@@ -86,7 +101,10 @@ export const focusPoints = [
     watchMetrics: ["brake", "speed", "gear"],
     orbit: "104deg 83deg 1.74m",
     target: "0m 0.22m 0m",
-    flowOverlay: "off",
+    flowSummary: {
+      title: "Brake cooling",
+      body: "Front brake ducts feed cool air over the disc and around the calipers, then dump it through the wheel face. Duct sizing trades disc temperature for drag, so teams open them up only as much as the next stint demands.",
+    },
     hotspotPosition: "-0.55m 0.18m 1.5m",
     hotspotNormal: "-0.4 0 0.8",
   },
@@ -108,7 +126,10 @@ export const focusPoints = [
     watchMetrics: ["throttle", "speed", "lap"],
     orbit: "96deg 84deg 1.6m",
     target: "0m 0.2m 0m",
-    flowOverlay: "off",
+    flowSummary: {
+      title: "Tyre wake",
+      body: "Open wheels generate a complex turbulent wake that interacts with the floor edge. Front-tyre outwash from the front wing tries to push that wake away from the underfloor so it stays clean.",
+    },
     hotspotPosition: "0.92m 0.14m -0.95m",
     hotspotNormal: "0.6 0 0.4",
   },
