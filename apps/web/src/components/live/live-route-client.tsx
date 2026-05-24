@@ -7,6 +7,7 @@ import { Leaderboard, type ReplayLeaderboardRow } from "@/components/replay/Lead
 import { ReplayTelemetryStrip } from "@/components/replay/replay-telemetry-strip";
 import { ReplayLapWaterfall } from "@/components/replay/replay-insights";
 import { TrackCanvas } from "@/components/replay/TrackCanvas";
+import { getCircuitArt } from "@/lib/art";
 
 export interface LiveSessionRef {
   season: number;
@@ -655,7 +656,11 @@ export function LiveRouteClient({
 
   const selectedTelemetryDrivers = displayedDrivers.filter((driver) => selectedDrivers.includes(driver.abbr));
   const leadDriver = displayedDrivers[0] || null;
-  const trackLabel = formatSlugLabel(activeSession.trackId);
+  const circuitArt = getCircuitArt(activeSession.trackId);
+  const trackLabel = circuitArt.circuit.displayName !== "Unknown circuit"
+    ? circuitArt.circuit.displayName
+    : formatSlugLabel(activeSession.trackId);
+  const grandPrixLabel = circuitArt.circuit.grandPrix !== "Unknown Grand Prix" ? circuitArt.circuit.grandPrix : null;
   const weatherLabel = currentFrame?.weather
     ? `${currentFrame.weather.airTempC}C air · ${currentFrame.weather.trackTempC}C track`
     : `${summary.weatherSummary.airTempC}C air · ${summary.weatherSummary.trackTempC}C track`;
@@ -824,6 +829,7 @@ export function LiveRouteClient({
             <div className="replay-track-panel__title">
               <p className="eyebrow">Track stage</p>
               <h2>{trackLabel}</h2>
+              {grandPrixLabel ? <p className="replay-track-panel__circuit">{grandPrixLabel} · {circuitArt.circuit.city}, {circuitArt.circuit.country}</p> : null}
               <p>
                 Select cars from the map or leaderboard to pin them into the live telemetry deck. Socket-backed feeds pull
                 chunks from OCI; static mode simulates the same surface from the replay pack.

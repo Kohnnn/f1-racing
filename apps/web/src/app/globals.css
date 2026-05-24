@@ -414,18 +414,21 @@ a {
 }
 
 .landing-start {
-  display: flex;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
   gap: 18px;
   padding: 18px 24px;
   border-radius: 18px;
   background: linear-gradient(90deg, #ffb39a 0%, #ef8a69 55%, #e66e4e 100%);
   color: #18100d;
   box-shadow: 0 24px 60px rgba(230, 110, 78, 0.22);
+  overflow: hidden;
 }
 
 .landing-start strong {
+  grid-column: 1;
   font-family: Aptos, "Segoe UI", "Helvetica Neue", sans-serif;
   font-size: clamp(1.35rem, 2vw, 1.9rem);
   font-style: italic;
@@ -435,10 +438,30 @@ a {
 }
 
 .landing-start span {
+  grid-column: 1;
   font-family: "IBM Plex Mono", Consolas, monospace;
   font-size: 0.82rem;
   font-weight: 700;
   letter-spacing: 0.16em;
+}
+
+.landing-start__circuit {
+  font-size: 0.7rem !important;
+  letter-spacing: 0.08em !important;
+  opacity: 0.78;
+}
+
+.landing-start__circuit-art {
+  grid-column: 2;
+  grid-row: 1 / span 3;
+  width: 110px;
+  height: 70px;
+  object-fit: contain;
+  filter: invert(1) brightness(1.1);
+  opacity: 0.85;
+  border-radius: 8px;
+  background: rgba(24, 16, 13, 0.18);
+  padding: 4px;
 }
 
 .landing-support-grid {
@@ -3872,6 +3895,15 @@ code {
   letter-spacing: 0.04em;
   color: #ffffff;
   background-blend-mode: multiply;
+}
+
+.replay-leaderboard__team-logo {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  vertical-align: -2px;
+  margin-right: 6px;
+  object-fit: contain;
 }
 
 .replay-leaderboard--horizontal .replay-leaderboard__rows--horizontal {

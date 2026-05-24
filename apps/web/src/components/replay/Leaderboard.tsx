@@ -240,7 +240,10 @@ export function Leaderboard({ drivers, selectedDrivers, onDriverSelect, layout =
                 <span className="replay-leaderboard__stripe" style={{ backgroundColor: driver.color }} />
                 <DriverGlyph code={driver.abbr} color={driver.color} />
                 <span className="replay-leaderboard__identity">
-                  <strong>{driver.abbr}</strong>
+                  <strong>
+                    <TeamLogoBadge code={driver.abbr} />
+                    {driver.abbr}
+                  </strong>
                   <span>{driver.fullName}</span>
                   <em>{driver.team}</em>
                 </span>
@@ -290,17 +293,30 @@ export function Leaderboard({ drivers, selectedDrivers, onDriverSelect, layout =
 export type { ReplayLeaderboardRow };
 
 /**
- * Small avatar glyph for a driver. Uses the driver's generated SVG avatar
- * (`/images/drivers/avatars/<slug>.svg`) when available, falling back to
- * an initials chip in team colour if the resolver doesn't recognise the
- * code.
+ * Small avatar glyph for a driver. Prefers the photographic portrait
+ * (`/images/drivers/<slug>.webp`) when present and falls back to the
+ * generated SVG avatar (`/images/drivers/avatars/<slug>.svg`) on load
+ * error. Final fallback is an initials chip in team colour.
  */
 function DriverGlyph({ code, color }: { code: string; color: string }) {
   const art = getDriverArt(code);
-  if (art.driver) {
+  const [src, setSrc] = useState<string | null>(art.driver ? art.portrait : null);
+  // Reset when driver code changes.
+  useEffect(() => {
+    setSrc(art.driver ? art.portrait : null);
+  }, [art.driver, art.portrait]);
+  if (art.driver && src) {
     return (
       <span className="replay-leaderboard__avatar" aria-hidden="true">
-        <img src={art.avatar} alt="" loading="lazy" />
+        <img
+          src={src}
+          alt=""
+          loading="lazy"
+          onError={() => {
+            // Drop down to the SVG avatar when the photo asset is missing.
+            if (src !== art.avatar) setSrc(art.avatar);
+          }}
+        />
       </span>
     );
   }
@@ -308,6 +324,28 @@ function DriverGlyph({ code, color }: { code: string; color: string }) {
     <span className="replay-leaderboard__avatar replay-leaderboard__avatar--fallback" aria-hidden="true" style={{ backgroundColor: color }}>
       {code.slice(0, 3)}
     </span>
+  );
+}
+
+/**
+ * Tiny team logo chip rendered next to the driver code in the leaderboard
+ * identity column. Prefers the Wikipedia bitmap logo and falls back to
+ * the generated mark.svg.
+ */
+function TeamLogoBadge({ code }: { code: string }) {
+  const art = getDriverArt(code);
+  const teamArt = getTeamArt(art.team.slug);
+  const [src, setSrc] = useState(teamArt.wikiLogo);
+  useEffect(() => { setSrc(teamArt.wikiLogo); }, [teamArt.wikiLogo]);
+  if (!art.driver || art.team.slug === "unknown") return null;
+  return (
+    <img
+      className="replay-leaderboard__team-logo"
+      src={src}
+      alt=""
+      aria-hidden="true"
+      onError={() => { if (src !== teamArt.mark) setSrc(teamArt.mark); }}
+    />
   );
 }
 

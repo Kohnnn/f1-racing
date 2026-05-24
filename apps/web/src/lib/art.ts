@@ -131,6 +131,8 @@ export function resolveTeam(slug: string | null | undefined): TeamArtEntry {
 export function getTeamArt(slug: string | null | undefined): {
   team: TeamArtEntry;
   logo: string;
+  /** Wikipedia-fetched bitmap logo (PNG/WebP) when available — caller can prefer this over the generated letter-mark. */
+  wikiLogo: string;
   mark: string;
   stripe: string;
 } {
@@ -141,6 +143,7 @@ export function getTeamArt(slug: string | null | undefined): {
   return {
     team,
     logo: `${base}/logo.svg`,
+    wikiLogo: `${base}/wiki-logo.webp`,
     mark: `${base}/mark.svg`,
     stripe: `${base}/stripe.svg`,
   };

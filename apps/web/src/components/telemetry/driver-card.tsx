@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { formatLapTime, personalBestSector } from "@f1-racing/telemetry-utils";
 import type { DriverSummary, LapRecord } from "@/lib/data";
 import { getDriverArt, getTeamArt } from "@/lib/art";
@@ -24,6 +27,43 @@ function statusBadge(status?: DriverSummary["status"]) {
   return <span className={`driver-card__status driver-card__status--${status.toLowerCase()}`}>{status}</span>;
 }
 
+/**
+ * Driver avatar that prefers the photographic portrait WebP when present
+ * and falls back to the generated SVG avatar on load error.
+ */
+function DriverAvatar({ portrait, avatar }: { portrait: string; avatar: string }) {
+  const [src, setSrc] = useState(portrait);
+  useEffect(() => { setSrc(portrait); }, [portrait]);
+  return (
+    <span className="driver-card__avatar" aria-hidden="true">
+      <img
+        src={src}
+        alt=""
+        loading="lazy"
+        onError={() => { if (src !== avatar) setSrc(avatar); }}
+      />
+    </span>
+  );
+}
+
+/**
+ * Team mark that prefers the photographic Wikipedia logo with fallback
+ * to the generated mark.svg.
+ */
+function TeamMark({ wikiLogo, mark }: { wikiLogo: string; mark: string }) {
+  const [src, setSrc] = useState(wikiLogo);
+  useEffect(() => { setSrc(wikiLogo); }, [wikiLogo]);
+  return (
+    <img
+      src={src}
+      alt=""
+      aria-hidden="true"
+      className="driver-card__team-mark"
+      onError={() => { if (src !== mark) setSrc(mark); }}
+    />
+  );
+}
+
 export function DriverCard({ driver, fastestLap, driverLaps }: DriverCardProps) {
   const showCompletedLap = driver.bestLapTime > 0;
   const personalBest = driverLaps?.length
@@ -39,14 +79,12 @@ export function DriverCard({ driver, fastestLap, driverLaps }: DriverCardProps) 
       <div className="driver-card__header">
         <div className="driver-card__identity">
           {driverArt.driver ? (
-            <span className="driver-card__avatar" aria-hidden="true">
-              <img src={driverArt.avatar} alt="" loading="lazy" />
-            </span>
+            <DriverAvatar portrait={driverArt.portrait} avatar={driverArt.avatar} />
           ) : null}
           <div>
             <p className="eyebrow driver-card__team-eyebrow">
               {driverArt.team.slug !== "unknown" ? (
-                <img src={teamArt.mark} alt="" aria-hidden="true" className="driver-card__team-mark" />
+                <TeamMark wikiLogo={teamArt.wikiLogo} mark={teamArt.mark} />
               ) : null}
               {driver.team}
             </p>

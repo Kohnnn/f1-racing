@@ -1,0 +1,15 @@
+{
+  "runAt": "2026-05-24T03:06:21.136Z",
+  "entries": [
+    {
+      "kind": "team",
+      "slug": "audi",
+      "title": "Audi in Formula One",
+      "status": "ok",
+      "path": "apps/web/public/images/teams/audi/wiki-logo.png",
+      "sourceUrl": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/03/Audif1.com_logo17_%28cropped%29.svg/960px-Audif1.com_logo17_%28cropped%29.svg.png",
+      "pageUrl": "https://en.wikipedia.org/wiki/Audi_in_Formula_One",
+      "license": "Wikipedia infobox image (see page for licence)"
+    }
+  ]
+}

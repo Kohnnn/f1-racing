@@ -1,6 +1,7 @@
 import { getCarModelCatalog, getLatestManifest, getTeamProfile } from "@/lib/data";
 import { LandingStage } from "@/components/story/landing-stage";
 import { learnModules } from "./learn/modules";
+import { getCircuitArt } from "@/lib/art";
 
 export const metadata = {
   title: {
@@ -21,6 +22,10 @@ export default async function HomePage() {
     ?? catalog.models[0];
   const featuredLearn = learnModules.find((module) => module.slug === "aero") ?? learnModules[0];
   const replayHref = manifest.latest.path.replace(/^\/sessions\//, "/replay/");
+  const latestCircuitArt = getCircuitArt(manifest.latest.trackId);
+  const latestCircuitSubtitle = latestCircuitArt.circuit.lengthKm > 0
+    ? `${latestCircuitArt.circuit.displayName} · ${latestCircuitArt.circuit.lengthKm.toFixed(3)} km · ${latestCircuitArt.circuit.corners} corners`
+    : null;
 
   return (
     <div className="page-stack page-stack--landing">
@@ -41,6 +46,10 @@ export default async function HomePage() {
           <a className="landing-start" href={replayHref}>
             <strong>Open latest replay</strong>
             <span>{manifest.latest.grandPrixName}</span>
+            {latestCircuitSubtitle ? <span className="landing-start__circuit">{latestCircuitSubtitle}</span> : null}
+            {latestCircuitArt.map ? (
+              <img className="landing-start__circuit-art" src={latestCircuitArt.map} alt="" loading="lazy" />
+            ) : null}
           </a>
 
           <div className="landing-support-grid" aria-label="Secondary product routes">
