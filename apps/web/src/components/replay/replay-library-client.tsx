@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { LatestManifest, SeasonIndex } from "@/lib/data";
-import { getCircuitArt } from "@/lib/art";
+import { getCircuitArt, getRaceWeekend, getSessionDate, formatSessionDate, formatWeekendRange } from "@/lib/art";
 
 interface ReplayLibraryClientProps {
   aliasMode: boolean;
@@ -193,6 +193,9 @@ export function ReplayLibraryClient({ aliasMode, latestManifest, index }: Replay
                 const sessionCount = grandPrix.sessions.length;
                 const trackId = grandPrix.sessions[0]?.trackId ?? grandPrix.grandPrixSlug;
                 const circuitArt = getCircuitArt(trackId);
+                const weekend = getRaceWeekend(season.season, grandPrix.grandPrixSlug);
+                const weekendRange = formatWeekendRange(weekend);
+                const raceDate = formatSessionDate(weekend?.sessions.race ?? null);
                 return (
                   <article className="panel panel--nested replay-session-cluster" key={grandPrix.grandPrixSlug}>
                     {circuitArt.map ? (
@@ -206,6 +209,13 @@ export function ReplayLibraryClient({ aliasMode, latestManifest, index }: Replay
                         {grandPrix.grandPrixName}
                         <span className="replay-session-cluster__badge">{sessionCount} session{sessionCount === 1 ? "" : "s"}</span>
                       </h3>
+                      {weekendRange ? (
+                        <p className="replay-session-cluster__weekend">
+                          <span className="replay-session-cluster__weekend-tag">Race weekend</span>
+                          <span>{weekendRange}</span>
+                          {raceDate ? <em>· Race {raceDate}</em> : null}
+                        </p>
+                      ) : null}
                       {circuitArt.circuit.lengthKm > 0 ? (
                         <p className="replay-session-cluster__circuit">
                           {circuitArt.circuit.displayName} · {circuitArt.circuit.lengthKm.toFixed(3)} km · {circuitArt.circuit.corners} corners
@@ -214,16 +224,20 @@ export function ReplayLibraryClient({ aliasMode, latestManifest, index }: Replay
                       <p className="replay-session-cluster__note">{coverageNote}</p>
                     </div>
                     <div className="replay-session-links">
-                      {sortedSessions.map((session) => (
-                        <a
-                          className="replay-session-link"
-                          key={session.sessionSlug}
-                          href={`/replay/${session.season}/${session.grandPrixSlug}/${session.sessionSlug}`}
-                        >
-                          <strong>{session.sessionName}</strong>
-                          <span>{buildSessionMeta(session.season, session.sessionName)}</span>
-                        </a>
-                      ))}
+                      {sortedSessions.map((session) => {
+                        const sessionDate = formatSessionDate(getSessionDate(session.season, session.grandPrixSlug, session.sessionSlug));
+                        return (
+                          <a
+                            className="replay-session-link"
+                            key={session.sessionSlug}
+                            href={`/replay/${session.season}/${session.grandPrixSlug}/${session.sessionSlug}`}
+                          >
+                            <strong>{session.sessionName}</strong>
+                            <span>{buildSessionMeta(session.season, session.sessionName)}</span>
+                            {sessionDate ? <span className="replay-session-link__date">{sessionDate}</span> : null}
+                          </a>
+                        );
+                      })}
                     </div>
                   </article>
                 );

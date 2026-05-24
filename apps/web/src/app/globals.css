@@ -1798,6 +1798,47 @@ code {
   letter-spacing: 0.02em;
 }
 
+.replay-session-cluster__weekend {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 8px 0 0;
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 232, 168, 0.32);
+  border-radius: 999px;
+  background: rgba(255, 232, 168, 0.08);
+  color: rgba(255, 232, 168, 0.94);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.replay-session-cluster__weekend-tag {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(255, 232, 168, 0.16);
+  color: #ffd9bf;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.replay-session-cluster__weekend em {
+  font-style: normal;
+  color: rgba(231, 237, 247, 0.7);
+}
+
+.replay-session-link__date {
+  display: block;
+  margin-top: 4px;
+  font-family: "IBM Plex Mono", Consolas, monospace;
+  font-size: 0.68rem;
+  color: rgba(255, 232, 168, 0.78);
+  letter-spacing: 0.04em;
+}
+
 .replay-session-links {
   display: grid;
   gap: 10px;

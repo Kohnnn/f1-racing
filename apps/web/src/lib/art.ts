@@ -13,6 +13,7 @@
 import teamsManifestRaw from "../data/art/teams.json";
 import driversManifestRaw from "../data/art/drivers.json";
 import circuitsManifestRaw from "../data/art/circuits.json";
+import calendarManifestRaw from "../data/art/calendar.json";
 
 export interface TeamArtEntry {
   slug: string;
@@ -230,4 +231,109 @@ export function listDrivers(season?: number): DriverArtEntry[] {
 export function listCircuits(season?: number): CircuitArtEntry[] {
   if (!season) return circuitsManifest.circuits;
   return circuitsManifest.circuits.filter((circuit) => circuit.seasonsRun.includes(season));
+}
+
+// ---------------------------------------------------------------------------
+// Calendar (per-session race-weekend dates)
+// ---------------------------------------------------------------------------
+
+export type CalendarFormat = "standard" | "sprint";
+
+export interface CalendarSessionMap {
+  practice1?: string;
+  practice2?: string;
+  practice3?: string;
+  qualifying?: string;
+  sprint?: string;
+  "sprint-qualifying"?: string;
+  race?: string;
+}
+
+export interface CalendarWeekendEntry {
+  grandPrixSlug: string;
+  displayName: string;
+  weekendStart: string;
+  weekendEnd: string;
+  format: CalendarFormat;
+  sessions: CalendarSessionMap;
+}
+
+export interface CalendarSeasonEntry {
+  season: number;
+  weekends: CalendarWeekendEntry[];
+}
+
+export interface CalendarManifest {
+  version: string;
+  seasons: CalendarSeasonEntry[];
+}
+
+const calendarManifest = calendarManifestRaw as CalendarManifest;
+
+const calendarBySeason = new Map<number, Map<string, CalendarWeekendEntry>>();
+for (const season of calendarManifest.seasons) {
+  const map = new Map<string, CalendarWeekendEntry>();
+  for (const weekend of season.weekends) {
+    map.set(weekend.grandPrixSlug, weekend);
+  }
+  calendarBySeason.set(season.season, map);
+}
+
+export function getRaceWeekend(season: number, grandPrixSlug: string): CalendarWeekendEntry | null {
+  return calendarBySeason.get(season)?.get(grandPrixSlug) ?? null;
+}
+
+export function getSessionDate(season: number, grandPrixSlug: string, sessionSlug: string): string | null {
+  const weekend = getRaceWeekend(season, grandPrixSlug);
+  if (!weekend) return null;
+  const key = sessionSlug as keyof CalendarSessionMap;
+  return weekend.sessions[key] ?? null;
+}
+
+const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const DAY_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function parseIso(iso: string): Date | null {
+  // Force UTC to avoid TZ drift on the server vs. client.
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!m) return null;
+  return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+}
+
+export function formatSessionDate(iso: string | null | undefined, options?: { showYear?: boolean }): string | null {
+  if (!iso) return null;
+  const date = parseIso(iso);
+  if (!date) return null;
+  const day = date.getUTCDate();
+  const month = MONTH_SHORT[date.getUTCMonth()];
+  const weekday = DAY_SHORT[date.getUTCDay()];
+  const year = date.getUTCFullYear();
+  return options?.showYear
+    ? `${weekday} ${day} ${month} ${year}`
+    : `${weekday} ${day} ${month}`;
+}
+
+export function formatWeekendRange(weekend: CalendarWeekendEntry | null | undefined): string | null {
+  if (!weekend) return null;
+  const start = parseIso(weekend.weekendStart);
+  const end = parseIso(weekend.weekendEnd);
+  if (!start || !end) return null;
+  const sameMonth = start.getUTCMonth() === end.getUTCMonth() && start.getUTCFullYear() === end.getUTCFullYear();
+  const startMonth = MONTH_SHORT[start.getUTCMonth()];
+  const endMonth = MONTH_SHORT[end.getUTCMonth()];
+  const year = end.getUTCFullYear();
+  if (sameMonth) {
+    return `${start.getUTCDate()} - ${end.getUTCDate()} ${endMonth} ${year}`;
+  }
+  return `${start.getUTCDate()} ${startMonth} - ${end.getUTCDate()} ${endMonth} ${year}`;
+}
+
+/**
+ * Best-effort lookup that tolerates the same slug aliases that exist in
+ * replay packs (e.g. "spa-francorchamps" vs "spa"). For calendar entries
+ * we use the GP slug exclusively because that's what `seasons.json` keys
+ * routes off.
+ */
+export function listWeekends(season: number): CalendarWeekendEntry[] {
+  return calendarManifest.seasons.find((entry) => entry.season === season)?.weekends ?? [];
 }
