@@ -191,6 +191,6 @@ follow-up questions before moving to the next.
 - OCI `GET https://f1-api.129.150.58.64.sslip.io/health`
 
 ### Progress
-- [ ] Increment 1
-- [ ] Increment 2
-- [ ] Increment 3
+- [x] Increment 1 (commit 6bcc77a)
+- [x] Increment 2 (commit 0c5394f)
+- [x] Increment 3 (commit c2c80c2)
