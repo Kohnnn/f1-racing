@@ -137,7 +137,7 @@ export function TrackCanvas({
   const animationFrameRef = useRef<number | null>(null);
   const driverTargetsRef = useRef<Map<string, DriverTarget>>(new Map());
   const laneAssignmentsRef = useRef<Map<string, number>>(new Map());
-  const lastSnappedFrameRef = useRef<ReplayFrame | null>(null);
+  const lastSnappedSignatureRef = useRef<string | null>(null);
   const trackStatusRef = useRef(currentFrame?.trackStatus || "GREEN");
   const selectedDriversRef = useRef(selectedDrivers);
   const showDriverLabelsRef = useRef(showDriverLabels);
@@ -288,14 +288,20 @@ export function TrackCanvas({
 
     if (!currentFrame || !geometry) {
       driverTargetsRef.current.clear();
-      lastSnappedFrameRef.current = null;
+      lastSnappedSignatureRef.current = null;
       return;
     }
 
-    if (lastSnappedFrameRef.current === currentFrame) {
+    // Resnap whenever (a) the current frame timestamp changes, OR (b) the
+    // driver count changes (e.g. a frame chunk arrived late and added cars
+    // we hadn't yet picked up). Reference equality on the frame object is
+    // unreliable here because ReplayView re-spreads it on every render.
+    const driverCount = Object.keys(currentFrame.drivers).length;
+    const signature = `${currentFrame.t}|${driverCount}|${nextFrame ? nextFrame.t : "_"}`;
+    if (lastSnappedSignatureRef.current === signature) {
       return;
     }
-    lastSnappedFrameRef.current = currentFrame;
+    lastSnappedSignatureRef.current = signature;
 
     const seen = new Set<string>();
     for (const driver of Object.values(currentFrame.drivers)) {
@@ -538,7 +544,9 @@ export function TrackCanvas({
     const rect = canvas.getBoundingClientRect();
     const x = event.clientX - rect.left;
     const y = event.clientY - rect.top;
-    const mode = (event.shiftKey || event.button === 2) ? "rotate" : "pan";
+    // Right-mouse drag rotates. Left + Alt also rotates for trackpad users.
+    // Shift+drag stays as pan (shift is now reserved for wheel-zoom).
+    const mode = (event.button === 2 || event.altKey) ? "rotate" : "pan";
     interactionRef.current = {
       pointerId: event.pointerId,
       mode,
@@ -589,7 +597,9 @@ export function TrackCanvas({
   }
 
   function handleWheel(event: React.WheelEvent<HTMLCanvasElement>) {
-    if (!event.ctrlKey && !event.metaKey) return; // require Ctrl/Cmd for zoom
+    // Shift+wheel zooms; plain wheel scrolls the page; Ctrl+wheel is
+    // intentionally ignored so the browser tab zoom keeps working.
+    if (!event.shiftKey) return;
     event.preventDefault();
     const canvas = canvasRef.current;
     if (!canvas) return;

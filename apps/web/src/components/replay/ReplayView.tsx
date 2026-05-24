@@ -1221,7 +1221,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
               <p className="eyebrow">Track stage</p>
               <h2>{trackLabel}</h2>
               <p>
-                Drag to pan · Ctrl+wheel to zoom · Shift-drag to rotate · Double-click to reset · Click a marker to inspect.
+                Drag to pan · Shift+wheel to zoom · Right-drag (or Alt+drag) to rotate · Double-click to reset · Click a marker to inspect.
               </p>
             </div>
             <div className="replay-track-panel__stats">
@@ -1687,6 +1687,9 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
               <li><kbd>I</kbd> / <kbd>O</kbd><span>Mark loop in / out</span></li>
               <li><kbd>P</kbd><span>Toggle loop playback</span></li>
               <li><kbd>L</kbd> / <kbd>D</kbd> / <kbd>B</kbd> / <kbd>M</kbd><span>Labels / DRS / events / marshals</span></li>
+              <li><kbd>Shift</kbd> + wheel<span>Zoom track canvas</span></li>
+              <li><kbd>Alt</kbd> + drag<span>Rotate track canvas</span></li>
+              <li>Double-click<span>Reset track view</span></li>
               <li><kbd>?</kbd><span>Toggle this help</span></li>
               <li><kbd>Esc</kbd><span>Close this help / clear selection</span></li>
             </ul>

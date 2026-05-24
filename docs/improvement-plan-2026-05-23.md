@@ -143,3 +143,54 @@ follow-up questions before moving to the next.
 - Netlify deploy: `npx netlify deploy --prod --no-build --dir apps/web/out --site d783914b-0638-46bc-ae4b-371b66cca51e --filter @f1-racing/web`
 - Production smoke
 - OCI health: `GET https://f1-api.129.150.58.64.sslip.io/health`
+
+
+---
+
+## Follow-up wave (2026-05-24) — track canvas, replay dates, wind tunnel
+
+### User-reported issues
+1. Track canvas (replay) renders only one car marker — not the leaderboard, the on-track markers themselves.
+2. Ctrl+wheel zoom hijacks browser tab zoom on Chromium. Need Shift+wheel.
+3. `/replay/` library has no GP / session dates. User wants per-session detail (with weekend day-by-day option).
+4. Wind tunnel airflow + silhouette still poor. Add a mode switcher (hand SVG / procedural / GLB-derived) and improve airflow visualisation.
+
+### Increment 1 — TrackCanvas single-car bug + Shift+wheel
+- Smooth-interpolation rewrite (Track 1) added a stale guard: `lastSnappedFrameRef === currentFrame` prevents distA/distB recomputation when ReplayView passes a *new* object that wraps the same frame instance via `buildSyntheticFrame` /  `...frame, trackStatus` spread. After spread the reference is new but driver coords are unchanged; we still want to rebuild distA/distB *every* time the parent renders so newly-arrived chunk frames repopulate `driverTargetsRef`. Drop the cache and trust React's prop diffing.
+- Replace the ctrl/meta gate with shift on `handleWheel`. Plain wheel still scrolls the page. Update on-canvas hint, replay-track-panel paragraph copy, and the keyboard-shortcuts modal.
+
+### Increment 2 — F1 calendar manifest
+- Author `apps/web/src/data/art/calendar.json` with per-session ISO dates for 2024 / 2025 / 2026 (race + qualifying + sprint when applicable + practice 1/2/3 when in the pack).
+- Mirror to `apps/web/public/data/art/calendar.json`.
+- Helpers in `apps/web/src/lib/art.ts`: `getRaceWeekend(season, slug)`, `getSessionDate(season, slug, sessionSlug)`, `formatWeekendRange(weekend)`.
+- Wire dates into `replay-library-client.tsx`:
+  - Cluster card shows weekend day range (`Fri 21 - Sun 23 Mar 2025`).
+  - Each session link shows its specific date.
+- Document calendar source in `docs/art-attributions.md`.
+
+### Increment 3 — Wind tunnel modes + airflow polish
+- Mode switcher with three options:
+  - `glb` — current GLB-derived column-envelope silhouette (default fallback when others missing).
+  - `svg` — hand-curated side-profile SVG silhouette per constructor at `apps/web/public/images/silhouettes/<season>/<slug>.svg` (or use 9Router-generated stylised silhouette where the artist hasn't traced yet).
+  - `procedural` — algorithmically built F1 side-profile from the team's bbox + canonical proportions (front wing, nose, halo, cockpit, sidepod, engine cover, rear wing). Always available, looks like an F1 car.
+- Renderer upgrades:
+  - Subtle dark-glossy paint with team-colour accent stripe and rim-light on the silhouette.
+  - Ground shadow ellipse beneath body so it looks grounded.
+  - 7 thicker inlet streaklines from the left edge plus the existing field particles.
+  - Animated rolling-road dashes whose speed scales with airspeed.
+  - Wake instability puff downstream of the tail.
+  - Frame-rate counter in the readout.
+  - Stage canvas height bumped to 460.
+- Honest copy: subtitle adds `Silhouette = <mode>; flow field = live solver`.
+
+### Verification (each increment)
+- `npm run next:build -w @f1-racing/web`
+- Local static smoke
+- `npx netlify deploy --prod --no-build --dir apps/web/out --site d783914b-0638-46bc-ae4b-371b66cca51e --filter @f1-racing/web`
+- Production smoke
+- OCI `GET https://f1-api.129.150.58.64.sslip.io/health`
+
+### Progress
+- [ ] Increment 1
+- [ ] Increment 2
+- [ ] Increment 3
