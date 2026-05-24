@@ -3315,6 +3315,49 @@ code {
   accent-color: #ff7a1a;
 }
 
+.wind-tunnel__mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid rgba(167, 189, 219, 0.18);
+  border-radius: 999px;
+  background: rgba(11, 15, 24, 0.78);
+  width: max-content;
+}
+
+.wind-tunnel__mode-button {
+  padding: 6px 12px;
+  border: 1px solid rgba(167, 189, 219, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(231, 237, 247, 0.78);
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.wind-tunnel__mode-button--active {
+  background: rgba(255, 122, 26, 0.18);
+  border-color: rgba(255, 122, 26, 0.4);
+  color: #fff2e8;
+}
+
+.wind-tunnel__mode-source {
+  font-family: "IBM Plex Mono", Consolas, monospace;
+  font-size: 0.66rem;
+  color: rgba(231, 237, 247, 0.6);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.wind-tunnel__mode-source strong {
+  color: rgba(255, 232, 168, 0.94);
+}
+
 .replay-rc-panel__list {
   display: grid;
   gap: 8px;

@@ -1,24 +1,30 @@
 "use client";
 
 /**
- * Wind Tunnel V4 (rewritten 2026-05-23).
+ * Wind Tunnel V5 (rewritten 2026-05-24).
  *
- * Visual goals:
- * - The streaklines you see are advected through the **live u/v field** the
- *   solver emits. There are no decorative bezier ribbons by default. Each
- *   particle traces a fading 18-sample ribbon so the field reads as flow.
- * - The silhouette uses the constructor's GLB-derived polygon **at its real
- *   aspect ratio**, letterboxed inside the tunnel band rather than stretched.
- * - Pressure (Cp) boundary tint is on by default so the diagram reads as
- *   "where is the air pushing on the body" without the user toggling.
- * - Hover the canvas to read local speed and pressure at the cursor cell.
- * - Pause when offscreen.
+ * Mode switcher: silhouette source can be procedural (always-an-F1-shape),
+ * SVG (hand-curated per constructor), or GLB-derived (column-envelope).
+ * The procedural mode is now default because the GLB extraction loses
+ * cockpit / wing detail and the SVG art catalog is not yet authored.
+ *
+ * Renderer polish:
+ * - Dark glossy paint with rim-light and team-colour accent stripe.
+ * - Ground shadow ellipse beneath the body.
+ * - Animated rolling-road dashes whose speed scales with airspeed.
+ * - 7 thicker inlet streaklines from the left edge in addition to the
+ *   particle field, so the wind reads as wind even at low particle counts.
+ * - Wake-instability puff downstream of the tail.
+ * - Frame-rate counter in the readout.
+ * - Stage canvas height bumped to 460.
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { buildProceduralSilhouette } from "./procedural-silhouette";
 
 type GroundMode = "rolling" | "fixed";
 type WheelMode = "rotating" | "stationary";
+type SilhouetteMode = "procedural" | "svg" | "glb";
 
 interface WindTunnelControls {
   airspeed: number;
@@ -30,6 +36,7 @@ interface WindTunnelControls {
   particles: number;
   showStreamlines: boolean;
   showCp: boolean;
+  silhouetteMode: SilhouetteMode;
 }
 
 const DEFAULT_CONTROLS: WindTunnelControls = {
@@ -39,22 +46,25 @@ const DEFAULT_CONTROLS: WindTunnelControls = {
   drsOpen: false,
   groundMode: "rolling",
   wheelMode: "rotating",
-  particles: 360,
+  particles: 320,
   showStreamlines: true,
   showCp: true,
+  silhouetteMode: "procedural",
 };
 
 const STAGE_WIDTH = 1024;
-const STAGE_HEIGHT = 384;
+const STAGE_HEIGHT = 460;
 const SOLVER_NX = 320;
-const SOLVER_NY = 120;
+const SOLVER_NY = 144;
 const TRAIL_LENGTH = 18;
+
+const INLET_LANES = [0.20, 0.30, 0.40, 0.48, 0.58, 0.66, 0.76];
 
 interface ParticleState {
   x: number;
   y: number;
   age: number;
-  trail: Float32Array; // [x0, y0, x1, y1, ...] length TRAIL_LENGTH * 2
+  trail: Float32Array;
   trailHead: number;
 }
 
@@ -68,6 +78,8 @@ interface WindProfileData {
   polygon: Array<[number, number]>;
   wheelArches: WheelArch[];
   aspect: number;
+  details?: Array<{ kind: "halo" | "frontWing" | "floor" | "rearWing" | "stripe"; points: Array<[number, number]> }>;
+  source: SilhouetteMode;
 }
 
 export interface CanvasWindTunnelProps {
@@ -110,7 +122,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
   const hoverRef = useRef<{ active: boolean; nx: number; ny: number }>({ active: false, nx: 0, ny: 0 });
 
   const [controls, setControls] = useState<WindTunnelControls>(DEFAULT_CONTROLS);
-  const [readout, setReadout] = useState<{ drag: number; lift: number; reynolds: number; live: boolean } | null>(null);
+  const [readout, setReadout] = useState<{ drag: number; lift: number; reynolds: number; live: boolean; fps: number } | null>(null);
   const [hoverData, setHoverData] = useState<{
     speed: number;
     speedMs: number;
@@ -124,41 +136,99 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
   const [profile, setProfile] = useState<WindProfileData | null>(null);
   const [profileMissing, setProfileMissing] = useState(false);
 
-  // Load constructor-specific silhouette JSON. We never fall back to a
-  // parametric F1 cartoon -- if the profile is missing we tell the user.
+  // Load constructor-specific silhouette JSON. Mode switcher controls
+  // whether we use the procedural F1 outline (default), a hand-curated SVG,
+  // or the GLB-derived column-envelope polygon. Procedural always works
+  // even when no GLB / SVG exists for the constructor.
   useEffect(() => {
-    if (!constructorSlug) {
-      setProfile(null);
-      setProfileMissing(true);
-      return;
-    }
     let cancelled = false;
     setProfileMissing(false);
-    setProfile(null);
-    fetch(`/data/wind-profiles/${constructorSlug}.json`)
-      .then((response) => (response.ok ? response.json() : null))
-      .then((payload) => {
-        if (cancelled) return;
-        if (payload && Array.isArray(payload.polygon) && payload.polygon.length >= 16) {
-          const aspect = typeof payload.aspect === "number" ? payload.aspect : computeAspect(payload.polygon);
-          const remapped = remapToTunnelFrame(payload.polygon, aspect);
-          setProfile({
-            polygon: remapped,
-            wheelArches: Array.isArray(payload.wheelArches) ? payload.wheelArches : [],
-            aspect,
-          });
-          setProfileMissing(false);
-        } else {
-          setProfileMissing(true);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setProfileMissing(true);
+
+    if (controls.silhouetteMode === "procedural") {
+      const built = buildProceduralSilhouette({ accentColor });
+      const remapped = remapToTunnelFrame(built.polygon, built.aspect);
+      const remappedDetails = built.details.map((detail) => ({
+        kind: detail.kind,
+        points: remapDetailPoints(detail.points, built.aspect),
+      }));
+      const remappedArches = built.wheelArches.map((arch) => {
+        const point = remapDetailPoints([[arch.cx, arch.cy]], built.aspect)[0];
+        // Scale the wheel radius by the same y-stretch the polygon uses so
+        // the wheels stay visually proportional inside the tunnel band.
+        const stretch = remappedDetails[0]?.points[0]
+          ? (remappedDetails[0].points[0][1] - point[1])
+          : 1;
+        const radius = arch.r * Math.abs(stretch || 0.5) * 1.4;
+        return { cx: point[0], cy: point[1], r: radius };
       });
-    return () => {
-      cancelled = true;
-    };
-  }, [constructorSlug]);
+      setProfile({
+        polygon: remapped,
+        wheelArches: remappedArches,
+        aspect: built.aspect,
+        details: remappedDetails,
+        source: "procedural",
+      });
+      return;
+    }
+
+    if (controls.silhouetteMode === "svg" && constructorSlug) {
+      // Try the curated SVG endpoint. We expect a polyline manifest file
+      // sitting alongside the SVG: `/data/silhouettes/<slug>.json` with
+      // `{ polygon, wheelArches, aspect, details }`. If absent, we mark
+      // missing and the user must switch modes or add the file.
+      setProfile(null);
+      fetch(`/data/silhouettes/${constructorSlug}.json`)
+        .then((response) => (response.ok ? response.json() : null))
+        .then((payload) => {
+          if (cancelled) return;
+          if (payload && Array.isArray(payload.polygon) && payload.polygon.length >= 16) {
+            const aspect = typeof payload.aspect === "number" ? payload.aspect : computeAspect(payload.polygon);
+            setProfile({
+              polygon: remapToTunnelFrame(payload.polygon, aspect),
+              wheelArches: Array.isArray(payload.wheelArches) ? payload.wheelArches : [],
+              aspect,
+              details: Array.isArray(payload.details) ? payload.details : [],
+              source: "svg",
+            });
+            setProfileMissing(false);
+          } else {
+            setProfileMissing(true);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setProfileMissing(true);
+        });
+      return () => { cancelled = true; };
+    }
+
+    if (controls.silhouetteMode === "glb" && constructorSlug) {
+      setProfile(null);
+      fetch(`/data/wind-profiles/${constructorSlug}.json`)
+        .then((response) => (response.ok ? response.json() : null))
+        .then((payload) => {
+          if (cancelled) return;
+          if (payload && Array.isArray(payload.polygon) && payload.polygon.length >= 16) {
+            const aspect = typeof payload.aspect === "number" ? payload.aspect : computeAspect(payload.polygon);
+            setProfile({
+              polygon: remapToTunnelFrame(payload.polygon, aspect),
+              wheelArches: Array.isArray(payload.wheelArches) ? payload.wheelArches : [],
+              aspect,
+              source: "glb",
+            });
+            setProfileMissing(false);
+          } else {
+            setProfileMissing(true);
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setProfileMissing(true);
+        });
+      return () => { cancelled = true; };
+    }
+
+    setProfileMissing(true);
+    return () => { cancelled = true; };
+  }, [controls.silhouetteMode, constructorSlug, accentColor]);
 
   // Build the obstacle mask on the solver grid. Empty until the profile loads.
   const mask = useMemo(() => {
@@ -265,6 +335,10 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    const animationStartedAt = performance.now();
+    let frameTickCount = 0;
+    let lastFpsRead = animationStartedAt;
+    let measuredFps = 0;
     let lastForceRead = performance.now();
     let lastHoverRead = performance.now();
 
@@ -278,13 +352,18 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
         canvas.height = targetH;
       }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.fillStyle = "#070912";
+      // Subtle vertical gradient for the tunnel volume.
+      const grad = ctx.createLinearGradient(0, 0, 0, STAGE_HEIGHT);
+      grad.addColorStop(0, "#08101e");
+      grad.addColorStop(0.45, "#0a121f");
+      grad.addColorStop(1, "#040611");
+      ctx.fillStyle = grad;
       ctx.fillRect(0, 0, STAGE_WIDTH, STAGE_HEIGHT);
     }
 
     function drawAxes() {
       if (!ctx) return;
-      ctx.strokeStyle = "rgba(120, 138, 168, 0.06)";
+      ctx.strokeStyle = "rgba(120, 138, 168, 0.05)";
       ctx.lineWidth = 1;
       for (let x = 0; x <= STAGE_WIDTH; x += 64) {
         ctx.beginPath();
@@ -298,12 +377,29 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
         ctx.lineTo(STAGE_WIDTH, y + 0.5);
         ctx.stroke();
       }
-      ctx.fillStyle = "rgba(40, 50, 65, 0.6)";
-      ctx.fillRect(0, STAGE_HEIGHT - 12, STAGE_WIDTH, 12);
-      ctx.fillStyle = "rgba(140, 160, 200, 0.14)";
-      for (let x = 0; x < STAGE_WIDTH; x += 28) {
-        ctx.fillRect(x, STAGE_HEIGHT - 12, 18, 2);
+    }
+
+    function drawRollingRoad(elapsedMs: number) {
+      if (!ctx) return;
+      const floorY = STAGE_HEIGHT - 14;
+      // Asphalt strip.
+      const grad = ctx.createLinearGradient(0, floorY, 0, STAGE_HEIGHT);
+      grad.addColorStop(0, "rgba(38, 46, 60, 0.92)");
+      grad.addColorStop(1, "rgba(8, 11, 18, 0.94)");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, floorY, STAGE_WIDTH, 14);
+      // Animated dashes whose offset advances at airspeed proportional rate.
+      ctx.fillStyle = "rgba(180, 200, 225, 0.42)";
+      const dashSpacing = 38;
+      const dashLen = 22;
+      const speedFactor = controls.groundMode === "rolling" ? controls.airspeed : 0;
+      const offset = (elapsedMs * speedFactor * 0.012) % dashSpacing;
+      for (let x = -offset; x < STAGE_WIDTH; x += dashSpacing) {
+        ctx.fillRect(x, floorY + 5, dashLen, 2);
       }
+      // Floor highlight rim.
+      ctx.fillStyle = "rgba(160, 180, 220, 0.12)";
+      ctx.fillRect(0, floorY - 1, STAGE_WIDTH, 1);
     }
 
     function sampleField(nx: number, ny: number) {
@@ -414,18 +510,148 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
       return count ? total / count : 0;
     }
 
+    function drawGroundShadow() {
+      if (!ctx || !profile) return;
+      // Compute polygon bbox, drop a soft elliptical shadow under it.
+      let minX = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const [x, y] of profile.polygon) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
+      }
+      const cx = (minX + maxX) * 0.5 * STAGE_WIDTH;
+      const halfW = (maxX - minX) * 0.55 * STAGE_WIDTH;
+      const cy = maxY * STAGE_HEIGHT + 6;
+      const grad = ctx.createRadialGradient(cx, cy, halfW * 0.1, cx, cy, halfW);
+      grad.addColorStop(0, "rgba(0, 0, 0, 0.6)");
+      grad.addColorStop(1, "rgba(0, 0, 0, 0)");
+      ctx.save();
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, halfW, 16, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawInletStreaks(elapsedMs: number) {
+      if (!ctx) return;
+      const speed = controls.airspeed;
+      const dashOffset = (elapsedMs * speed * 0.014) % 36;
+      ctx.save();
+      ctx.lineWidth = 1.6;
+      ctx.lineCap = "round";
+      ctx.setLineDash([18, 18]);
+      ctx.lineDashOffset = -dashOffset;
+      for (const lane of INLET_LANES) {
+        ctx.strokeStyle = "rgba(150, 200, 255, 0.42)";
+        ctx.beginPath();
+        ctx.moveTo(0, lane * STAGE_HEIGHT);
+        ctx.lineTo(STAGE_WIDTH * 0.16, lane * STAGE_HEIGHT);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function drawWakePuff(elapsedMs: number) {
+      if (!ctx || !profile) return;
+      let maxX = -Infinity, midY = 0, midCount = 0;
+      for (const [x, y] of profile.polygon) {
+        if (x > maxX) maxX = x;
+        midY += y; midCount += 1;
+      }
+      midY /= Math.max(1, midCount);
+      const cx = maxX * STAGE_WIDTH;
+      const cy = midY * STAGE_HEIGHT;
+      const phase = (elapsedMs * 0.0025) % (Math.PI * 2);
+      ctx.save();
+      ctx.lineWidth = 1.4;
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "rgba(255, 188, 120, 0.32)";
+      const wakeWidth = STAGE_WIDTH * 0.10;
+      for (let i = 0; i < 4; i += 1) {
+        const t = (elapsedMs * 0.001 + i * 0.4) % 4;
+        const xOff = wakeWidth * (t / 4);
+        const yOff = Math.sin(phase + i) * 8;
+        ctx.beginPath();
+        ctx.arc(cx + xOff + 18, cy + yOff, 6 + i * 1.5, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+
     function drawSilhouette() {
       if (!ctx || !profile) return;
       const polygon = profile.polygon;
       if (!polygon.length) return;
 
       ctx.save();
-      ctx.shadowColor = "rgba(140, 200, 255, 0.18)";
-      ctx.shadowBlur = 14;
-      ctx.fillStyle = "rgba(247, 250, 255, 0.94)";
+      // Glossy paint with vertical gradient.
+      ctx.shadowColor = "rgba(8, 12, 20, 0.55)";
+      ctx.shadowBlur = 18;
+      ctx.shadowOffsetY = 4;
+      const paint = ctx.createLinearGradient(0, 0, 0, STAGE_HEIGHT);
+      paint.addColorStop(0, "rgba(28, 36, 50, 0.95)");
+      paint.addColorStop(0.55, "rgba(15, 22, 36, 0.96)");
+      paint.addColorStop(1, "rgba(7, 11, 19, 0.98)");
+      ctx.fillStyle = paint;
       silhouettePath(polygon);
       ctx.fill();
       ctx.shadowBlur = 0;
+      ctx.shadowOffsetY = 0;
+
+      // Rim-light along the upper outline.
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "rgba(180, 215, 255, 0.42)";
+      ctx.lineWidth = 1.8;
+      const upperLen = Math.floor(polygon.length * 0.55);
+      ctx.beginPath();
+      ctx.moveTo(polygon[0][0] * STAGE_WIDTH, polygon[0][1] * STAGE_HEIGHT);
+      for (let i = 1; i < upperLen; i += 1) {
+        ctx.lineTo(polygon[i][0] * STAGE_WIDTH, polygon[i][1] * STAGE_HEIGHT);
+      }
+      ctx.stroke();
+      ctx.restore();
+
+      // Team-colour accent stripe down the body.
+      if (profile.details) {
+        for (const detail of profile.details) {
+          if (detail.kind === "stripe") {
+            ctx.strokeStyle = `${accentColor}cc`;
+            ctx.lineWidth = 1.6;
+            ctx.beginPath();
+            for (let i = 0; i < detail.points.length; i += 1) {
+              const [x, y] = detail.points[i];
+              const px = x * STAGE_WIDTH;
+              const py = y * STAGE_HEIGHT;
+              if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+            }
+            ctx.stroke();
+          } else if (detail.kind === "halo") {
+            ctx.strokeStyle = "rgba(220, 232, 255, 0.65)";
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            for (let i = 0; i < detail.points.length; i += 1) {
+              const [x, y] = detail.points[i];
+              const px = x * STAGE_WIDTH;
+              const py = y * STAGE_HEIGHT;
+              if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+            }
+            ctx.stroke();
+          } else if (detail.kind === "rearWing") {
+            ctx.strokeStyle = "rgba(220, 232, 255, 0.55)";
+            ctx.lineWidth = 2.2;
+            ctx.beginPath();
+            for (let i = 0; i < detail.points.length; i += 1) {
+              const [x, y] = detail.points[i];
+              const px = x * STAGE_WIDTH;
+              const py = y * STAGE_HEIGHT;
+              if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+            }
+            ctx.stroke();
+          }
+        }
+      }
 
       if (controls.showCp) {
         const pressures: number[] = new Array(polygon.length).fill(0);
@@ -440,36 +666,57 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
         }
         const range = pMax - pMin || 1;
         ctx.lineCap = "round";
-        ctx.lineWidth = 2.6;
+        ctx.lineWidth = 3.2;
         for (let i = 0; i < polygon.length; i += 1) {
           const [x1, y1] = polygon[i];
           const [x2, y2] = polygon[(i + 1) % polygon.length];
-          const t = (pressures[i] - pMin) / range; // 0 = suction, 1 = stagnation
+          const t = (pressures[i] - pMin) / range;
           const r = Math.round(60 + (235 - 60) * t);
           const g = Math.round(160 + (90 - 160) * t);
           const b = Math.round(220 + (40 - 220) * t);
-          ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.62)`;
+          ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, 0.7)`;
           ctx.beginPath();
           ctx.moveTo(x1 * STAGE_WIDTH, y1 * STAGE_HEIGHT);
           ctx.lineTo(x2 * STAGE_WIDTH, y2 * STAGE_HEIGHT);
           ctx.stroke();
         }
       } else {
-        ctx.strokeStyle = `${accentColor}cc`;
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = `${accentColor}aa`;
+        ctx.lineWidth = 1.6;
         silhouettePath(polygon);
         ctx.stroke();
       }
       ctx.restore();
 
+      // Wheels: solid dark fills with a thin team-colour rim, plus a
+      // rotation pulse when wheels are spinning.
       ctx.save();
-      ctx.lineWidth = 2;
-      ctx.setLineDash([5, 4]);
-      ctx.strokeStyle = `${accentColor}aa`;
       for (const arch of profile.wheelArches) {
+        const cx = arch.cx * STAGE_WIDTH;
+        const cy = arch.cy * STAGE_HEIGHT;
+        const r = Math.max(10, arch.r * STAGE_HEIGHT);
+        const tireGrad = ctx.createRadialGradient(cx - r * 0.3, cy - r * 0.3, r * 0.1, cx, cy, r);
+        tireGrad.addColorStop(0, "rgba(48, 52, 60, 1)");
+        tireGrad.addColorStop(1, "rgba(8, 9, 13, 1)");
+        ctx.fillStyle = tireGrad;
         ctx.beginPath();
-        ctx.arc(arch.cx * STAGE_WIDTH, arch.cy * STAGE_HEIGHT, arch.r * STAGE_HEIGHT, 0, Math.PI * 2);
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = `${accentColor}88`;
+        ctx.lineWidth = 1.2;
         ctx.stroke();
+        if (controls.wheelMode === "rotating") {
+          ctx.strokeStyle = "rgba(220, 232, 255, 0.45)";
+          ctx.lineWidth = 1;
+          const phase = (performance.now() * controls.airspeed * 0.00012) % (Math.PI * 2);
+          for (let i = 0; i < 5; i += 1) {
+            const angle = phase + (i / 5) * Math.PI * 2;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(cx + Math.cos(angle) * r * 0.85, cy + Math.sin(angle) * r * 0.85);
+            ctx.stroke();
+          }
+        }
       }
       ctx.restore();
     }
@@ -533,22 +780,33 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
         animationRef.current = requestAnimationFrame(frame);
         return;
       }
+      const now = performance.now();
+      const elapsed = now - animationStartedAt;
+      frameTickCount += 1;
+      if (now - lastFpsRead > 500) {
+        measuredFps = (frameTickCount * 1000) / (now - lastFpsRead);
+        frameTickCount = 0;
+        lastFpsRead = now;
+      }
       clearStage();
       drawAxes();
+      drawRollingRoad(elapsed);
+      drawInletStreaks(elapsed);
       if (profile) {
+        drawGroundShadow();
         drawStreaklines();
+        drawWakePuff(elapsed);
         drawSilhouette();
       }
       drawHoverProbe();
       drawLegend();
 
-      const now = performance.now();
       if (now - lastForceRead > 750) {
         lastForceRead = now;
         const f = fluidFrameRef.current;
         const reynolds = (controls.airspeed * 5.5) / 1.5e-5;
         const live = now - f.lastFrameAt < 600 && f.ready;
-        setReadout({ drag: f.drag, lift: f.lift, reynolds, live });
+        setReadout({ drag: f.drag, lift: f.lift, reynolds, live, fps: measuredFps });
       }
       if (now - lastHoverRead > 80) {
         lastHoverRead = now;
@@ -657,6 +915,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
           <span>Drag <strong>{readout?.drag.toFixed(2) ?? "-"}</strong></span>
           <span>Lift <strong>{readout?.lift.toFixed(2) ?? "-"}</strong></span>
           <span>Re <strong>{readout?.reynolds ? `${(readout.reynolds / 1e6).toFixed(2)}M` : "-"}</strong></span>
+          <span>FPS <strong>{readout?.fps ? readout.fps.toFixed(0) : "-"}</strong></span>
         </div>
         {hoverData ? (
           <div
@@ -676,6 +935,29 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
             </span>
           </div>
         ) : null}
+      </div>
+
+      <div className="wind-tunnel__mode" role="tablist" aria-label="Silhouette source">
+        {(["procedural", "svg", "glb"] as const).map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            role="tab"
+            aria-selected={controls.silhouetteMode === mode}
+            className={`wind-tunnel__mode-button${controls.silhouetteMode === mode ? " wind-tunnel__mode-button--active" : ""}`}
+            onClick={() => setControls((prev) => ({ ...prev, silhouetteMode: mode }))}
+            title={mode === "procedural"
+              ? "Hand-tuned canonical F1 outline (always available)"
+              : mode === "svg"
+                ? "Hand-curated per-constructor SVG"
+                : "GLB-derived column-envelope hull"}
+          >
+            {mode === "procedural" ? "Procedural" : mode === "svg" ? "SVG art" : "GLB hull"}
+          </button>
+        ))}
+        <span className="wind-tunnel__mode-source">
+          Silhouette: <strong>{profile?.source ?? "-"}</strong>
+        </span>
       </div>
 
       <div className="wind-tunnel__controls">
@@ -785,17 +1067,20 @@ function computeAspect(polygon: Array<[number, number]>): number {
  */
 function remapToTunnelFrame(polygon: Array<[number, number]>, aspect: number): Array<[number, number]> {
   if (!polygon.length) return polygon;
-  // The on-canvas drawing space is STAGE_WIDTH x STAGE_HEIGHT (1024 x 384).
-  // We want the silhouette to render at its real aspect inside that frame.
-  // Available band spans 88% width, 60% height.
-  const stageAspect = STAGE_WIDTH / STAGE_HEIGHT; // 2.667
+  const fit = computeFit(aspect);
+  return polygon.map(([x, y]) => [fit.xMin + x * fit.fracW, fit.yMin + y * fit.fracH]);
+}
+
+function remapDetailPoints(points: Array<[number, number]>, aspect: number): Array<[number, number]> {
+  const fit = computeFit(aspect);
+  return points.map(([x, y]) => [fit.xMin + x * fit.fracW, fit.yMin + y * fit.fracH]);
+}
+
+function computeFit(aspect: number) {
   const availFracW = 0.88;
-  const availFracH = 0.6;
+  const availFracH = 0.62;
   const availPxW = STAGE_WIDTH * availFracW;
   const availPxH = STAGE_HEIGHT * availFracH;
-  // Real-world physical aspect of the car (length / height). We want
-  // physical_aspect == width_px / height_px on screen. Solve for the
-  // largest fit:
   let fitW = availPxW;
   let fitH = fitW / aspect;
   if (fitH > availPxH) {
@@ -805,8 +1090,11 @@ function remapToTunnelFrame(polygon: Array<[number, number]>, aspect: number): A
   const fracW = fitW / STAGE_WIDTH;
   const fracH = fitH / STAGE_HEIGHT;
   const xMin = (1 - fracW) * 0.5;
-  const yMin = 0.78 - fracH;
-  return polygon.map(([x, y]) => [xMin + x * fracW, yMin + y * fracH]);
+  // Sit the silhouette so its floor (y=1 in source) ends a hair above the
+  // rolling-road band at y ≈ 0.92 of the canvas.
+  const yFloor = 0.90;
+  const yMin = yFloor - fracH;
+  return { fracW, fracH, xMin, yMin };
 }
 
 /**
