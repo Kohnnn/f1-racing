@@ -44,7 +44,7 @@ function ExplodedViewLayer({
   if (available === false) {
     return (
       <div className="car-viewer-inspect-overlay__hint">
-        Exploded view not yet generated for this constructor. Run <code>node pipeline/export/src/build-exploded-views.mjs --slug={constructorSlug}</code>.
+        Exploded view is not available for this constructor yet. Try another constructor or keep using hotspot inspect mode.
       </div>
     );
   }

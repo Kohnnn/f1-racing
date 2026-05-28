@@ -3119,6 +3119,8 @@ code {
   right: 12px;
   bottom: 12px;
   display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 12px;
   padding: 8px 14px;
   border-radius: 12px;
@@ -3290,6 +3292,24 @@ code {
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  max-width: min(760px, calc(100% - 24px));
+}
+
+.wind-tunnel__stage-hint {
+  position: absolute;
+  left: 12px;
+  top: 12px;
+  padding: 7px 10px;
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 999px;
+  background: rgba(11, 15, 24, 0.68);
+  color: rgba(220, 242, 254, 0.78);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  pointer-events: none;
+  z-index: 4;
 }
 
 .wind-tunnel__controls input[type="range"] {
@@ -3316,14 +3336,16 @@ code {
 }
 
 .wind-tunnel__mode {
-  display: inline-flex;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 6px 8px;
   border: 1px solid rgba(167, 189, 219, 0.18);
   border-radius: 999px;
   background: rgba(11, 15, 24, 0.78);
-  width: max-content;
+  width: fit-content;
+  max-width: 100%;
 }
 
 .wind-tunnel__mode-button {

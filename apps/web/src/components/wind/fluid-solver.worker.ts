@@ -9,7 +9,7 @@
  *
  *   IN  { type: "init", airspeed, mask }
  *   IN  { type: "set-mask", mask }
- *   IN  { type: "tick", airspeed, drsOpen, mask?, subSteps? }
+ *   IN  { type: "tick", airspeed, yawDeg, windSourceY, groundMode, wheelMode, mask?, subSteps? }
  *
  *   OUT { type: "frame", nx, ny,
  *         u: ArrayBuffer (Float32Array NX*NY),
@@ -26,7 +26,7 @@
  */
 
 const NX = 320; // grid columns
-const NY = 120; // grid rows
+const NY = 144; // grid rows
 const N = NX * NY;
 const DT = 0.045;
 const VISCOSITY = 0.00018;
@@ -39,8 +39,11 @@ const v0 = new Float32Array(N);
 const p = new Float32Array(N);
 const div = new Float32Array(N);
 const speed = new Float32Array(N);
-let mask = new Uint8Array(N);
+let mask: Uint8Array<ArrayBufferLike> = new Uint8Array(N);
 let inletSpeed = 1.4;
+let yawVelocity = 0;
+let groundMode: "rolling" | "fixed" = "rolling";
+let wheelMode: "rotating" | "stationary" = "rotating";
 
 function idx(x: number, y: number) {
   return y * NX + x;
@@ -49,12 +52,16 @@ function idx(x: number, y: number) {
 function setBoundaries(field: Float32Array, isVerticalComponent: boolean) {
   // Walls: top + bottom slip, left = inlet (Dirichlet), right = outflow.
   for (let y = 0; y < NY; y += 1) {
-    field[idx(0, y)] = isVerticalComponent ? 0 : inletSpeed;
+    field[idx(0, y)] = isVerticalComponent ? yawVelocity : inletSpeed;
     field[idx(NX - 1, y)] = field[idx(NX - 2, y)];
   }
   for (let x = 0; x < NX; x += 1) {
     field[idx(x, 0)] = isVerticalComponent ? 0 : field[idx(x, 1)];
-    field[idx(x, NY - 1)] = isVerticalComponent ? 0 : field[idx(x, NY - 2)];
+    field[idx(x, NY - 1)] = isVerticalComponent
+      ? 0
+      : groundMode === "rolling"
+        ? inletSpeed
+        : field[idx(x, NY - 2)] * 0.35;
   }
   // No-slip at obstacle cells.
   for (let i = 0; i < N; i += 1) {
@@ -140,18 +147,44 @@ function project() {
   setBoundaries(v, true);
 }
 
-function injectInlet(uinAtRow: Float32Array) {
+function injectInlet(inlet: { u: Float32Array; v: Float32Array }) {
   for (let y = 1; y < NY - 1; y += 1) {
-    const incoming = uinAtRow[y];
+    const incoming = inlet.u[y];
+    const crossflow = inlet.v[y];
     u[idx(0, y)] = incoming;
     u[idx(1, y)] = incoming * 0.96;
-    v[idx(0, y)] = 0;
-    v[idx(1, y)] = 0;
+    v[idx(0, y)] = crossflow;
+    v[idx(1, y)] = crossflow * 0.96;
+  }
+
+  if (wheelMode === "rotating") {
+    stirWheelWake(0.24, 0.83, 1);
+    stirWheelWake(0.78, 0.83, -1);
   }
 }
 
-function step(uinAtRow: Float32Array) {
-  injectInlet(uinAtRow);
+function stirWheelWake(nx: number, ny: number, direction: number) {
+  const cx = Math.round(nx * NX);
+  const cy = Math.round(ny * NY);
+  const radius = 10;
+  for (let y = cy - radius; y <= cy + radius; y += 1) {
+    if (y <= 1 || y >= NY - 1) continue;
+    for (let x = cx - radius; x <= cx + radius; x += 1) {
+      if (x <= 1 || x >= NX - 1) continue;
+      const dx = x - cx;
+      const dy = y - cy;
+      const d2 = dx * dx + dy * dy;
+      if (d2 > radius * radius) continue;
+      const fade = 1 - d2 / (radius * radius);
+      const c = idx(x, y);
+      u[c] += -dy * 0.0028 * direction * fade;
+      v[c] += dx * 0.0028 * direction * fade;
+    }
+  }
+}
+
+function step(inlet: { u: Float32Array; v: Float32Array }) {
+  injectInlet(inlet);
   u0.set(u);
   v0.set(v);
   diffuse(u, u0, VISCOSITY, false);
@@ -185,15 +218,22 @@ function computeForces() {
   return { drag, lift };
 }
 
-function buildInletProfile(speedMps: number) {
-  inletSpeed = speedMps / 60; // normalize against grid scale
-  const out = new Float32Array(NY);
+function buildInletProfile(speedMps: number, yawDeg: number, windSourceY: number) {
+  const normalized = speedMps / 60; // normalize against grid scale
+  const yawRad = (yawDeg * Math.PI) / 180;
+  inletSpeed = normalized * Math.cos(yawRad);
+  yawVelocity = normalized * Math.sin(yawRad);
+  const inlet = { u: new Float32Array(NY), v: new Float32Array(NY) };
   for (let y = 0; y < NY; y += 1) {
     // Mild boundary layer at the floor (y near NY-1).
     const distanceFromFloor = (NY - 1 - y) / (NY - 1);
-    out[y] = inletSpeed * Math.min(1, 0.6 + distanceFromFloor * 0.5);
+    const boundaryLayer = Math.min(1, 0.6 + distanceFromFloor * 0.5);
+    const rakeDistance = Math.abs(y / (NY - 1) - windSourceY);
+    const rakeBoost = 1 + 0.28 * Math.exp(-(rakeDistance * rakeDistance) / 0.0018);
+    inlet.u[y] = inletSpeed * boundaryLayer * rakeBoost;
+    inlet.v[y] = yawVelocity * boundaryLayer * rakeBoost;
   }
-  return out;
+  return inlet;
 }
 
 self.addEventListener("message", (event) => {
@@ -201,7 +241,7 @@ self.addEventListener("message", (event) => {
   if (!data) return;
 
   if (data.type === "init") {
-    mask = data.mask instanceof Uint8Array ? data.mask : new Uint8Array(N);
+    mask = normalizeMask(data.mask);
     u.fill(0);
     v.fill(0);
     p.fill(0);
@@ -211,15 +251,20 @@ self.addEventListener("message", (event) => {
   }
 
   if (data.type === "set-mask") {
-    mask = data.mask instanceof Uint8Array ? data.mask : new Uint8Array(N);
+    mask = normalizeMask(data.mask);
+    u.fill(0);
+    v.fill(0);
+    p.fill(0);
     return;
   }
 
   if (data.type === "tick") {
     if (data.mask) {
-      mask = data.mask instanceof Uint8Array ? data.mask : new Uint8Array(N);
+      mask = normalizeMask(data.mask);
     }
-    const profile = buildInletProfile(data.airspeed ?? 80);
+    groundMode = data.groundMode === "fixed" ? "fixed" : "rolling";
+    wheelMode = data.wheelMode === "stationary" ? "stationary" : "rotating";
+    const profile = buildInletProfile(data.airspeed ?? 80, data.yawDeg ?? 0, clamp01(data.windSourceY ?? 0.48));
     const ticks = data.subSteps ?? 1;
     for (let i = 0; i < ticks; i += 1) step(profile);
     const forces = computeForces();
@@ -236,3 +281,17 @@ self.addEventListener("message", (event) => {
     });
   }
 });
+
+function clamp01(value: number) {
+  return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0.48));
+}
+
+function normalizeMask(input: unknown): Uint8Array<ArrayBufferLike> {
+  if (input instanceof Uint8Array && input.length === N) return new Uint8Array(input);
+  if (input instanceof Uint8Array) {
+    const next = new Uint8Array(N);
+    next.set(input.subarray(0, Math.min(input.length, N)));
+    return next;
+  }
+  return new Uint8Array(N);
+}

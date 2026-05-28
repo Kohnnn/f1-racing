@@ -20,15 +20,17 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { buildProceduralSilhouette } from "./procedural-silhouette";
+import { buildAirfoilSilhouette, buildProceduralSilhouette } from "./procedural-silhouette";
 
 type GroundMode = "rolling" | "fixed";
 type WheelMode = "rotating" | "stationary";
-type SilhouetteMode = "procedural" | "svg" | "glb";
+type SilhouetteMode = "procedural" | "airfoil" | "svg" | "glb";
 
 interface WindTunnelControls {
   airspeed: number;
   yawDeg: number;
+  airfoilAngleDeg: number;
+  windSourceY: number;
   rideHeightMm: number;
   drsOpen: boolean;
   groundMode: GroundMode;
@@ -42,6 +44,8 @@ interface WindTunnelControls {
 const DEFAULT_CONTROLS: WindTunnelControls = {
   airspeed: 80,
   yawDeg: 0,
+  airfoilAngleDeg: 4,
+  windSourceY: 0.48,
   rideHeightMm: 28,
   drsOpen: false,
   groundMode: "rolling",
@@ -82,6 +86,20 @@ interface WindProfileData {
   source: SilhouetteMode;
 }
 
+const AERO_PROFILE_BY_CONSTRUCTOR: Record<string, { rearWingHeight: number; noseHeight: number; cd: number; cl: number }> = {
+  "red-bull": { rearWingHeight: 0.30, noseHeight: 0.72, cd: 0.83, cl: -2.85 },
+  mclaren: { rearWingHeight: 0.31, noseHeight: 0.73, cd: 0.82, cl: -2.78 },
+  ferrari: { rearWingHeight: 0.33, noseHeight: 0.74, cd: 0.85, cl: -2.70 },
+  mercedes: { rearWingHeight: 0.34, noseHeight: 0.71, cd: 0.86, cl: -2.66 },
+  "aston-martin": { rearWingHeight: 0.35, noseHeight: 0.75, cd: 0.87, cl: -2.62 },
+  alpine: { rearWingHeight: 0.34, noseHeight: 0.76, cd: 0.88, cl: -2.58 },
+  "fia-2026": { rearWingHeight: 0.29, noseHeight: 0.70, cd: 0.76, cl: -2.12 },
+};
+
+const DEFAULT_AERO_PROFILE = { rearWingHeight: 0.32, noseHeight: 0.74, cd: 0.85, cl: -2.65 };
+
+type BuiltSilhouette = ReturnType<typeof buildProceduralSilhouette>;
+
 export interface CanvasWindTunnelProps {
   modelTitle: string;
   accentColor?: string;
@@ -109,6 +127,8 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
   const animationRef = useRef<number | null>(null);
   const particlesRef = useRef<ParticleState[]>([]);
   const workerRef = useRef<Worker | null>(null);
+  const controlsRef = useRef<WindTunnelControls>(DEFAULT_CONTROLS);
+  const forceBaselineRef = useRef<{ drag: number; lift: number } | null>(null);
   const fluidFrameRef = useRef<{
     u: Float32Array | null;
     v: Float32Array | null;
@@ -123,6 +143,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
 
   const [controls, setControls] = useState<WindTunnelControls>(DEFAULT_CONTROLS);
   const [readout, setReadout] = useState<{ drag: number; lift: number; reynolds: number; live: boolean; fps: number } | null>(null);
+  const [forceBaseline, setForceBaseline] = useState<{ drag: number; lift: number } | null>(null);
   const [hoverData, setHoverData] = useState<{
     speed: number;
     speedMs: number;
@@ -136,6 +157,14 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
   const [profile, setProfile] = useState<WindProfileData | null>(null);
   const [profileMissing, setProfileMissing] = useState(false);
 
+  useEffect(() => {
+    controlsRef.current = controls;
+  }, [controls]);
+
+  useEffect(() => {
+    forceBaselineRef.current = forceBaseline;
+  }, [forceBaseline]);
+
   // Load constructor-specific silhouette JSON. Mode switcher controls
   // whether we use the procedural F1 outline (default), a hand-curated SVG,
   // or the GLB-derived column-envelope polygon. Procedural always works
@@ -145,29 +174,20 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
     setProfileMissing(false);
 
     if (controls.silhouetteMode === "procedural") {
-      const built = buildProceduralSilhouette({ accentColor });
-      const remapped = remapToTunnelFrame(built.polygon, built.aspect);
-      const remappedDetails = built.details.map((detail) => ({
-        kind: detail.kind,
-        points: remapDetailPoints(detail.points, built.aspect),
-      }));
-      const remappedArches = built.wheelArches.map((arch) => {
-        const point = remapDetailPoints([[arch.cx, arch.cy]], built.aspect)[0];
-        // Scale the wheel radius by the same y-stretch the polygon uses so
-        // the wheels stay visually proportional inside the tunnel band.
-        const stretch = remappedDetails[0]?.points[0]
-          ? (remappedDetails[0].points[0][1] - point[1])
-          : 1;
-        const radius = arch.r * Math.abs(stretch || 0.5) * 1.4;
-        return { cx: point[0], cy: point[1], r: radius };
+      const aeroProfile = AERO_PROFILE_BY_CONSTRUCTOR[constructorSlug ?? ""] ?? DEFAULT_AERO_PROFILE;
+      const built = buildProceduralSilhouette({
+        accentColor,
+        drsOpen: controls.drsOpen,
+        rearWingHeight: aeroProfile.rearWingHeight,
+        noseHeight: aeroProfile.noseHeight,
       });
-      setProfile({
-        polygon: remapped,
-        wheelArches: remappedArches,
-        aspect: built.aspect,
-        details: remappedDetails,
-        source: "procedural",
-      });
+      setProfile(mapBuiltProfile(built, "procedural"));
+      return;
+    }
+
+    if (controls.silhouetteMode === "airfoil") {
+      const built = buildAirfoilSilhouette({ angleDeg: controls.airfoilAngleDeg });
+      setProfile(mapBuiltProfile(built, "airfoil"));
       return;
     }
 
@@ -228,7 +248,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
 
     setProfileMissing(true);
     return () => { cancelled = true; };
-  }, [controls.silhouetteMode, constructorSlug, accentColor]);
+  }, [controls.silhouetteMode, controls.drsOpen, controls.airfoilAngleDeg, constructorSlug, accentColor]);
 
   // Build the obstacle mask on the solver grid. Empty until the profile loads.
   const mask = useMemo(() => {
@@ -270,11 +290,14 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
     let stop = false;
     const tick = () => {
       if (stop || !worker) return;
+      const latestControls = controlsRef.current;
       worker.postMessage({
         type: "tick",
-        airspeed: controls.airspeed,
-        mask,
-        drsOpen: controls.drsOpen,
+        airspeed: latestControls.airspeed,
+        yawDeg: latestControls.yawDeg,
+        windSourceY: latestControls.windSourceY,
+        groundMode: latestControls.groundMode,
+        wheelMode: latestControls.wheelMode,
         subSteps: 1,
       });
       window.setTimeout(tick, 32);
@@ -294,6 +317,9 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
   // Push fresh mask whenever the silhouette changes.
   useEffect(() => {
     if (workerRef.current) workerRef.current.postMessage({ type: "set-mask", mask });
+    fluidFrameRef.current = { u: null, v: null, speed: null, pressure: null, drag: 0, lift: 0, ready: false, lastFrameAt: 0 };
+    forceBaselineRef.current = null;
+    setForceBaseline(null);
   }, [mask]);
 
   // Initialise particle pool. Each particle has a fading trail so the field
@@ -303,7 +329,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
     for (let i = 0; i < controls.particles; i += 1) {
       const trail = new Float32Array(TRAIL_LENGTH * 2);
       const x = Math.random() * 0.05;
-      const y = Math.random();
+      const y = spawnParticleY(controls.windSourceY);
       for (let t = 0; t < TRAIL_LENGTH; t += 1) {
         trail[t * 2] = x;
         trail[t * 2 + 1] = y;
@@ -311,7 +337,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
       list.push({ x, y, age: Math.random() * 200, trail, trailHead: 0 });
     }
     particlesRef.current = list;
-  }, [controls.particles]);
+  }, [controls.particles, controls.windSourceY]);
 
   // Pointer hover handlers for the live readout.
   function handlePointerMove(event: React.PointerEvent<HTMLCanvasElement>) {
@@ -321,6 +347,14 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
     const nx = (event.clientX - rect.left) / rect.width;
     const ny = (event.clientY - rect.top) / rect.height;
     hoverRef.current = { active: true, nx, ny };
+  }
+
+  function handlePointerDown(event: React.PointerEvent<HTMLCanvasElement>) {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const ny = (event.clientY - rect.top) / rect.height;
+    setControls((prev) => ({ ...prev, windSourceY: Math.max(0.08, Math.min(0.88, ny)) }));
   }
 
   function handlePointerLeave() {
@@ -440,7 +474,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
           || (sample && sample.speed === 0)
         ) {
           particle.x = -0.04 + Math.random() * 0.08;
-          particle.y = Math.random();
+          particle.y = spawnParticleY(controls.windSourceY);
           particle.age = 220 + Math.random() * 120;
           for (let t = 0; t < TRAIL_LENGTH; t += 1) {
             particle.trail[t * 2] = particle.x;
@@ -549,6 +583,30 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
         ctx.lineTo(STAGE_WIDTH * 0.16, lane * STAGE_HEIGHT);
         ctx.stroke();
       }
+      ctx.restore();
+    }
+
+    function drawWindSource() {
+      if (!ctx) return;
+      const y = controls.windSourceY * STAGE_HEIGHT;
+      const yawOffset = Math.sin((controls.yawDeg * Math.PI) / 180) * STAGE_WIDTH * 0.14;
+      ctx.save();
+      ctx.strokeStyle = "rgba(125, 211, 252, 0.72)";
+      ctx.fillStyle = "rgba(125, 211, 252, 0.12)";
+      ctx.lineWidth = 1.4;
+      ctx.setLineDash([6, 8]);
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(STAGE_WIDTH, y + yawOffset);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.arc(24, y, 13, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.font = "700 10px IBM Plex Mono, Consolas, monospace";
+      ctx.fillStyle = "rgba(220, 242, 254, 0.9)";
+      ctx.fillText("WIND RAKE", 44, y + 4);
       ctx.restore();
     }
 
@@ -792,6 +850,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
       drawAxes();
       drawRollingRoad(elapsed);
       drawInletStreaks(elapsed);
+      drawWindSource();
       if (profile) {
         drawGroundShadow();
         drawStreaklines();
@@ -806,6 +865,11 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
         const f = fluidFrameRef.current;
         const reynolds = (controls.airspeed * 5.5) / 1.5e-5;
         const live = now - f.lastFrameAt < 600 && f.ready;
+        if (f.ready && !forceBaselineRef.current && Math.abs(f.drag) > 0.001) {
+          const baseline = { drag: f.drag, lift: f.lift };
+          forceBaselineRef.current = baseline;
+          setForceBaseline(baseline);
+        }
         setReadout({ drag: f.drag, lift: f.lift, reynolds, live, fps: measuredFps });
       }
       if (now - lastHoverRead > 80) {
@@ -876,6 +940,17 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
     };
   }, [accentColor, controls, profile]);
 
+  const aeroProfile = AERO_PROFILE_BY_CONSTRUCTOR[constructorSlug ?? ""] ?? DEFAULT_AERO_PROFILE;
+  const dragDelta = forceBaseline && readout ? readout.drag - forceBaseline.drag : 0;
+  const liftDelta = forceBaseline && readout ? readout.lift - forceBaseline.lift : 0;
+  const estimatedCd = controls.silhouetteMode === "airfoil"
+    ? 0.08 + Math.abs(controls.airfoilAngleDeg) * 0.012 + Math.abs(controls.yawDeg) * 0.003
+    : aeroProfile.cd * (controls.drsOpen ? 0.9 : 1) * (1 + Math.abs(controls.yawDeg) * 0.004);
+  const estimatedCl = controls.silhouetteMode === "airfoil"
+    ? 0.12 * controls.airfoilAngleDeg
+    : aeroProfile.cl * (controls.drsOpen ? 0.92 : 1) * (1 + Math.abs(controls.yawDeg) * 0.006);
+  const estimatedCy = Math.sin((controls.yawDeg * Math.PI) / 180) * (controls.silhouetteMode === "airfoil" ? 0.7 : 1.4);
+
   return (
     <div className="wind-tunnel" data-constructor={constructorSlug ?? "default"}>
       <div className="wind-tunnel__header">
@@ -884,7 +959,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
         <p className="wind-tunnel__copy">
           {SOLVER_NX} × {SOLVER_NY} grid, semi-Lagrangian advection with {20} Jacobi pressure projections per tick,
           running in a Web Worker. Streaklines are particles advected through the live u/v field; boundary tint is the pressure (Cp) at the surface.
-          Visual guide for intuition, not a measured aerodynamic result.
+          Visual guide for intuition: controls alter the obstacle and inlet field, but coefficients remain illustrative.
         </p>
       </div>
 
@@ -894,6 +969,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
           width={STAGE_WIDTH}
           height={STAGE_HEIGHT}
           className="wind-tunnel__canvas"
+          onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerLeave={handlePointerLeave}
         />
@@ -901,7 +977,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
           <div className="wind-tunnel__overlay">
             <p>Silhouette not available for this constructor yet.</p>
             <p className="wind-tunnel__overlay-sub">
-              Run <code>node pipeline/export/src/build-wind-profiles.mjs</code> after dropping the GLB into <code>apps/web/public/models/</code>.
+              Switch to Procedural or Airfoil mode for the live solver while this constructor-specific outline is prepared.
             </p>
           </div>
         ) : null}
@@ -910,10 +986,16 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
             <p>Solver warming up...</p>
           </div>
         ) : null}
+        <div className="wind-tunnel__stage-hint">Click the canvas to place the wind rake · hover to probe U/Cp/vorticity</div>
         <div className="wind-tunnel__readout">
           <span className={`wind-tunnel__live${readout?.live ? " wind-tunnel__live--on" : ""}`}>{readout?.live ? "live" : "idle"}</span>
           <span>Drag <strong>{readout?.drag.toFixed(2) ?? "-"}</strong></span>
           <span>Lift <strong>{readout?.lift.toFixed(2) ?? "-"}</strong></span>
+          <span>Cd <strong>{estimatedCd.toFixed(2)}</strong></span>
+          <span>Cl <strong>{estimatedCl.toFixed(2)}</strong></span>
+          <span>Cy <strong>{estimatedCy.toFixed(2)}</strong></span>
+          <span>ΔD <strong>{readout ? signed(dragDelta) : "-"}</strong></span>
+          <span>ΔL <strong>{readout ? signed(liftDelta) : "-"}</strong></span>
           <span>Re <strong>{readout?.reynolds ? `${(readout.reynolds / 1e6).toFixed(2)}M` : "-"}</strong></span>
           <span>FPS <strong>{readout?.fps ? readout.fps.toFixed(0) : "-"}</strong></span>
         </div>
@@ -938,7 +1020,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
       </div>
 
       <div className="wind-tunnel__mode" role="tablist" aria-label="Silhouette source">
-        {(["procedural", "svg", "glb"] as const).map((mode) => (
+        {(["procedural", "airfoil", "svg", "glb"] as const).map((mode) => (
           <button
             key={mode}
             type="button"
@@ -948,11 +1030,13 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
             onClick={() => setControls((prev) => ({ ...prev, silhouetteMode: mode }))}
             title={mode === "procedural"
               ? "Hand-tuned canonical F1 outline (always available)"
-              : mode === "svg"
-                ? "Hand-curated per-constructor SVG"
-                : "GLB-derived column-envelope hull"}
+              : mode === "airfoil"
+                ? "NACA-style wing section for validating angle-of-attack flow"
+                : mode === "svg"
+                  ? "Hand-curated per-constructor SVG"
+                  : "GLB-derived column-envelope hull"}
           >
-            {mode === "procedural" ? "Procedural" : mode === "svg" ? "SVG art" : "GLB hull"}
+            {mode === "procedural" ? "Procedural" : mode === "airfoil" ? "Airfoil" : mode === "svg" ? "SVG art" : "GLB hull"}
           </button>
         ))}
         <span className="wind-tunnel__mode-source">
@@ -985,6 +1069,32 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
           />
           <strong>{controls.yawDeg.toFixed(0)}°</strong>
         </label>
+        {controls.silhouetteMode === "airfoil" ? (
+          <label>
+            <span>Airfoil AoA</span>
+            <input
+              type="range"
+              min={-12}
+              max={16}
+              step={1}
+              value={controls.airfoilAngleDeg}
+              onChange={(event) => setControls((prev) => ({ ...prev, airfoilAngleDeg: Number(event.target.value) }))}
+            />
+            <strong>{controls.airfoilAngleDeg.toFixed(0)}°</strong>
+          </label>
+        ) : null}
+        <label>
+          <span>Wind rake</span>
+          <input
+            type="range"
+            min={8}
+            max={88}
+            step={1}
+            value={Math.round(controls.windSourceY * 100)}
+            onChange={(event) => setControls((prev) => ({ ...prev, windSourceY: Number(event.target.value) / 100 }))}
+          />
+          <strong>{Math.round(controls.windSourceY * 100)}%</strong>
+        </label>
         <label>
           <span>Particles</span>
           <input
@@ -997,14 +1107,16 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
           />
           <strong>{controls.particles}</strong>
         </label>
-        <label className="wind-tunnel__toggle">
-          <input
-            type="checkbox"
-            checked={controls.drsOpen}
-            onChange={(event) => setControls((prev) => ({ ...prev, drsOpen: event.target.checked }))}
-          />
-          <span>DRS open</span>
-        </label>
+        {controls.silhouetteMode !== "airfoil" ? (
+          <label className="wind-tunnel__toggle">
+            <input
+              type="checkbox"
+              checked={controls.drsOpen}
+              onChange={(event) => setControls((prev) => ({ ...prev, drsOpen: event.target.checked }))}
+            />
+            <span>DRS open</span>
+          </label>
+        ) : null}
         <label className="wind-tunnel__toggle">
           <input
             type="checkbox"
@@ -1040,6 +1152,29 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
       </div>
     </div>
   );
+}
+
+function mapBuiltProfile(built: BuiltSilhouette, source: SilhouetteMode): WindProfileData {
+  const remapped = remapToTunnelFrame(built.polygon, built.aspect);
+  const remappedDetails = built.details.map((detail) => ({
+    kind: detail.kind,
+    points: remapDetailPoints(detail.points, built.aspect),
+  }));
+  const remappedArches = built.wheelArches.map((arch) => {
+    const point = remapDetailPoints([[arch.cx, arch.cy]], built.aspect)[0];
+    const stretch = remappedDetails[0]?.points[0]
+      ? (remappedDetails[0].points[0][1] - point[1])
+      : 1;
+    const radius = arch.r * Math.abs(stretch || 0.5) * 1.4;
+    return { cx: point[0], cy: point[1], r: radius };
+  });
+  return {
+    polygon: remapped,
+    wheelArches: remappedArches,
+    aspect: built.aspect,
+    details: remappedDetails,
+    source,
+  };
 }
 
 function computeAspect(polygon: Array<[number, number]>): number {
@@ -1125,4 +1260,14 @@ function pointInPolygon(px: number, py: number, xs: number[], ys: number[]) {
     if (intersect) inside = !inside;
   }
   return inside;
+}
+
+function spawnParticleY(center: number) {
+  const spread = 0.16;
+  return Math.max(0.02, Math.min(0.98, center + (Math.random() - 0.5) * spread));
+}
+
+function signed(value: number) {
+  if (!Number.isFinite(value)) return "-";
+  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}`;
 }

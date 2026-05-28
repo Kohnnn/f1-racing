@@ -23,6 +23,8 @@ export interface ProceduralSilhouetteOptions {
   rearWingHeight?: number;
   /** Pull or push the nose / front-wing tip height. */
   noseHeight?: number;
+  /** Flatten the rear wing and trim drag-sensitive surface area. */
+  drsOpen?: boolean;
   /** Visual accent for the team's primary colour. */
   accentColor?: string;
 }
@@ -42,7 +44,9 @@ export interface ProceduralSilhouette {
  */
 export function buildProceduralSilhouette(options: ProceduralSilhouetteOptions = {}): ProceduralSilhouette {
   const accent = options.accentColor ?? "#ff7a1a";
-  const rwHeight = clamp(options.rearWingHeight ?? 0.32, 0.18, 0.42);
+  const drsTrim = options.drsOpen ? 0.075 : 0;
+  const rwHeight = clamp((options.rearWingHeight ?? 0.32) + drsTrim, 0.18, 0.48);
+  const rearWingUnderside = options.drsOpen ? rwHeight + 0.10 : rwHeight + 0.18;
   const noseHeight = clamp(options.noseHeight ?? 0.74, 0.62, 0.84);
 
   // Top profile (front to back): the upper silhouette traced from the
@@ -75,7 +79,7 @@ export function buildProceduralSilhouette(options: ProceduralSilhouetteOptions =
   // Bottom profile (back to front): rear-wing endplate -> floor edge ->
   // diffuser -> front wing main plane -> wing endplate base.
   const bottom: Array<[number, number]> = [
-    [0.96, rwHeight + 0.18],       // rear wing exit underside
+    [0.96, rearWingUnderside],      // rear wing exit underside
     [0.95, 0.74],                  // rear floor exit
     [0.90, 0.84],                  // diffuser entry
     [0.83, 0.88],                  // floor mid
@@ -123,9 +127,9 @@ export function buildProceduralSilhouette(options: ProceduralSilhouetteOptions =
     {
       kind: "rearWing",
       points: [
-        [0.86, rwHeight + 0.12],
+        [0.86, options.drsOpen ? rwHeight + 0.08 : rwHeight + 0.12],
         [0.91, rwHeight],
-        [0.96, rwHeight + 0.06],
+        [0.96, options.drsOpen ? rwHeight + 0.02 : rwHeight + 0.06],
       ],
     },
     {
@@ -156,4 +160,93 @@ export function buildProceduralSilhouette(options: ProceduralSilhouetteOptions =
   function clamp(x: number, lo: number, hi: number) {
     return Math.max(lo, Math.min(hi, x));
   }
+}
+
+export interface AirfoilSilhouetteOptions {
+  angleDeg?: number;
+}
+
+/**
+ * NACA 2412-inspired section for validating angle-of-attack and probe flow
+ * inside the same wind-tunnel solver used by the F1 silhouette.
+ */
+export function buildAirfoilSilhouette(options: AirfoilSilhouetteOptions = {}): ProceduralSilhouette {
+  const angleRad = ((options.angleDeg ?? 0) * Math.PI) / 180;
+  const camber = 0.02;
+  const camberPos = 0.4;
+  const thickness = 0.12;
+  const upper: Array<[number, number]> = [];
+  const lower: Array<[number, number]> = [];
+  const camberLine: Array<[number, number]> = [];
+
+  for (let i = 0; i <= 54; i += 1) {
+    const x = i / 54;
+    const yt = 5 * thickness * (
+      0.2969 * Math.sqrt(Math.max(0, x))
+      - 0.1260 * x
+      - 0.3516 * x ** 2
+      + 0.2843 * x ** 3
+      - 0.1015 * x ** 4
+    );
+    const yc = x < camberPos
+      ? (camber / camberPos ** 2) * (2 * camberPos * x - x ** 2)
+      : (camber / (1 - camberPos) ** 2) * ((1 - 2 * camberPos) + 2 * camberPos * x - x ** 2);
+    const dyc = x < camberPos
+      ? (2 * camber / camberPos ** 2) * (camberPos - x)
+      : (2 * camber / (1 - camberPos) ** 2) * (camberPos - x);
+    const theta = Math.atan(dyc);
+    upper.push(rotatePoint(x - yt * Math.sin(theta), yc + yt * Math.cos(theta), -angleRad));
+    lower.push(rotatePoint(x + yt * Math.sin(theta), yc - yt * Math.cos(theta), -angleRad));
+    camberLine.push(rotatePoint(x, yc, -angleRad));
+  }
+
+  const normalized = normalizeAirfoil([...upper, ...lower.reverse()]);
+  const normalizedCamber = normalizeAirfoil(camberLine, normalized.bounds);
+
+  return {
+    polygon: normalized.points,
+    wheelArches: [],
+    details: [
+      {
+        kind: "stripe",
+        points: normalizedCamber.points,
+      },
+    ],
+    aspect: 4.8,
+  };
+}
+
+function rotatePoint(x: number, y: number, angleRad: number): [number, number] {
+  const pivotX = 0.25;
+  const pivotY = 0;
+  const dx = x - pivotX;
+  const dy = y - pivotY;
+  const cos = Math.cos(angleRad);
+  const sin = Math.sin(angleRad);
+  return [pivotX + dx * cos - dy * sin, pivotY + dx * sin + dy * cos];
+}
+
+function normalizeAirfoil(points: Array<[number, number]>, existingBounds?: { minX: number; maxX: number; minY: number; maxY: number }) {
+  const bounds = existingBounds ?? points.reduce(
+    (acc, [x, y]) => ({
+      minX: Math.min(acc.minX, x),
+      maxX: Math.max(acc.maxX, x),
+      minY: Math.min(acc.minY, y),
+      maxY: Math.max(acc.maxY, y),
+    }),
+    { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity },
+  );
+  const spanX = bounds.maxX - bounds.minX || 1;
+  const spanY = bounds.maxY - bounds.minY || 1;
+  const yPad = Math.max(0.18, spanY * 0.8);
+  const yMin = bounds.minY - yPad;
+  const yMax = bounds.maxY + yPad;
+  const normalizedYSpan = yMax - yMin || 1;
+  return {
+    bounds,
+    points: points.map(([x, y]) => [
+      0.03 + ((x - bounds.minX) / spanX) * 0.94,
+      0.5 - ((y - (yMin + normalizedYSpan * 0.5)) / normalizedYSpan) * 0.82,
+    ] as [number, number]),
+  };
 }
