@@ -199,23 +199,78 @@ function step(inlet: { u: Float32Array; v: Float32Array }) {
 }
 
 function computeForces() {
-  // Approximate drag and lift on the obstacle by integrating the pressure
-  // difference across mask boundary cells. Not a quantitative Cd/Cl, just an
-  // illustrative readout.
-  let drag = 0;
+  // Approximate force from exposed pressure faces plus the downstream wake
+  // deficit. This remains illustrative, but it responds to mask geometry.
+  let pressureDrag = 0;
   let lift = 0;
+  let exposedVerticalFaces = 0;
+  let exposedHorizontalFaces = 0;
+  let maskArea = 0;
+  let minX = NX;
+  let maxX = 0;
+  let minY = NY;
+  let maxY = 0;
+
   for (let y = 1; y < NY - 1; y += 1) {
     for (let x = 1; x < NX - 1; x += 1) {
       if (!mask[idx(x, y)]) continue;
-      const left = mask[idx(x - 1, y)] ? 0 : p[idx(x - 1, y)];
-      const right = mask[idx(x + 1, y)] ? 0 : p[idx(x + 1, y)];
-      drag += left - right;
-      const above = mask[idx(x, y - 1)] ? 0 : p[idx(x, y - 1)];
-      const below = mask[idx(x, y + 1)] ? 0 : p[idx(x, y + 1)];
-      lift += above - below;
+      maskArea += 1;
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
+
+      if (!mask[idx(x - 1, y)]) {
+        pressureDrag += p[idx(x - 1, y)];
+        exposedVerticalFaces += 1;
+      }
+      if (!mask[idx(x + 1, y)]) {
+        pressureDrag -= p[idx(x + 1, y)] * 0.7;
+        exposedVerticalFaces += 1;
+      }
+      if (!mask[idx(x, y - 1)]) {
+        lift += p[idx(x, y - 1)];
+        exposedHorizontalFaces += 1;
+      }
+      if (!mask[idx(x, y + 1)]) {
+        lift -= p[idx(x, y + 1)];
+        exposedHorizontalFaces += 1;
+      }
     }
   }
-  return { drag, lift };
+
+  if (!maskArea) {
+    return { drag: 0, lift: 0 };
+  }
+
+  let wakeDeficit = 0;
+  let wakeSamples = 0;
+  const wakeStart = Math.min(NX - 2, maxX + 2);
+  const wakeEnd = Math.min(NX - 2, maxX + 32);
+  const wakeMinY = Math.max(1, minY - 10);
+  const wakeMaxY = Math.min(NY - 2, maxY + 10);
+  for (let y = wakeMinY; y <= wakeMaxY; y += 1) {
+    for (let x = wakeStart; x <= wakeEnd; x += 1) {
+      if (mask[idx(x, y)]) continue;
+      const c = idx(x, y);
+      wakeDeficit += Math.max(0, inletSpeed - u[c]) * (1 + Math.min(0.4, Math.abs(v[c]) * 0.2));
+      wakeSamples += 1;
+    }
+  }
+
+  const dynamicPressure = Math.max(0.08, inletSpeed * inletSpeed + yawVelocity * yawVelocity);
+  const projectedHeight = Math.max(1, maxY - minY + 1);
+  const pressureTerm = Math.max(0, pressureDrag) / (dynamicPressure * projectedHeight);
+  const wakeTerm = wakeSamples
+    ? (wakeDeficit / wakeSamples) * (projectedHeight / NY) / dynamicPressure
+    : 0;
+  const geometryTerm = (exposedVerticalFaces / projectedHeight) * 0.018 + (maskArea / N) * 5.5;
+  const drag = Math.max(0, pressureTerm * 0.22 + wakeTerm * 1.35 + geometryTerm);
+  const normalizedLift = exposedHorizontalFaces
+    ? lift / (dynamicPressure * exposedHorizontalFaces)
+    : 0;
+
+  return { drag, lift: normalizedLift };
 }
 
 function buildInletProfile(speedMps: number, yawDeg: number, windSourceY: number) {

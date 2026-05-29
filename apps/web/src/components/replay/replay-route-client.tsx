@@ -40,6 +40,27 @@ interface ReplayInsightsState {
 const BUFFER_LOOKAHEAD_CHUNKS = 2;
 const BUFFER_HISTORY_CHUNKS = 1;
 
+function normalizeRaceControlMessages(messages: ReplayRaceControlMessage[], totalTime: number) {
+  const msThreshold = totalTime > 0 ? totalTime * 1.5 : 7200;
+  return messages
+    .map((message) => ({
+      ...message,
+      t: message.t > msThreshold ? message.t / 1000 : message.t,
+    }))
+    .sort((left, right) => left.t - right.t);
+}
+
+function normalizeReplayRaceControl(replay: ReplayPack): ReplayPack {
+  if (!replay.raceControlMessages?.length) {
+    return replay;
+  }
+  const totalTime = replay.totalTime ?? replay.frames.at(-1)?.t ?? 0;
+  return {
+    ...replay,
+    raceControlMessages: normalizeRaceControlMessages(replay.raceControlMessages, totalTime),
+  };
+}
+
 function buildPackUrl(route: ReplayRouteClientProps["route"], fileName: string) {
   const staticPath = `/data/packs/seasons/${route.season}/${route.grandPrix}/${route.session}/${fileName}`;
   if (fileName === "stints.json") {
@@ -136,16 +157,16 @@ function pruneReplayFrames(
 export function ReplayRouteClient({ initialReplay, manifest, summary, route }: ReplayRouteClientProps) {
   const [state, setState] = useState<ReplayRouteState>({
     status: "ready",
-    replay: initialReplay,
+    replay: normalizeReplayRaceControl(initialReplay),
   });
   const [insights, setInsights] = useState<ReplayInsightsState>({ compare: null, stintPack: null, driverSummaries: null, lapRecords: null, strategy: null });
   const [reloadKey, setReloadKey] = useState(0);
   const chunkEntriesRef = useRef<NonNullable<ReplayPack["frameChunkIndex"]>>([]);
   const loadedChunksRef = useRef<Set<number>>(new Set());
   const requestedChunksRef = useRef<Set<number>>(new Set());
+  const keepAllChunksLoadedRef = useRef(false);
   const socketRef = useRef<WebSocket | null>(null);
   const socketChunkResolversRef = useRef<Map<number, { resolve: (chunk: ReplayFrameChunk) => void; reject: (error: Error) => void }>>(new Map());
-  const routeVersionRef = useRef(0);
 
   const rejectSocketChunkRequests = useCallback((message: string) => {
     for (const pending of socketChunkResolversRef.current.values()) {
@@ -239,7 +260,6 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
       return;
     }
 
-    const currentVersion = routeVersionRef.current;
     requestedChunksRef.current.add(chunkIndex);
 
     try {
@@ -247,24 +267,18 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
         ? await requestChunkOverSocket(chunkIndex)
         : await fetchJson<ReplayFrameChunk>(buildReplayChunkUrl(route, chunkEntry));
 
-      if (routeVersionRef.current !== currentVersion) {
-        return;
-      }
-
       loadedChunksRef.current.add(chunkIndex);
-      startTransition(() => {
-        setState((previous) => {
-          if (previous.status !== "ready") {
-            return previous;
-          }
-          return {
-            status: "ready",
-            replay: {
-              ...previous.replay,
-              frames: mergeReplayFrames(previous.replay.frames, chunk.frames),
-            },
-          };
-        });
+      setState((previous) => {
+        if (previous.status !== "ready") {
+          return previous;
+        }
+        return {
+          status: "ready",
+          replay: {
+            ...previous.replay,
+            frames: mergeReplayFrames(previous.replay.frames, chunk.frames),
+          },
+        };
       });
     } catch {
       requestedChunksRef.current.delete(chunkIndex);
@@ -275,6 +289,10 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
   }, [requestChunkOverSocket, route]);
 
   const trimChunkCache = useCallback((anchorChunkIndex: number) => {
+    if (keepAllChunksLoadedRef.current) {
+      return;
+    }
+
     const minChunkIndex = Math.max(0, anchorChunkIndex - BUFFER_HISTORY_CHUNKS);
     const maxChunkIndex = anchorChunkIndex + BUFFER_LOOKAHEAD_CHUNKS;
     const nextLoadedChunks = new Set(
@@ -286,20 +304,18 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
     }
 
     loadedChunksRef.current = nextLoadedChunks;
-    startTransition(() => {
-      setState((previous) => {
-        if (previous.status !== "ready") {
-          return previous;
-        }
+    setState((previous) => {
+      if (previous.status !== "ready") {
+        return previous;
+      }
 
-        return {
-          status: "ready",
-          replay: {
-            ...previous.replay,
-            frames: pruneReplayFrames(previous.replay.frames, chunkEntriesRef.current, nextLoadedChunks),
-          },
-        };
-      });
+      return {
+        status: "ready",
+        replay: {
+          ...previous.replay,
+          frames: pruneReplayFrames(previous.replay.frames, chunkEntriesRef.current, nextLoadedChunks),
+        },
+      };
     });
   }, []);
 
@@ -318,6 +334,7 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
     // remaining tail in one shot. Otherwise honor the lookahead buffer + cache trim window.
     const lastEntry = chunkEntries.at(-1);
     if (lastEntry && time >= lastEntry.toTime) {
+      keepAllChunksLoadedRef.current = true;
       for (const entry of chunkEntries) {
         void ensureChunkLoaded(entry.index);
       }
@@ -333,25 +350,31 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
   }, [ensureChunkLoaded, trimChunkCache]);
 
   useEffect(() => {
-    routeVersionRef.current += 1;
     chunkEntriesRef.current = initialReplay.frameChunkIndex ?? [];
     requestedChunksRef.current = new Set();
+    keepAllChunksLoadedRef.current = route.session === "race";
+
+    setState({
+      status: "ready",
+      replay: normalizeReplayRaceControl(initialReplay),
+    });
+    setInsights({ compare: null, stintPack: null, driverSummaries: null, lapRecords: null, strategy: null });
 
     if (initialReplay.frameChunkIndex?.length) {
       loadedChunksRef.current = new Set();
-      for (let offset = 0; offset <= BUFFER_LOOKAHEAD_CHUNKS; offset += 1) {
-        void ensureChunkLoaded(offset);
+      if (route.session === "race") {
+        for (const entry of initialReplay.frameChunkIndex) {
+          void ensureChunkLoaded(entry.index);
+        }
+      } else {
+        for (let offset = 0; offset <= BUFFER_LOOKAHEAD_CHUNKS; offset += 1) {
+          void ensureChunkLoaded(offset);
+        }
       }
     } else {
       loadedChunksRef.current = new Set();
     }
-
-    setState({
-      status: "ready",
-      replay: initialReplay,
-    });
-    setInsights({ compare: null, stintPack: null, driverSummaries: null, lapRecords: null, strategy: null });
-  }, [ensureChunkLoaded, initialReplay]);
+  }, [ensureChunkLoaded, initialReplay, route.session]);
 
   useEffect(() => {
     let cancelled = false;
@@ -383,27 +406,28 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
             return;
           }
 
-          startTransition(() => {
-            setState((previous) => {
-              if (previous.status !== "ready") {
-                return previous;
-              }
-              return {
-                status: "ready",
-                replay: {
-                  ...previous.replay,
-                  laps,
+          setState((previous) => {
+            if (previous.status !== "ready") {
+              return previous;
+            }
+            return {
+              status: "ready",
+              replay: {
+                ...previous.replay,
+                laps,
+                raceControlMessages: normalizeRaceControlMessages(
                   raceControlMessages,
-                },
-              };
-            });
+                  previous.replay.totalTime ?? previous.replay.frames.at(-1)?.t ?? 0,
+                ),
+              },
+            };
           });
         });
       } catch (error) {
         if (!cancelled) {
           setState({
             status: "ready",
-            replay: initialReplay,
+            replay: normalizeReplayRaceControl(initialReplay),
           });
         }
       }

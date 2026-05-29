@@ -1013,10 +1013,14 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
       if (loadProgress > 0) setLoadProgress(0);
       return;
     }
+    if (route.session === "race" && totalTime - loadedEndTime > 30 && loadProgress === 0) {
+      setLoadProgress(Math.max(0.01, loadedEndTime / totalTime));
+      return;
+    }
     if (loadProgress > 0) {
       setLoadProgress(Math.min(0.99, loadedEndTime / totalTime));
     }
-  }, [loadedEndTime, loadProgress, totalTime]);
+  }, [loadedEndTime, loadProgress, route.session, totalTime]);
 
   // Fire a "purple sector" banner whenever a new fastest lap is set.
   useEffect(() => {

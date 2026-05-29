@@ -17,7 +17,6 @@ const PRIMARY_LINKS: NavLink[] = [
 const SECONDARY_LINKS: NavLink[] = [
   { href: "/cars/current-spec", label: "Modelview", prefixes: ["/cars"] },
   { href: "/learn", label: "Learn", prefixes: ["/learn"] },
-  { href: "/sessions", label: "Sessions", prefixes: ["/sessions"] },
 ];
 
 function matches(pathname: string | null, link: NavLink) {

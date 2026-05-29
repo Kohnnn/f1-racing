@@ -1,0 +1,1196 @@
+{
+  "meta": {
+    "title": "F1 Racing App — QA Evaluation Report v4",
+    "url": "https://playful-peony-77899c.netlify.app",
+    "primaryRoute": "https://playful-peony-77899c.netlify.app/cars/current-spec/?season=2026&constructor=fia-2026&focus=front-wing",
+    "testDate": "2026-05-28T17:43:25.101Z",
+    "tester": "QA AI via Playwright",
+    "browser": "Chromium 148.0.7778.96",
+    "viewport": "1440x1150",
+    "headless": true
+  },
+  "console": [
+    {
+      "page": "modelview",
+      "type": "warning",
+      "text": "[.WebGL-0x4504001bd400]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "page": "modelview",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 ()"
+    },
+    {
+      "page": "modelview",
+      "type": "warning",
+      "text": "Canvas2D: Multiple readback operations using getImageData are faster with the willReadFrequently attribute set to true. See: https://html.spec.whatwg.org/multipage/canvas.html#concept-canvas-will-read-frequently"
+    },
+    {
+      "page": "fallback-simulated",
+      "type": "warning",
+      "text": "[.WebGL-0x3c5c001c0e00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "page": "fallback-simulated",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 ()"
+    },
+    {
+      "page": "fallback-simulated",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 (Not Found)"
+    },
+    {
+      "page": "learn-aero",
+      "type": "warning",
+      "text": "[.WebGL-0x1284001c6200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "page": "learn-aero",
+      "type": "warning",
+      "text": "[.WebGL-0x1284001c6200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)"
+    }
+  ],
+  "pageErrors": [],
+  "network": [
+    {
+      "page": "modelview",
+      "kind": "response",
+      "status": 200,
+      "url": "https://playful-peony-77899c.netlify.app/models/2026/fia-spec/fia-2026.glb"
+    },
+    {
+      "page": "modelview",
+      "kind": "response",
+      "status": 404,
+      "url": "https://playful-peony-77899c.netlify.app/data/silhouettes/fia-2026.json"
+    },
+    {
+      "page": "modelview",
+      "kind": "response",
+      "status": 200,
+      "url": "https://playful-peony-77899c.netlify.app/data/wind-profiles/fia-2026.json"
+    },
+    {
+      "page": "fallback-simulated",
+      "kind": "response",
+      "status": 200,
+      "url": "https://playful-peony-77899c.netlify.app/models/2026/fia-spec/fia-2026.glb"
+    },
+    {
+      "page": "fallback-simulated",
+      "kind": "response",
+      "status": 404,
+      "url": "https://playful-peony-77899c.netlify.app/data/silhouettes/fia-2026.json"
+    },
+    {
+      "page": "fallback-simulated",
+      "kind": "response",
+      "status": 404,
+      "url": "https://playful-peony-77899c.netlify.app/data/wind-profiles/fia-2026.json"
+    },
+    {
+      "page": "learn-aero",
+      "kind": "response",
+      "status": 200,
+      "url": "https://playful-peony-77899c.netlify.app/models/2025/mclaren/mcl39.glb"
+    },
+    {
+      "page": "replay",
+      "kind": "response",
+      "status": 200,
+      "url": "https://playful-peony-77899c.netlify.app/replay/"
+    },
+    {
+      "page": "replay",
+      "kind": "response",
+      "status": 200,
+      "url": "https://playful-peony-77899c.netlify.app/_next/static/chunks/app/replay/page-374bdbec1da4c940.js"
+    },
+    {
+      "page": "live",
+      "kind": "response",
+      "status": 200,
+      "url": "https://f1-api.129.150.58.64.sslip.io/api/live/status"
+    }
+  ],
+  "api": {
+    "url": "https://f1-api.129.150.58.64.sslip.io/health",
+    "status": 200,
+    "ok": true,
+    "body": "{\"ok\":true,\"service\":\"f1-racing-api\"}"
+  },
+  "modelview": {
+    "url": "https://playful-peony-77899c.netlify.app/cars/current-spec/?season=2026&constructor=fia-2026&focus=front-wing",
+    "title": "Modelview · F1 Racing",
+    "windTunnelVisible": true,
+    "modelStateAfter22s": {
+      "viewerPresent": true,
+      "viewerSrc": "/models/2026/fia-spec/fia-2026.glb",
+      "viewerLoadedProp": true,
+      "loadingVisible": true,
+      "loadingText": "Loading FIA 2026 concept car · ~3.7 MB",
+      "statusText": "Surface ready",
+      "modelViewerTag": "<model-viewer src=\"/models/2026/fia-spec/fia-2026.glb\" alt=\"FIA 2026 concept car\" camera-controls=\"\" reveal=\"auto\" loading=\"eager\" camera-orbit=\"6deg 81deg 1.78m\" camera-target=\"0m 0.24m 0m\" min-camera-orbit=\"auto auto 0.6m\" max-camera-orbit=\"auto auto 6m\" interpolation-decay=\"100\" exposure=\"1.05\" shadow-intensity=\"1.4\" shadow-softness=\"0.7\" tone-mapping=\"commerce\" touch-action=\"pan-y\" interaction"
+    },
+    "topScreenshot": "output/playwright/qa-v4/modelview-primary-top.png",
+    "windScreenshot": "output/playwright/qa-v4/modelview-wind-tunnel-initial.png",
+    "initialWindState": {
+      "buttonStates": [
+        {
+          "text": "Procedural",
+          "ariaSelected": "true",
+          "className": "wind-tunnel__mode-button wind-tunnel__mode-button--active"
+        },
+        {
+          "text": "Airfoil",
+          "ariaSelected": "false",
+          "className": "wind-tunnel__mode-button"
+        },
+        {
+          "text": "SVG art",
+          "ariaSelected": "false",
+          "className": "wind-tunnel__mode-button"
+        },
+        {
+          "text": "GLB hull",
+          "ariaSelected": "false",
+          "className": "wind-tunnel__mode-button"
+        }
+      ],
+      "sourceLabel": "SILHOUETTE: PROCEDURAL",
+      "overlayText": [],
+      "controlsText": "AIRSPEED\n80 M/S\nYAW\n0°\nWIND RAKE\n48%\nPARTICLES\n320\nDRS OPEN\nROLLING ROAD\nWHEELS ROTATING\nSTREAKLINES\nPRESSURE (LIVE)",
+      "readout": {
+        "raw": "LIVE DRAG 0.05 LIFT 0.03 CD 0.76 CL -2.12 CY 0.00 ΔD -0.00 ΔL -0.00 RE 29.33M FPS 58",
+        "drag": 0.05,
+        "lift": 0.03,
+        "deltaD": 0,
+        "deltaL": 0,
+        "reM": 29.33,
+        "fps": 58,
+        "live": true,
+        "idle": false
+      }
+    }
+  },
+  "modes": {
+    "Procedural": {
+      "buttonStates": [
+        {
+          "text": "Procedural",
+          "ariaSelected": "true",
+          "className": "wind-tunnel__mode-button wind-tunnel__mode-button--active"
+        },
+        {
+          "text": "Airfoil",
+          "ariaSelected": "false",
+          "className": "wind-tunnel__mode-button"
+        },
+        {
+          "text": "SVG art",
+          "ariaSelected": "false",
+          "className": "wind-tunnel__mode-button"
+        },
+        {
+          "text": "GLB hull",
+          "ariaSelected": "false",
+          "className": "wind-tunnel__mode-button"
+        }
+      ],
+      "sourceLabel": "SILHOUETTE: PROCEDURAL",
+      "overlayText": [],
+      "controlsText": "AIRSPEED\n80 M/S\nYAW\n0°\nWIND RAKE\n48%\nPARTICLES\n320\nDRS OPEN\nROLLING ROAD\nWHEELS ROTATING\nSTREAKLINES\nPRESSURE (LIVE)",
+      "readout": {
+        "raw": "LIVE DRAG 0.04 LIFT 0.03 CD 0.76 CL -2.12 CY 0.00 ΔD -0.01 ΔL -0.00 RE 29.33M FPS 63",
+        "drag": 0.04,
+        "lift": 0.03,
+        "deltaD": -0.01,
+        "deltaL": 0,
+        "reM": 29.33,
+        "fps": 63,
+        "live": true,
+        "idle": false
+      },
+      "screenshot": "output/playwright/qa-v4/mode-procedural.png"
+    },
+    "Airfoil": {
+      "buttonStates": [
+        {
+          "text": "Procedural",
+          "ariaSelected": "false",
+          "className": "wind-tunnel__mode-button"
+        },
+        {
+          "text": "Airfoil",
+          "ariaSelected": "true",
+          "className": "wind-tunnel__mode-button wind-tunnel__mode-button--active"
+        },
+        {
+          "text": "SVG art",
+          "ariaSelected": "false",
+          "className": "wind-tunnel__mode-button"
+        },
+        {
+          "text": "GLB hull",
+          "ariaSelected": "false",
+          "className": "wind-tunnel__mode-button"
+        }
+      ],
+      "sourceLabel": "SILHOUETTE: AIRFOIL",
+      "overlayText": [],
+      "controlsText": "AIRSPEED\n80 M/S\nYAW\n0°\nAIRFOIL AOA\n4°\nWIND RAKE\n48%\nPARTICLES\n320\nROLLING ROAD\nWHEELS ROTATING\nSTREAKLINES\nPRESSURE (LIVE)",
+      "readout": {
+        "raw": "LIVE DRAG 0.01 LIFT 0.00 CD 0.13 CL 0.48 CY 0.00 ΔD +0.00 ΔL +0.00 RE 29.33M FPS 63",
+        "drag": 0.01,
+        "lift": 0,
+        "deltaD": 0,
+        "deltaL": 0,
+        "reM": 29.33,
+        "fps": 63,
+        "live": true,
+        "idle": false
+      },
+      "screenshot": "output/playwright/qa-v4/mode-airfoil.png"
+    },
+    "SVG art": {
+      "buttonStates": [
+        {
+          "text": "Procedural",
+          "ariaSelected": "false",
+          "className": "wind-tunnel__mode-button"
+        },
+        {
+          "text": "Airfoil",
+          "ariaSelected": "false",
+          "className": "wind-tunnel__mode-button"
+        },
+        {
+          "text": "SVG art",
+          "ariaSelected": "true",
+          "className": "wind-tunnel__mode-button wind-tunnel__mode-button--active"
+        },
+        {
+          "text": "GLB hull",
+          "ariaSelected": "false",
+          "className": "wind-tunnel__mode-button"
+        }
+      ],
+      "sourceLabel": "SILHOUETTE: -",
+      "overlayText": [
+        "Silhouette not available for this constructor yet.\n\nSwitch to Procedural or Airfoil mode for the live solver while this constructor-specific outline is prepared."
+      ],
+      "controlsText": "AIRSPEED\n80 M/S\nYAW\n0°\nWIND RAKE\n48%\nPARTICLES\n320\nDRS OPEN\nROLLING ROAD\nWHEELS ROTATING\nSTREAKLINES\nPRESSURE (LIVE)",
+      "readout": {
+        "raw": "IDLE DRAG 0.00 LIFT 0.00 CD 0.76 CL -2.12 CY 0.00 ΔD +0.00 ΔL +0.00 RE 29.33M FPS 64",
+        "drag": 0,
+        "lift": 0,
+        "deltaD": 0,
+        "deltaL": 0,
+        "reM": 29.33,
+        "fps": 64,
+        "live": false,
+        "idle": true
+      },
+      "screenshot": "output/playwright/qa-v4/mode-svg-art.png"
+    },
+    "GLB hull": {
+      "buttonStates": [
+        {
+          "text": "Procedural",
+          "ariaSelected": "false",
+          "className": "wind-tunnel__mode-button"
+        },
+        {
+          "text": "Airfoil",
+          "ariaSelected": "false",
+          "className": "wind-tunnel__mode-button"
+        },
+        {
+          "text": "SVG art",
+          "ariaSelected": "false",
+          "className": "wind-tunnel__mode-button"
+        },
+        {
+          "text": "GLB hull",
+          "ariaSelected": "true",
+          "className": "wind-tunnel__mode-button wind-tunnel__mode-button--active"
+        }
+      ],
+      "sourceLabel": "SILHOUETTE: GLB",
+      "overlayText": [
+        "Solver warming up..."
+      ],
+      "controlsText": "AIRSPEED\n80 M/S\nYAW\n0°\nWIND RAKE\n48%\nPARTICLES\n320\nDRS OPEN\nROLLING ROAD\nWHEELS ROTATING\nSTREAKLINES\nPRESSURE (LIVE)",
+      "readout": {
+        "raw": "IDLE DRAG 0.00 LIFT 0.00 CD 0.76 CL -2.12 CY 0.00 ΔD +0.00 ΔL +0.00 RE 29.33M FPS 64",
+        "drag": 0,
+        "lift": 0,
+        "deltaD": 0,
+        "deltaL": 0,
+        "reM": 29.33,
+        "fps": 64,
+        "live": false,
+        "idle": true
+      },
+      "screenshot": "output/playwright/qa-v4/mode-glb-hull.png"
+    }
+  },
+  "airfoil": {
+    "sliderVisible": false,
+    "aoaNegativeInput": {
+      "before": 4,
+      "requested": -10,
+      "after": -12,
+      "min": -12,
+      "max": 16
+    },
+    "negative": {
+      "readout": {
+        "raw": "LIVE DRAG 0.01 LIFT 0.02 CD 0.22 CL -1.44 CY 0.00 ΔD +0.00 ΔL -0.00 RE 29.33M FPS 60",
+        "drag": 0.01,
+        "lift": 0.02,
+        "deltaD": 0,
+        "deltaL": 0,
+        "reM": 29.33,
+        "fps": 60,
+        "live": true,
+        "idle": false
+      },
+      "screenshot": "output/playwright/qa-v4/airfoil-aoa-negative.png"
+    },
+    "aoaPositiveInput": {
+      "before": -12,
+      "requested": 10,
+      "after": 12,
+      "min": -12,
+      "max": 16
+    },
+    "positive": {
+      "readout": {
+        "raw": "LIVE DRAG 0.01 LIFT -0.02 CD 0.22 CL 1.44 CY 0.00 ΔD +0.00 ΔL -0.01 RE 29.33M FPS 60",
+        "drag": 0.01,
+        "lift": -0.02,
+        "deltaD": 0,
+        "deltaL": -0.01,
+        "reM": 29.33,
+        "fps": 60,
+        "live": true,
+        "idle": false
+      },
+      "screenshot": "output/playwright/qa-v4/airfoil-aoa-positive.png"
+    },
+    "pixelDiffBaseToNegative": 16,
+    "pixelDiffNegativeToPositive": 14.84,
+    "controlsAfterPositive": "AIRSPEED\n80 M/S\nYAW\n0°\nAIRFOIL AOA\n12°\nWIND RAKE\n48%\nPARTICLES\n320\nROLLING ROAD\nWHEELS ROTATING\nSTREAKLINES\nPRESSURE (LIVE)",
+    "drsVisible": false,
+    "repeatedChanges": [
+      {
+        "input": {
+          "before": 12,
+          "requested": -12,
+          "after": -12,
+          "min": -12,
+          "max": 16
+        },
+        "readout": {
+          "raw": "LIVE DRAG 0.01 LIFT -0.02 CD 0.22 CL -1.44 CY 0.00 ΔD +0.00 ΔL +0.00 RE 29.33M FPS 60",
+          "drag": 0.01,
+          "lift": -0.02,
+          "deltaD": 0,
+          "deltaL": 0,
+          "reM": 29.33,
+          "fps": 60,
+          "live": true,
+          "idle": false
+        }
+      },
+      {
+        "input": {
+          "before": -12,
+          "requested": -6,
+          "after": -8,
+          "min": -12,
+          "max": 16
+        },
+        "readout": {
+          "raw": "LIVE DRAG 0.01 LIFT -0.02 CD 0.18 CL -0.96 CY 0.00 ΔD +0.00 ΔL +0.00 RE 29.33M FPS 60",
+          "drag": 0.01,
+          "lift": -0.02,
+          "deltaD": 0,
+          "deltaL": 0,
+          "reM": 29.33,
+          "fps": 60,
+          "live": true,
+          "idle": false
+        }
+      },
+      {
+        "input": {
+          "before": -8,
+          "requested": 0,
+          "after": 0,
+          "min": -12,
+          "max": 16
+        },
+        "readout": {
+          "raw": "LIVE DRAG 0.01 LIFT -0.02 CD 0.08 CL 0.00 CY 0.00 ΔD +0.00 ΔL +0.00 RE 29.33M FPS 60",
+          "drag": 0.01,
+          "lift": -0.02,
+          "deltaD": 0,
+          "deltaL": 0,
+          "reM": 29.33,
+          "fps": 60,
+          "live": true,
+          "idle": false
+        }
+      },
+      {
+        "input": {
+          "before": 0,
+          "requested": 6,
+          "after": 7,
+          "min": -12,
+          "max": 16
+        },
+        "readout": {
+          "raw": "LIVE DRAG 0.01 LIFT -0.02 CD 0.16 CL 0.84 CY 0.00 ΔD +0.00 ΔL +0.00 RE 29.33M FPS 60",
+          "drag": 0.01,
+          "lift": -0.02,
+          "deltaD": 0,
+          "deltaL": 0,
+          "reM": 29.33,
+          "fps": 60,
+          "live": true,
+          "idle": false
+        }
+      },
+      {
+        "input": {
+          "before": 7,
+          "requested": 12,
+          "after": 14,
+          "min": -12,
+          "max": 16
+        },
+        "readout": {
+          "raw": "LIVE DRAG 0.01 LIFT -0.02 CD 0.25 CL 1.68 CY 0.00 ΔD +0.00 ΔL +0.00 RE 29.33M FPS 60",
+          "drag": 0.01,
+          "lift": -0.02,
+          "deltaD": 0,
+          "deltaL": 0,
+          "reM": 29.33,
+          "fps": 60,
+          "live": true,
+          "idle": false
+        }
+      },
+      {
+        "input": {
+          "before": 14,
+          "requested": 0,
+          "after": 0,
+          "min": -12,
+          "max": 16
+        },
+        "readout": {
+          "raw": "LIVE DRAG 0.01 LIFT -0.02 CD 0.08 CL 0.00 CY 0.00 ΔD +0.00 ΔL +0.00 RE 29.33M FPS 60",
+          "drag": 0.01,
+          "lift": -0.02,
+          "deltaD": 0,
+          "deltaL": 0,
+          "reM": 29.33,
+          "fps": 60,
+          "live": true,
+          "idle": false
+        }
+      },
+      {
+        "input": {
+          "before": 0,
+          "requested": -8,
+          "after": -10,
+          "min": -12,
+          "max": 16
+        },
+        "readout": {
+          "raw": "LIVE DRAG 0.01 LIFT -0.02 CD 0.20 CL -1.20 CY 0.00 ΔD +0.00 ΔL +0.00 RE 29.33M FPS 60",
+          "drag": 0.01,
+          "lift": -0.02,
+          "deltaD": 0,
+          "deltaL": 0,
+          "reM": 29.33,
+          "fps": 60,
+          "live": true,
+          "idle": false
+        }
+      },
+      {
+        "input": {
+          "before": -10,
+          "requested": 8,
+          "after": 9,
+          "min": -12,
+          "max": 16
+        },
+        "readout": {
+          "raw": "LIVE DRAG 0.01 LIFT -0.02 CD 0.19 CL 1.08 CY 0.00 ΔD +0.00 ΔL +0.00 RE 29.33M FPS 60",
+          "drag": 0.01,
+          "lift": -0.02,
+          "deltaD": 0,
+          "deltaL": 0,
+          "reM": 29.33,
+          "fps": 60,
+          "live": true,
+          "idle": false
+        }
+      }
+    ]
+  },
+  "proceduralDrs": {
+    "closed": {
+      "readout": {
+        "raw": "LIVE DRAG 0.05 LIFT 0.03 CD 0.76 CL -2.12 CY 0.00 ΔD +0.03 ΔL +0.03 RE 29.33M FPS 60",
+        "drag": 0.05,
+        "lift": 0.03,
+        "deltaD": 0.03,
+        "deltaL": 0.03,
+        "reM": 29.33,
+        "fps": 60,
+        "live": true,
+        "idle": false
+      },
+      "screenshot": "output/playwright/qa-v4/procedural-drs-closed.png"
+    },
+    "open": {
+      "immediateReadout": {
+        "raw": "LIVE DRAG 0.02 LIFT 0.01 CD 0.68 CL -1.95 CY 0.00 ΔD +0.00 ΔL +0.00 RE 29.33M FPS 64",
+        "drag": 0.02,
+        "lift": 0.01,
+        "deltaD": 0,
+        "deltaL": 0,
+        "reM": 29.33,
+        "fps": 64,
+        "live": true,
+        "idle": false
+      },
+      "settledReadout": {
+        "raw": "LIVE DRAG 0.05 LIFT 0.03 CD 0.68 CL -1.95 CY 0.00 ΔD +0.03 ΔL +0.02 RE 29.33M FPS 60",
+        "drag": 0.05,
+        "lift": 0.03,
+        "deltaD": 0.03,
+        "deltaL": 0.02,
+        "reM": 29.33,
+        "fps": 60,
+        "live": true,
+        "idle": false
+      },
+      "screenshot": "output/playwright/qa-v4/procedural-drs-open.png"
+    },
+    "pixelDiffClosedOpen": 3.32
+  },
+  "yaw": {
+    "minus15Input": {
+      "before": 0,
+      "requested": -15,
+      "after": -15,
+      "min": -15,
+      "max": 15
+    },
+    "minus15": {
+      "readout": {
+        "raw": "LIVE DRAG 0.04 LIFT -0.05 CD 0.81 CL -2.31 CY -0.36 ΔD +0.01 ΔL -0.06 RE 29.33M FPS 60",
+        "drag": 0.04,
+        "lift": -0.05,
+        "deltaD": 0.01,
+        "deltaL": -0.06,
+        "reM": 29.33,
+        "fps": 60,
+        "live": true,
+        "idle": false
+      },
+      "screenshot": "output/playwright/qa-v4/yaw-minus-15.png"
+    },
+    "zeroInput": {
+      "before": -15,
+      "requested": 0,
+      "after": 0,
+      "min": -15,
+      "max": 15
+    },
+    "zero": {
+      "readout": {
+        "raw": "LIVE DRAG 0.05 LIFT 0.03 CD 0.76 CL -2.12 CY 0.00 ΔD +0.03 ΔL +0.02 RE 29.33M FPS 57",
+        "drag": 0.05,
+        "lift": 0.03,
+        "deltaD": 0.03,
+        "deltaL": 0.02,
+        "reM": 29.33,
+        "fps": 57,
+        "live": true,
+        "idle": false
+      },
+      "screenshot": "output/playwright/qa-v4/yaw-zero.png"
+    },
+    "plus15Input": {
+      "before": 0,
+      "requested": 15,
+      "after": 0,
+      "min": -15,
+      "max": 15
+    },
+    "plus15": {
+      "readout": {
+        "raw": "LIVE DRAG 0.05 LIFT 0.03 CD 0.76 CL -2.12 CY 0.00 ΔD +0.03 ΔL +0.02 RE 29.33M FPS 60",
+        "drag": 0.05,
+        "lift": 0.03,
+        "deltaD": 0.03,
+        "deltaL": 0.02,
+        "reM": 29.33,
+        "fps": 60,
+        "live": true,
+        "idle": false
+      },
+      "screenshot": "output/playwright/qa-v4/yaw-plus-15.png"
+    },
+    "pixelDiffNegZero": 21.8,
+    "pixelDiffZeroPos": 3.74
+  },
+  "windPlacement": {
+    "sliderLow": {
+      "before": 48,
+      "requested": 20,
+      "after": 15,
+      "min": 8,
+      "max": 88
+    },
+    "low": {
+      "readout": {
+        "raw": "LIVE DRAG 0.05 LIFT 0.03 CD 0.76 CL -2.12 CY 0.00 ΔD +0.02 ΔL +0.02 RE 29.33M FPS 60",
+        "drag": 0.05,
+        "lift": 0.03,
+        "deltaD": 0.02,
+        "deltaL": 0.02,
+        "reM": 29.33,
+        "fps": 60,
+        "live": true,
+        "idle": false
+      },
+      "screenshot": "output/playwright/qa-v4/wind-rake-low.png"
+    },
+    "sliderHigh": {
+      "before": 15,
+      "requested": 82,
+      "after": 88,
+      "min": 8,
+      "max": 88
+    },
+    "high": {
+      "readout": {
+        "raw": "LIVE DRAG 0.05 LIFT 0.03 CD 0.76 CL -2.12 CY 0.00 ΔD +0.02 ΔL +0.02 RE 29.33M FPS 54",
+        "drag": 0.05,
+        "lift": 0.03,
+        "deltaD": 0.02,
+        "deltaL": 0.02,
+        "reM": 29.33,
+        "fps": 54,
+        "live": true,
+        "idle": false
+      },
+      "screenshot": "output/playwright/qa-v4/wind-rake-high.png"
+    },
+    "clickUpper": {
+      "value": 28,
+      "screenshot": "output/playwright/qa-v4/wind-rake-click-upper.png"
+    },
+    "clickLower": {
+      "value": 74,
+      "screenshot": "output/playwright/qa-v4/wind-rake-click-lower.png"
+    },
+    "probeText": "U\n0.0 m/s\nCp\n0.000\nω\n0.000\nINSIDE BODY",
+    "probeScreenshot": "output/playwright/qa-v4/wind-probe-hover.png"
+  },
+  "rollingRoadWheels": {
+    "before": {
+      "readout": {
+        "raw": "LIVE DRAG 0.05 LIFT 0.03 CD 0.76 CL -2.12 CY 0.00 ΔD +0.02 ΔL +0.02 RE 29.33M FPS 60",
+        "drag": 0.05,
+        "lift": 0.03,
+        "deltaD": 0.02,
+        "deltaL": 0.02,
+        "reM": 29.33,
+        "fps": 60,
+        "live": true,
+        "idle": false
+      },
+      "screenshot": "output/playwright/qa-v4/rolling-wheels-before.png"
+    },
+    "rollingOff": {
+      "before": true,
+      "after": false
+    },
+    "wheelsOff": {
+      "before": true,
+      "after": false
+    },
+    "off": {
+      "readout": {
+        "raw": "LIVE DRAG 0.05 LIFT 0.03 CD 0.76 CL -2.12 CY 0.00 ΔD +0.02 ΔL +0.02 RE 29.33M FPS 60",
+        "drag": 0.05,
+        "lift": 0.03,
+        "deltaD": 0.02,
+        "deltaL": 0.02,
+        "reM": 29.33,
+        "fps": 60,
+        "live": true,
+        "idle": false
+      },
+      "screenshot": "output/playwright/qa-v4/rolling-wheels-off.png"
+    },
+    "rollingOn": {
+      "before": false,
+      "after": true
+    },
+    "wheelsOn": {
+      "before": false,
+      "after": true
+    },
+    "on": {
+      "readout": {
+        "raw": "LIVE DRAG 0.04 LIFT 0.03 CD 0.76 CL -2.12 CY 0.00 ΔD +0.02 ΔL +0.02 RE 29.33M FPS 60",
+        "drag": 0.04,
+        "lift": 0.03,
+        "deltaD": 0.02,
+        "deltaL": 0.02,
+        "reM": 29.33,
+        "fps": 60,
+        "live": true,
+        "idle": false
+      },
+      "screenshot": "output/playwright/qa-v4/rolling-wheels-on.png"
+    }
+  },
+  "performance": {
+    "proceduralInitial": {
+      "values": [
+        58,
+        60,
+        60,
+        60,
+        60,
+        60
+      ],
+      "min": 58,
+      "max": 60,
+      "avg": 59.7
+    },
+    "airfoilAfterChanges": {
+      "values": [
+        60,
+        60,
+        60,
+        60,
+        60,
+        60
+      ],
+      "min": 60,
+      "max": 60,
+      "avg": 60
+    },
+    "proceduralAfterDrs": {
+      "values": [
+        60,
+        55,
+        60,
+        60,
+        60,
+        60
+      ],
+      "min": 55,
+      "max": 60,
+      "avg": 59.2
+    }
+  },
+  "regressions": {
+    "learn": {
+      "route": "https://playful-peony-77899c.netlify.app/learn/",
+      "title": "",
+      "textExcerpt": "REPLAY-FIRST F1 VIEWER F1 Racing LIVE REPLAY MODELVIEW LEARN SESSIONS LEARN SURFACE Break the car into focused engineering reads. Six short modules. Mark each as read once you have walked through it; we will keep your progress in this browser. RECOMMENDED ORDER 0 / 6 read 0% Continue with Car /LEARN/CAR STEP 1 OF 6 Car Exploded car overview: power unit, chassis, aero surfaces, suspension, and tyres — and how they work together. Open module MARK AS READ View 3D car model → Continue to aero → /LEARN/AERO STEP 2 OF 6 Aero How airflow over and under the car generates downforce, reduces drag, and shapes the racing line. Open module MARK AS READ Continue to tyres → Continue to braking → /LEARN/TYRES STEP 3 OF 6 Tyres Compound windows, degradation curves, stint strategy, and the physics of tyre grip. Open module MARK AS READ Continue to braking → Continue to strategy → /LEARN/BRAKING STEP 4 OF ",
+      "screenshot": "output/playwright/qa-v4/regression-learn.png",
+      "modelState": {
+        "modelViewerPresent": false,
+        "modelSrc": null,
+        "overlayText": ""
+      }
+    },
+    "learnAero": {
+      "route": "https://playful-peony-77899c.netlify.app/learn/aero",
+      "title": "",
+      "textExcerpt": "REPLAY-FIRST F1 VIEWER F1 Racing LIVE REPLAY MODELVIEW LEARN SESSIONS LEARN MODULE Aero How airflow over and under the car generates downforce, reduces drag, and shapes the racing line. Step 2 of 6 · Aero Mark as read INLINE 3D MODEL Inspect while you read McLaren MCL39 Look at the sidepod undercut and floor edges as you orbit. DRAG TO ROTATE · SCROLL TO ZOOM CORE CONCEPTS Key points Downforce lets F1 cars corner at speeds that would be impossible with tyre grip alone. At high speed, an F1 car produces enough downforce to drive upside down. The front wing initiates the airflow — it directs clean air around the tires and shapes the flow that reaches the floor and rear wing. The floor and diffuser work as a venturi: the converging channel accelerates air underneath, creating low pressure that sucks the car toward the track. Dirty air behind the car disrupts following cars' aero — this is w",
+      "screenshot": "output/playwright/qa-v4/regression-learn-aero.png",
+      "modelState": {
+        "modelViewerPresent": true,
+        "modelSrc": "/models/2025/mclaren/mcl39.glb",
+        "overlayText": ""
+      }
+    },
+    "replay": {
+      "route": "https://playful-peony-77899c.netlify.app/replay/",
+      "title": "",
+      "textExcerpt": "REPLAY-FIRST F1 VIEWER F1 Racing LIVE REPLAY MODELVIEW LEARN SESSIONS DISCOVER AND REPLAY Find an exported F1 session and open the race workspace. Choose a session pack, open the replay workspace, and keep the track map, leaderboard, telemetry, race-control context, and driver analysis in one place. Open latest replay Open live feed Open modelview Open learn LATEST PACK Abu Dhabi Grand Prix Race replay workspace LIVE DESK Socket or simulator Use the OCI feed when available, with static fallback. MODELVIEW Current-spec cars Inspect local GLB race models and focus overlays. 2025 season pack Abu Dhabi Grand Prix · Race Coverage varies by available exported data NEWEST FIRST OLDEST FIRST 34 grand prix SEASON 2024 RACE + QUALIFYING British Grand Prix2 SESSIONS RACE WEEKEND 5 - 7 Jul 2024 · Race Sun 7 Jul Silverstone Circuit · 5.891 km · 18 corners Race and qualifying sessions exported. Race R",
+      "screenshot": "output/playwright/qa-v4/regression-replay.png",
+      "modelState": {
+        "modelViewerPresent": false,
+        "modelSrc": null,
+        "overlayText": ""
+      }
+    },
+    "live": {
+      "route": "https://playful-peony-77899c.netlify.app/live/",
+      "title": "",
+      "textExcerpt": "REPLAY-FIRST F1 VIEWER F1 Racing LIVE REPLAY MODELVIEW LEARN SESSIONS LIVE WORKSPACE Abu Dhabi Grand Prix Race live surface at Yas Marina Circuit. This route shares the replay map, leaderboard, and telemetry shell, but drives them from a socket-first live feed or a local replay-backed simulator. FEED Simulated Replay Last frame 0s ago STATUS LIVE REPLAY CLOCK 1:20 / 1:56:32 LAP 1 / 58 WEATHER 26.8C air · 31.4C track WIND 2.9 m/s · 328° Live OCI feed · speed 8.0x · displayed delay 0s REPLAY ROUTE ABU DHABI GRAND PRIX SUMMARY MODELVIEW LEARN DISPLAY DELAY 0S Click driver to inspect Shift+click to pin compare Esc clears selection TRACK STAGE Yas Marina Circuit Abu Dhabi Grand Prix · Abu Dhabi, AE Select cars from the map or leaderboard to pin them into the live telemetry deck. Socket-backed feeds pull chunks from OCI; static mode simulates the same surface from the replay pack. TRACK STATUS",
+      "screenshot": "output/playwright/qa-v4/regression-live.png",
+      "modelState": {
+        "modelViewerPresent": false,
+        "modelSrc": null,
+        "overlayText": ""
+      }
+    },
+    "sessions": {
+      "route": "https://playful-peony-77899c.netlify.app/sessions/",
+      "title": "",
+      "textExcerpt": "REPLAY-FIRST F1 VIEWER F1 Racing LIVE REPLAY MODELVIEW LEARN SESSIONS DISCOVER AND REPLAY Find an exported F1 session and open the race workspace. Sessions has been folded into Discover and Replay. Choose a pack here, then stay inside the replay workspace for track map, leaderboard, telemetry, and strategy context. Open latest replay Open live feed Open modelview Open learn LATEST PACK Abu Dhabi Grand Prix Race replay workspace LIVE DESK Socket or simulator Use the OCI feed when available, with static fallback. MODELVIEW Current-spec cars Inspect local GLB race models and focus overlays. 2025 season pack Abu Dhabi Grand Prix · Race Coverage varies by available exported data NEWEST FIRST OLDEST FIRST 34 grand prix SEASON 2024 RACE + QUALIFYING British Grand Prix2 SESSIONS RACE WEEKEND 5 - 7 Jul 2024 · Race Sun 7 Jul Silverstone Circuit · 5.891 km · 18 corners Race and qualifying sessions ",
+      "screenshot": "output/playwright/qa-v4/regression-sessions.png",
+      "modelState": {
+        "modelViewerPresent": false,
+        "modelSrc": null,
+        "overlayText": ""
+      }
+    }
+  },
+  "simulatedFallback": {
+    "svg": {
+      "buttonStates": [
+        {
+          "text": "Procedural",
+          "ariaSelected": "false",
+          "className": "wind-tunnel__mode-button"
+        },
+        {
+          "text": "Airfoil",
+          "ariaSelected": "false",
+          "className": "wind-tunnel__mode-button"
+        },
+        {
+          "text": "SVG art",
+          "ariaSelected": "true",
+          "className": "wind-tunnel__mode-button wind-tunnel__mode-button--active"
+        },
+        {
+          "text": "GLB hull",
+          "ariaSelected": "false",
+          "className": "wind-tunnel__mode-button"
+        }
+      ],
+      "sourceLabel": "SILHOUETTE: -",
+      "overlayText": [
+        "Silhouette not available for this constructor yet.\n\nSwitch to Procedural or Airfoil mode for the live solver while this constructor-specific outline is prepared."
+      ],
+      "controlsText": "AIRSPEED\n80 M/S\nYAW\n0°\nWIND RAKE\n48%\nPARTICLES\n320\nDRS OPEN\nROLLING ROAD\nWHEELS ROTATING\nSTREAKLINES\nPRESSURE (LIVE)",
+      "readout": {
+        "raw": "IDLE DRAG 0.00 LIFT 0.00 CD 0.76 CL -2.12 CY 0.00 ΔD +0.00 ΔL +0.00 RE 29.33M FPS 63",
+        "drag": 0,
+        "lift": 0,
+        "deltaD": 0,
+        "deltaL": 0,
+        "reM": 29.33,
+        "fps": 63,
+        "live": false,
+        "idle": true
+      },
+      "screenshot": "output/playwright/qa-v4/fallback-svg-missing-profile.png"
+    },
+    "glb": {
+      "buttonStates": [
+        {
+          "text": "Procedural",
+          "ariaSelected": "false",
+          "className": "wind-tunnel__mode-button"
+        },
+        {
+          "text": "Airfoil",
+          "ariaSelected": "false",
+          "className": "wind-tunnel__mode-button"
+        },
+        {
+          "text": "SVG art",
+          "ariaSelected": "false",
+          "className": "wind-tunnel__mode-button"
+        },
+        {
+          "text": "GLB hull",
+          "ariaSelected": "true",
+          "className": "wind-tunnel__mode-button wind-tunnel__mode-button--active"
+        }
+      ],
+      "sourceLabel": "SILHOUETTE: -",
+      "overlayText": [
+        "Silhouette not available for this constructor yet.\n\nSwitch to Procedural or Airfoil mode for the live solver while this constructor-specific outline is prepared."
+      ],
+      "controlsText": "AIRSPEED\n80 M/S\nYAW\n0°\nWIND RAKE\n48%\nPARTICLES\n320\nDRS OPEN\nROLLING ROAD\nWHEELS ROTATING\nSTREAKLINES\nPRESSURE (LIVE)",
+      "readout": {
+        "raw": "IDLE DRAG 0.00 LIFT 0.00 CD 0.76 CL -2.12 CY 0.00 ΔD +0.00 ΔL +0.00 RE 29.33M FPS 63",
+        "drag": 0,
+        "lift": 0,
+        "deltaD": 0,
+        "deltaL": 0,
+        "reM": 29.33,
+        "fps": 63,
+        "live": false,
+        "idle": true
+      },
+      "screenshot": "output/playwright/qa-v4/fallback-glb-missing-profile.png"
+    }
+  },
+  "artifacts": {
+    "modelview-primary-top": "output/playwright/qa-v4/modelview-primary-top.png",
+    "modelview-wind-tunnel-initial": "output/playwright/qa-v4/modelview-wind-tunnel-initial.png",
+    "mode-procedural": "output/playwright/qa-v4/mode-procedural.png",
+    "mode-airfoil": "output/playwright/qa-v4/mode-airfoil.png",
+    "mode-svg-art": "output/playwright/qa-v4/mode-svg-art.png",
+    "mode-glb-hull": "output/playwright/qa-v4/mode-glb-hull.png",
+    "airfoil-aoa-negative": "output/playwright/qa-v4/airfoil-aoa-negative.png",
+    "airfoil-aoa-positive": "output/playwright/qa-v4/airfoil-aoa-positive.png",
+    "procedural-drs-closed": "output/playwright/qa-v4/procedural-drs-closed.png",
+    "procedural-drs-open": "output/playwright/qa-v4/procedural-drs-open.png",
+    "yaw-minus-15": "output/playwright/qa-v4/yaw-minus-15.png",
+    "yaw-zero": "output/playwright/qa-v4/yaw-zero.png",
+    "yaw-plus-15": "output/playwright/qa-v4/yaw-plus-15.png",
+    "wind-rake-low": "output/playwright/qa-v4/wind-rake-low.png",
+    "wind-rake-high": "output/playwright/qa-v4/wind-rake-high.png",
+    "wind-rake-click-upper": "output/playwright/qa-v4/wind-rake-click-upper.png",
+    "wind-rake-click-lower": "output/playwright/qa-v4/wind-rake-click-lower.png",
+    "wind-probe-hover": "output/playwright/qa-v4/wind-probe-hover.png",
+    "rolling-wheels-before": "output/playwright/qa-v4/rolling-wheels-before.png",
+    "rolling-wheels-off": "output/playwright/qa-v4/rolling-wheels-off.png",
+    "rolling-wheels-on": "output/playwright/qa-v4/rolling-wheels-on.png",
+    "fallback-svg-missing-profile": "output/playwright/qa-v4/fallback-svg-missing-profile.png",
+    "fallback-glb-missing-profile": "output/playwright/qa-v4/fallback-glb-missing-profile.png",
+    "regression-learn": "output/playwright/qa-v4/regression-learn.png",
+    "regression-learn-aero": "output/playwright/qa-v4/regression-learn-aero.png",
+    "regression-replay": "output/playwright/qa-v4/regression-replay.png",
+    "regression-live": "output/playwright/qa-v4/regression-live.png",
+    "regression-sessions": "output/playwright/qa-v4/regression-sessions.png"
+  },
+  "rerun": {
+    "modelState": {
+      "viewerLoadedProp": true,
+      "loadingInDom": true,
+      "loadingText": "Loading FIA 2026 concept car · ~3.7 MB",
+      "loadingRect": {
+        "x": 160,
+        "y": 1444.28125,
+        "width": 358.234375,
+        "height": 38
+      },
+      "loadingDisplay": "block",
+      "loadingVisibility": "visible",
+      "loadingOpacity": "1"
+    },
+    "yaw": {
+      "zero": {
+        "value": 0,
+        "readout": {
+          "raw": "LIVE DRAG 0.05 LIFT 0.03 CD 0.76 CL -2.12 CY 0.00 ΔD -0.00 ΔL -0.00 RE 29.33M FPS 60",
+          "drag": 0.05,
+          "lift": 0.03,
+          "cd": 0.76,
+          "cl": -2.12,
+          "cy": 0,
+          "fps": 60,
+          "reM": 29.33
+        }
+      },
+      "plus15": {
+        "value": 15,
+        "readout": {
+          "raw": "LIVE DRAG 0.07 LIFT 0.13 CD 0.81 CL -2.31 CY 0.36 ΔD +0.02 ΔL +0.10 RE 29.33M FPS 60",
+          "drag": 0.07,
+          "lift": 0.13,
+          "cd": 0.81,
+          "cl": -2.31,
+          "cy": 0.36,
+          "fps": 60,
+          "reM": 29.33
+        },
+        "screenshot": "output/playwright/qa-v4/yaw-plus-15-rerun.png"
+      },
+      "minus15": {
+        "value": -15,
+        "readout": {
+          "raw": "LIVE DRAG 0.04 LIFT -0.05 CD 0.81 CL -2.31 CY -0.36 ΔD -0.01 ΔL -0.09 RE 29.33M FPS 60",
+          "drag": 0.04,
+          "lift": -0.05,
+          "cd": 0.81,
+          "cl": -2.31,
+          "cy": -0.36,
+          "fps": 60,
+          "reM": 29.33
+        },
+        "screenshot": "output/playwright/qa-v4/yaw-minus-15-rerun.png"
+      }
+    },
+    "probeOutside": {
+      "text": "U\n104.7 m/s\nCp\n-0.000\nω\n-0.006\nd\n-",
+      "screenshot": "output/playwright/qa-v4/wind-probe-hover-outside.png"
+    },
+    "consoleEvents": [
+      {
+        "type": "warning",
+        "text": "[.WebGL-0x629c001bf800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+      }
+    ],
+    "network": [
+      {
+        "status": 200,
+        "url": "https://playful-peony-77899c.netlify.app/models/2026/fia-spec/fia-2026.glb"
+      }
+    ]
+  },
+  "rerun2": {
+    "loadingScreenshot": "output/playwright/qa-v4/modelview-loading-bar-stuck.png",
+    "glbSettledScreenshot": "output/playwright/qa-v4/mode-glb-hull-settled-12s.png",
+    "glbText": "WIND TUNNEL · 2D NAVIER-STOKES Airflow simulation around FIA 2026 concept car 320 × 144 grid, semi-Lagrangian advection with 20 Jacobi pressure projections per tick, running in a Web Worker. Streaklines are particles advected through the live u/v field; boundary tint is the pressure (Cp) at the surface. Visual guide for intuition: controls alter the obstacle and inlet field, but coefficients remain illustrative. CLICK THE CANVAS TO PLACE THE WIND RAKE · HOVER TO PROBE U/CP/VORTICITY LIVE DRAG 0.10 LIFT 0.00 CD 0.76 CL -2.12 CY 0.00 ΔD +0.01 ΔL +0.01 RE 29.33M FPS 52 PROCEDURAL AIRFOIL SVG ART GLB HULL SILHOUETTE: GLB AIRSPEED 80 M/S YAW 0° WIND RAKE 48% PARTICLES 320 DRS OPEN ROLLING ROAD WHEELS ROTATING STREAKLINES PRESSURE (LIVE)"
+  },
+  "rerun3": {
+    "constructorAero": {
+      "fia-2026": {
+        "title": "FIA 2026 concept car",
+        "readout": {
+          "raw": "LIVE DRAG 0.05 LIFT 0.03 CD 0.76 CL -2.12 CY 0.00 ΔD -0.00 ΔL -0.00 RE 29.33M FPS 60",
+          "drag": 0.05,
+          "lift": 0.03,
+          "cd": 0.76,
+          "cl": -2.12,
+          "cy": 0,
+          "fps": 60
+        },
+        "screenshot": "output/playwright/qa-v4/constructor-fia-2026-procedural.png"
+      },
+      "red-bull": {
+        "title": "Red Bull RB21",
+        "readout": {
+          "raw": "LIVE DRAG 0.05 LIFT 0.03 CD 0.83 CL -2.85 CY 0.00 ΔD -0.00 ΔL -0.00 RE 29.33M FPS 60",
+          "drag": 0.05,
+          "lift": 0.03,
+          "cd": 0.83,
+          "cl": -2.85,
+          "cy": 0,
+          "fps": 60
+        },
+        "screenshot": "output/playwright/qa-v4/constructor-red-bull-procedural.png"
+      },
+      "mclaren": {
+        "title": "McLaren MCL39",
+        "readout": {
+          "raw": "LIVE DRAG 0.05 LIFT 0.03 CD 0.82 CL -2.78 CY 0.00 ΔD -0.00 ΔL -0.00 RE 29.33M FPS 60",
+          "drag": 0.05,
+          "lift": 0.03,
+          "cd": 0.82,
+          "cl": -2.78,
+          "cy": 0,
+          "fps": 60
+        },
+        "screenshot": "output/playwright/qa-v4/constructor-mclaren-procedural.png"
+      }
+    },
+    "ausReplay": {
+      "url": "https://playful-peony-77899c.netlify.app/replay/2025/australian-grand-prix/race/",
+      "textExcerpt": "REPLAY-FIRST F1 VIEWER F1 Racing LIVE REPLAY MODELVIEW LEARN SESSIONS REPLAY WORKSPACE Australian Grand Prix Race replay at Melbourne. One dense control surface for order, track state, telemetry, and comparison work. STATUS GREEN REPLAY CLOCK 0:00 / 1:46:08 LAP 1 / 57 TRACK Melbourne WEATHER 15.7C air · 19.2C track WIND 3.9 m/s · 253° Replay timing derived from OpenF1 lap, stint, weather, race control, and car telemetry data. Track coordinates remain synthetic until a GPS-backed builder is used. REPLAY LIBRARY MODELVIEW LEARN SESSION SUMMARY TRACK STAGE Melbourne Drag to pan · Shift+wheel to zoom · Right-drag (or Alt+drag) to rotate · Double-click to reset · Click a marker to inspect. TRACK STATUS GREEN SELECTED 0 TOOLTIP 7 MESSAGES 98 OPENF1 FEED LEADER VER FASTEST NOR · 1:22.167 SELECTED 0 RACE CONTROL SessionStatus T+0s · Lap 1 · SESSION STARTED 1 VER Leader 2 NOR +0.000 3 BOR +0.000 -5m -1m -30s -5s Prev lap PLAYSPACE Next lap ↺ Restart LOADED TO 47:52 LOAD FULL RACE +5s +30s +1m +5m GREEN 0:00 ELAPSED -1:46:08 REMAINING Lap 1 / 57 Loaded 47:52 / 1:46:08 SPEED 0.1x 0.2x 0.5x 1x 2x 4x 8x 16x 20x LABELS L DRS D EVENTS B MARSHALS M IN I OUT O LOOP ⌨ SHORTCUTS ? Space play/pause · arrows seek · Shift+arrows 30s · [ ] laps · R restart · 1-5 speed presets · I/O loop · ? help CURRENT READ VER anchors the replay Use the stage and order rail as the fast layer. The deck below is for telemetry, compare, and tyre-window reads. LEADER VER · Red Bull Racing FASTEST LAP NOR · 1:22.167 SELECTED No drivers selected HOTKEYS Space · [ ] · 1-4x LIVE ORDER Leaderboard CLICK TO INSPECT · SHIFT-CLICK FOR COMPARE LIST TICKER POS DRIVER GAP TO LEADER TYRE 1 VER Max VERSTAPPEN Red Bull Racing Leader Out lap I FRESH 2 NOR Lando NORRIS McLaren +0.000 Out lap I FRESH 3 BOR Gabriel BORTOLETO Kic",
+      "screenshot": "output/playwright/qa-v4/regression-aus-replay.png"
+    },
+    "liveRaceControl": {
+      "textAroundRaceControl": "inspect Shift+click to pin compare Esc clears selection TRACK STAGE Yas Marina Circuit Abu Dhabi Grand Prix · Abu Dhabi, AE Select cars from the map or leaderboard to pin them into the live telemetry deck. Socket-backed feeds pull chunks from OCI; static mode simulates the same surface from the replay pack. TRACK STATUS GREEN SELECTED 0 MESSAGES 1 RACE CONTROL Hide RACE CONTROL SessionStatus T+0s · Lap 1 · SESSION STARTED LIVE READ VER leads the live feed This surface mirrors the replay workspace but lets you keep an always-on live board while the backend streams session frames. Use replay afterward for fine-grained scrubbing. LEADER VER · Red Bull Racing FEED SOURCE Simulated Replay SESSION Race SELECTED No drivers selected LIVE ORDER Leaderboard CLICK TO INSPECT · SHIFT-CLICK FOR COMPARE POS DRIVER GAP TO LEADER TYRE 1 VER Max VERSTAPPEN Red Bull Racing Leader 147 km/h M FRESH 2 PIA Oscar PIASTRI McLaren +0.967 143 km/h H FRESH 3 NOR Lando NORRIS McLaren +2.086 145 km/h M FRESH 4 LEC Charles LECLERC Ferrari +2.576 133 km/h M FRESH 5 ALO Fernando ALONSO Aston Martin +2.842 131 km/h M 1 laps 6 RUS George RUSSELL Mercedes +3.233 126 km/h M FRESH 7 BOR Gabriel BORTOLETO Kick Sauber +3.622 130 km/h M FRESH 8 HAD Isack HADJAR Racing Bulls +4.157 117 km/h M FRESH 9 OCO Esteban OCON Haas F1 Team +4.519 130 km/h M FRESH 10 TSU Yuki TSUNODA Red Bull Racing +4.926 130 km/h H FRESH 11 LAW Liam LAWSON Racing Bulls +5.202 108 km/h M FRESH 12 BEA Oliver BEARMAN Haas F1 Team +5.471 107 km/h M FRESH 13 SAI Carlos SAINZ Williams +5.908 84 k",
+      "screenshot": "output/playwright/qa-v4/regression-live-race-control.png"
+    },
+    "console": [
+      {
+        "page": "constructor-fia-2026",
+        "type": "warning",
+        "text": "[.WebGL-0x6654001bec00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+      },
+      {
+        "page": "constructor-red-bull",
+        "type": "warning",
+        "text": "[.WebGL-0x32c001c1400]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+      },
+      {
+        "page": "constructor-mclaren",
+        "type": "warning",
+        "text": "[.WebGL-0x4e84001c1400]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): Running out of reserved outsideRenderPass queueSerial. ending renderPass now."
+      },
+      {
+        "page": "constructor-mclaren",
+        "type": "warning",
+        "text": "[.WebGL-0x4e84001c1400]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+      }
+    ],
+    "network": [
+      {
+        "page": "aus-replay",
+        "status": 200,
+        "url": "https://playful-peony-77899c.netlify.app/replay/2025/australian-grand-prix/race/"
+      },
+      {
+        "page": "aus-replay",
+        "status": 200,
+        "url": "https://playful-peony-77899c.netlify.app/_next/static/chunks/app/replay/%5Bseason%5D/%5BgrandPrix%5D/%5Bsession%5D/page-6f7a0608185477ae.js"
+      },
+      {
+        "page": "aus-replay",
+        "status": 200,
+        "url": "https://f1-api.129.150.58.64.sslip.io/api/replay/2025/australian-grand-prix/race/chunk/0"
+      },
+      {
+        "page": "aus-replay",
+        "status": 200,
+        "url": "https://f1-api.129.150.58.64.sslip.io/api/replay/2025/australian-grand-prix/race/chunk/2"
+      },
+      {
+        "page": "aus-replay",
+        "status": 200,
+        "url": "https://f1-api.129.150.58.64.sslip.io/api/replay/2025/australian-grand-prix/race/chunk/1"
+      },
+      {
+        "page": "aus-replay",
+        "status": 200,
+        "url": "https://playful-peony-77899c.netlify.app/data/packs/seasons/2025/australian-grand-prix/race/strategy.json"
+      },
+      {
+        "page": "aus-replay",
+        "status": 200,
+        "url": "https://playful-peony-77899c.netlify.app/data/packs/seasons/2025/australian-grand-prix/race/drivers.json"
+      },
+      {
+        "page": "aus-replay",
+        "status": 200,
+        "url": "https://playful-peony-77899c.netlify.app/data/packs/seasons/2025/australian-grand-prix/race/replay.race-control.json"
+      },
+      {
+        "page": "aus-replay",
+        "status": 200,
+        "url": "https://playful-peony-77899c.netlify.app/data/packs/seasons/2025/australian-grand-prix/race/replay.laps.json"
+      },
+      {
+        "page": "aus-replay",
+        "status": 200,
+        "url": "https://playful-peony-77899c.netlify.app/data/packs/seasons/2025/australian-grand-prix/race/laps.json"
+      },
+      {
+        "page": "live-race-control",
+        "status": 200,
+        "url": "https://f1-api.129.150.58.64.sslip.io/api/live/status"
+      }
+    ]
+  }
+}

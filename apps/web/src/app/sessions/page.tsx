@@ -1,5 +1,5 @@
-import { ReplayLibrary } from "@/components/replay/replay-library";
+import { redirect } from "next/navigation";
 
 export default async function SessionsPage() {
-  return <ReplayLibrary aliasMode />;
+  redirect("/replay");
 }

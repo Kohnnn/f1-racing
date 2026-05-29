@@ -181,6 +181,27 @@ function formatSlugLabel(value: string) {
     .join(" ");
 }
 
+function formatLiveSourceLabel(value: string | null | undefined) {
+  const normalized = value?.toLowerCase() ?? "";
+  if (normalized.includes("live") || normalized.includes("oci")) {
+    return "OCI live";
+  }
+  if (normalized.includes("replay") || normalized.includes("sim")) {
+    return "OCI replay fallback";
+  }
+  return value ? formatSlugLabel(value) : "OCI live";
+}
+
+function normalizeRaceControlMessages(messages: ReplayRaceControlMessage[], totalTime: number) {
+  const msThreshold = totalTime > 0 ? totalTime * 1.5 : 7200;
+  return messages
+    .map((message) => ({
+      ...message,
+      t: message.t > msThreshold ? message.t / 1000 : message.t,
+    }))
+    .sort((left, right) => left.t - right.t);
+}
+
 function buildSessionBasePath(route: Pick<LiveSessionRef, "season" | "grandPrix" | "session">) {
   return `/data/packs/seasons/${route.season}/${route.grandPrix}/${route.session}`;
 }
@@ -197,6 +218,10 @@ function buildReplayMetaUrl(route: Pick<LiveSessionRef, "season" | "grandPrix" |
 
 function buildReplayLapsUrl(route: Pick<LiveSessionRef, "season" | "grandPrix" | "session">) {
   return `${buildSessionBasePath(route)}/replay.laps.json`;
+}
+
+function buildReplayRaceControlUrl(route: Pick<LiveSessionRef, "season" | "grandPrix" | "session">) {
+  return `${buildSessionBasePath(route)}/replay.race-control.json`;
 }
 
 function buildReplayFullUrl(route: Pick<LiveSessionRef, "season" | "grandPrix" | "session">) {
@@ -245,7 +270,7 @@ export function LiveRouteClient({
     loading: false,
     connected: false,
     finished: false,
-    sourceLabel: apiOrigin ? "Connecting to OCI live feed" : "Local replay simulator",
+    sourceLabel: apiOrigin ? "Connecting to OCI live" : "Local replay simulator",
     frame: initialFrame,
     rcMessages: [],
     error: null,
@@ -355,13 +380,16 @@ export function LiveRouteClient({
       loading: previous.frame ? false : true,
       connected: false,
       finished: false,
-      sourceLabel: apiOrigin ? "OCI live feed" : "Local replay simulator",
+      sourceLabel: apiOrigin ? "OCI live" : "Local replay simulator",
       error: null,
     }));
 
     async function startStaticSimulation() {
       try {
-        const replay = await fetchJson<ReplayPack>(buildReplayFullUrl(sessionRef));
+        const [replay, raceControlPack] = await Promise.all([
+          fetchJson<ReplayPack>(buildReplayFullUrl(sessionRef)),
+          fetchJson<ReplayRaceControlMessage[]>(buildReplayRaceControlUrl(sessionRef)).catch(() => null),
+        ]);
         if (cancelled) {
           return;
         }
@@ -374,7 +402,10 @@ export function LiveRouteClient({
         }));
 
         const frames = replay.frames;
-        const raceControlMessages = replay.raceControlMessages ?? [];
+        const raceControlMessages = normalizeRaceControlMessages(
+          raceControlPack ?? replay.raceControlMessages ?? [],
+          replay.totalTime ?? frames.at(-1)?.t ?? 0,
+        );
         let index = 0;
         let rcIndex = 0;
         const visibleMessages: ReplayRaceControlMessage[] = [];
@@ -383,7 +414,8 @@ export function LiveRouteClient({
           ...previous,
           loading: false,
           connected: true,
-          sourceLabel: apiOrigin ? "Local replay fallback" : "Local replay simulator",
+          sourceLabel: apiOrigin ? "OCI replay fallback" : "Local replay simulator",
+          isSimulated: true,
         }));
 
         const tick = () => {
@@ -466,7 +498,7 @@ export function LiveRouteClient({
           setFeed((previous) => ({
             ...previous,
             loading: previous.frame ? false : true,
-            sourceLabel: message.source ? formatSlugLabel(message.source) : previous.sourceLabel,
+            sourceLabel: message.source ? formatLiveSourceLabel(message.source) : previous.sourceLabel,
           }));
           return;
         }
@@ -476,7 +508,8 @@ export function LiveRouteClient({
             ...previous,
             loading: false,
             finished: false,
-            sourceLabel: message.source ? formatSlugLabel(message.source) : previous.sourceLabel,
+            sourceLabel: message.source ? formatLiveSourceLabel(message.source) : "OCI live",
+            isSimulated: false,
           }));
           return;
         }
@@ -486,8 +519,9 @@ export function LiveRouteClient({
             ...previous,
             loading: false,
             frame: message.frame || null,
-            rcMessages: message.rcMessages || [],
+            rcMessages: normalizeRaceControlMessages(message.rcMessages || [], replayMeta.totalTime ?? 0).slice(-6),
             lastFrameAt: Date.now(),
+            sourceLabel: message.source ? formatLiveSourceLabel(message.source) : "OCI live",
             isSimulated: false,
           }));
           return;
@@ -790,8 +824,8 @@ export function LiveRouteClient({
         <div className="replay-session-banner__footer">
           <p className="replay-session-banner__note">
             {feed.isSimulated
-              ? `Simulated from the latest ${activeSession.sessionName.toLowerCase()} replay · speed ${speed.toFixed(1)}x`
-              : `Live OCI feed · speed ${speed.toFixed(1)}x · displayed delay ${delaySeconds}s`}
+              ? `${feed.sourceLabel} · replay speed ${speed.toFixed(1)}x`
+              : `${feed.sourceLabel} · speed ${speed.toFixed(1)}x · displayed delay ${delaySeconds}s`}
           </p>
           <div className="replay-session-banner__actions">
             <a className="replay-session-banner__action replay-session-banner__action--primary" href={`/replay/${activeSession.season}/${activeSession.grandPrix}/${activeSession.session}`}>Replay route</a>

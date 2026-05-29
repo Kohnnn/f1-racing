@@ -1,0 +1,193 @@
+{
+  "base": "http://127.0.0.1:4173",
+  "date": "2026-05-28T18:33:11.260Z",
+  "checks": {
+    "modelview": {
+      "modelState": {
+        "loaded": true,
+        "src": "/models/2026/fia-spec/fia-2026.glb"
+      },
+      "loadingVisible": 0,
+      "windVisible": true,
+      "console": [
+        {
+          "type": "warning",
+          "text": "[.WebGL-0x5124001c3800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+        }
+      ],
+      "errors": [],
+      "responses": [
+        {
+          "status": 200,
+          "url": "http://127.0.0.1:4173/models/2026/fia-spec/fia-2026.glb"
+        }
+      ]
+    },
+    "drs": {
+      "closed": {
+        "text": "LIVE DRAG 1.488 LIFT 0.000 CD EST 0.76 CL EST -2.12 CY EST 0.00 ΔD +0.040 ΔL -0.000 RE 29.33M FPS 60",
+        "drag": 1.488,
+        "lift": 0,
+        "cd": 0.76,
+        "cl": -2.12,
+        "cy": 0
+      },
+      "open": {
+        "text": "LIVE DRAG 1.400 LIFT 0.000 CD EST 0.68 CL EST -1.95 CY EST 0.00 ΔD -0.101 ΔL +0.000 RE 29.33M FPS 60",
+        "drag": 1.4,
+        "lift": 0,
+        "cd": 0.68,
+        "cl": -1.95,
+        "cy": 0
+      },
+      "dragDeltaPct": -5.913978494623661,
+      "console": [
+        {
+          "type": "warning",
+          "text": "[.WebGL-0x5124001c3800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+        }
+      ],
+      "errors": []
+    },
+    "ausReplay": {
+      "replayLoaded": {
+        "loaded": "1:46:08",
+        "total": "1:46:08",
+        "loadedSeconds": 6368,
+        "totalSeconds": 6368
+      },
+      "loadFullVisible": false,
+      "url": "http://127.0.0.1:4173/replay/2025/australian-grand-prix/race/",
+      "console": [],
+      "errors": [],
+      "responses": [
+        {
+          "status": 200,
+          "url": "http://127.0.0.1:4173/data/packs/seasons/2025/australian-grand-prix/race/replay.frames/chunk-000.json"
+        },
+        {
+          "status": 200,
+          "url": "http://127.0.0.1:4173/data/packs/seasons/2025/australian-grand-prix/race/replay.frames/chunk-005.json"
+        },
+        {
+          "status": 200,
+          "url": "http://127.0.0.1:4173/data/packs/seasons/2025/australian-grand-prix/race/replay.frames/chunk-001.json"
+        },
+        {
+          "status": 200,
+          "url": "http://127.0.0.1:4173/data/packs/seasons/2025/australian-grand-prix/race/replay.frames/chunk-002.json"
+        },
+        {
+          "status": 200,
+          "url": "http://127.0.0.1:4173/data/packs/seasons/2025/australian-grand-prix/race/replay.frames/chunk-003.json"
+        },
+        {
+          "status": 200,
+          "url": "http://127.0.0.1:4173/data/packs/seasons/2025/australian-grand-prix/race/replay.frames/chunk-004.json"
+        },
+        {
+          "status": 200,
+          "url": "http://127.0.0.1:4173/data/packs/seasons/2025/australian-grand-prix/race/strategy.json"
+        },
+        {
+          "status": 200,
+          "url": "http://127.0.0.1:4173/data/packs/seasons/2025/australian-grand-prix/race/drivers.json"
+        },
+        {
+          "status": 200,
+          "url": "http://127.0.0.1:4173/data/packs/seasons/2025/australian-grand-prix/race/stints.json"
+        },
+        {
+          "status": 200,
+          "url": "http://127.0.0.1:4173/data/packs/seasons/2025/australian-grand-prix/race/compare/nor-ver.json"
+        },
+        {
+          "status": 200,
+          "url": "http://127.0.0.1:4173/data/packs/seasons/2025/australian-grand-prix/race/laps.json"
+        },
+        {
+          "status": 200,
+          "url": "http://127.0.0.1:4173/data/packs/seasons/2025/australian-grand-prix/race/replay.race-control.json"
+        },
+        {
+          "status": 200,
+          "url": "http://127.0.0.1:4173/data/packs/seasons/2025/australian-grand-prix/race/replay.laps.json"
+        },
+        {
+          "status": 200,
+          "url": "http://127.0.0.1:4173/data/packs/seasons/2025/australian-grand-prix/race/replay.frames/chunk-006.json"
+        }
+      ]
+    },
+    "live": {
+      "messagesCount": 2,
+      "source": "Local replay simulator",
+      "bannerSource": "Local replay simulator",
+      "rcLines": [
+        "T+0s · Lap 1 · SESSION STARTED",
+        "T+99s · Lap 2 · DRS ENABLED"
+      ],
+      "console": [],
+      "errors": [],
+      "responses": [
+        {
+          "status": 200,
+          "url": "http://127.0.0.1:4173/data/packs/seasons/2025/abu-dhabi-grand-prix/race/replay.race-control.json"
+        },
+        {
+          "status": 200,
+          "url": "http://127.0.0.1:4173/data/packs/seasons/2025/abu-dhabi-grand-prix/race/replay.json"
+        }
+      ]
+    },
+    "learn": {
+      "url": "http://127.0.0.1:4173/learn/",
+      "title": "Learn · F1 Racing",
+      "bodyStart": "REPLAY-FIRST F1 VIEWER\nF1 Racing\nLIVE\nREPLAY\nMODELVIEW\nLEARN\n\nLEARN SURFACE\n\nBreak the car into focused engineering reads.\n\nSix short modules. Mark each as read once you have walked through it; we will keep your progress in this browser.\n\nRECOMMENDED ORDER\n\n0 / 6 read\n0%\nContinue with Car\n\n/LEARN/CAR\n\nSTEP 1 OF 6\nCar\n\nExploded car overview: power unit, chassis, aero surfaces, suspension, and tyres — and how they work together.\n\nOpen module\nMARK AS READ\nView 3D car model →\nContinue to aero →\n\n/LE",
+      "console": [],
+      "errors": []
+    },
+    "learnAero": {
+      "url": "http://127.0.0.1:4173/learn/aero/",
+      "title": "Aero · F1 Racing",
+      "bodyStart": "REPLAY-FIRST F1 VIEWER\nF1 Racing\nLIVE\nREPLAY\nMODELVIEW\nLEARN\n\nLEARN MODULE\n\nAero\n\nHow airflow over and under the car generates downforce, reduces drag, and shapes the racing line.\n\nStep 2\nof 6\n· Aero\nMark as read\n\nINLINE 3D MODEL\n\nInspect while you read\nMcLaren MCL39\nLook at the sidepod undercut and floor edges as you orbit.\nDRAG TO ROTATE · SCROLL TO ZOOM\n\nCORE CONCEPTS\n\nKey points\nDownforce lets F1 cars corner at speeds that would be impossible with tyre grip alone. At high speed, an F1 car pr",
+      "console": [
+        {
+          "type": "warning",
+          "text": "[.WebGL-0x5124001c5600]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): Running out of reserved outsideRenderPass queueSerial. ending renderPass now."
+        },
+        {
+          "type": "warning",
+          "text": "[.WebGL-0x5124001c5600]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+        },
+        {
+          "type": "warning",
+          "text": "[.WebGL-0x5124001c5600]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+        },
+        {
+          "type": "warning",
+          "text": "[.WebGL-0x5124001c5600]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat)"
+        }
+      ],
+      "errors": []
+    },
+    "replayLibrary": {
+      "url": "http://127.0.0.1:4173/replay/",
+      "title": "Replay · F1 Racing",
+      "bodyStart": "REPLAY-FIRST F1 VIEWER\nF1 Racing\nLIVE\nREPLAY\nMODELVIEW\nLEARN\n\nDISCOVER AND REPLAY\n\nFind an exported F1 session and open the race workspace.\n\nChoose a session pack, open the replay workspace, and keep the track map, leaderboard, telemetry, race-control context, and driver analysis in one place.\n\nOpen latest replay\nOpen live feed\nOpen modelview\nOpen learn\nLATEST PACK\nAbu Dhabi Grand Prix\nRace replay workspace\nLIVE DESK\nSocket or simulator\nUse the OCI feed when available, with static fallback.\nMODE",
+      "console": [],
+      "errors": []
+    },
+    "sessions": {
+      "url": "http://127.0.0.1:4173/replay/",
+      "title": "Replay · F1 Racing",
+      "bodyStart": "REPLAY-FIRST F1 VIEWER\nF1 Racing\nLIVE\nREPLAY\nMODELVIEW\nLEARN\n\nDISCOVER AND REPLAY\n\nFind an exported F1 session and open the race workspace.\n\nChoose a session pack, open the replay workspace, and keep the track map, leaderboard, telemetry, race-control context, and driver analysis in one place.\n\nOpen latest replay\nOpen live feed\nOpen modelview\nOpen learn\nLATEST PACK\nAbu Dhabi Grand Prix\nRace replay workspace\nLIVE DESK\nSocket or simulator\nUse the OCI feed when available, with static fallback.\nMODE",
+      "console": [],
+      "errors": []
+    },
+    "ociHealth": {
+      "status": 200,
+      "body": "{\"ok\":true,\"service\":\"f1-racing-api\"}"
+    }
+  }
+}

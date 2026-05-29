@@ -989,11 +989,11 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
         <div className="wind-tunnel__stage-hint">Click the canvas to place the wind rake · hover to probe U/Cp/vorticity</div>
         <div className="wind-tunnel__readout">
           <span className={`wind-tunnel__live${readout?.live ? " wind-tunnel__live--on" : ""}`}>{readout?.live ? "live" : "idle"}</span>
-          <span>Drag <strong>{readout?.drag.toFixed(2) ?? "-"}</strong></span>
-          <span>Lift <strong>{readout?.lift.toFixed(2) ?? "-"}</strong></span>
-          <span>Cd <strong>{estimatedCd.toFixed(2)}</strong></span>
-          <span>Cl <strong>{estimatedCl.toFixed(2)}</strong></span>
-          <span>Cy <strong>{estimatedCy.toFixed(2)}</strong></span>
+          <span>Drag <strong>{readout ? formatForce(readout.drag) : "-"}</strong></span>
+          <span>Lift <strong>{readout ? formatForce(readout.lift) : "-"}</strong></span>
+          <span>Cd est <strong>{estimatedCd.toFixed(2)}</strong></span>
+          <span>Cl est <strong>{estimatedCl.toFixed(2)}</strong></span>
+          <span>Cy est <strong>{estimatedCy.toFixed(2)}</strong></span>
           <span>ΔD <strong>{readout ? signed(dragDelta) : "-"}</strong></span>
           <span>ΔL <strong>{readout ? signed(liftDelta) : "-"}</strong></span>
           <span>Re <strong>{readout?.reynolds ? `${(readout.reynolds / 1e6).toFixed(2)}M` : "-"}</strong></span>
@@ -1269,5 +1269,10 @@ function spawnParticleY(center: number) {
 
 function signed(value: number) {
   if (!Number.isFinite(value)) return "-";
-  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}`;
+  return `${value >= 0 ? "+" : ""}${formatForce(value)}`;
+}
+
+function formatForce(value: number) {
+  if (!Number.isFinite(value)) return "-";
+  return Math.abs(value) < 10 ? value.toFixed(3) : value.toFixed(2);
 }

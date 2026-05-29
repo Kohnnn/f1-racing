@@ -78,6 +78,7 @@ type ModelViewerElement = HTMLElement & {
   cameraOrbit?: string;
   cameraTarget?: string;
   fieldOfView?: string;
+  loaded?: boolean;
   resetTurntableRotation?: () => void;
   jumpCameraToGoal?: () => void;
 };
@@ -133,6 +134,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
   const searchParams = useSearchParams();
   const viewerRef = useRef<ModelViewerElement | null>(null);
   const [modelReady, setModelReady] = useState(false);
+  const [modelLoadFailed, setModelLoadFailed] = useState(false);
 
   const seasons = useMemo(
     () => Array.from(new Set(catalog.models.map((m) => m.season))).sort((a, b) => b - a),
@@ -309,7 +311,59 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
 
   useEffect(() => {
     setModelReady(false);
+    setModelLoadFailed(false);
   }, [selected?.id]);
+
+  useEffect(() => {
+    if (!selected) {
+      return;
+    }
+
+    const viewer = viewerRef.current;
+    if (!viewer) {
+      return;
+    }
+
+    let cancelled = false;
+
+    function markLoaded() {
+      if (cancelled) return;
+      setModelReady(true);
+      setModelLoadFailed(false);
+    }
+
+    function markFailed() {
+      if (cancelled) return;
+      setModelReady(true);
+      setModelLoadFailed(true);
+    }
+
+    viewer.addEventListener("load", markLoaded);
+    viewer.addEventListener("error", markFailed);
+
+    if (viewer.loaded) {
+      markLoaded();
+    }
+
+    const loadedPoll = window.setTimeout(() => {
+      if (viewer.loaded) {
+        markLoaded();
+      }
+    }, 250);
+    const failTimeout = window.setTimeout(() => {
+      if (!viewer.loaded) {
+        markFailed();
+      }
+    }, 22000);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(loadedPoll);
+      window.clearTimeout(failTimeout);
+      viewer.removeEventListener("load", markLoaded);
+      viewer.removeEventListener("error", markFailed);
+    };
+  }, [selected]);
 
   if (!selected) {
     return <div className="panel">No models available.</div>;
@@ -486,8 +540,6 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
                 "interaction-prompt": "auto",
                 "interaction-prompt-style": "basic",
                 "environment-image": "neutral",
-                onLoad: () => setModelReady(true),
-                onError: () => setModelReady(true),
                 style: {
                   width: "100%",
                   height: compareSlug ? "min(60vh, 600px)" : "min(74vh, 760px)",
@@ -554,6 +606,11 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
               <div className="car-viewer-loading" role="status" aria-live="polite">
                 <span className="car-viewer-loading__spinner" aria-hidden="true" />
                 Loading {selected.displayName} · {selected.sizeLabel}
+              </div>
+            ) : null}
+            {modelLoadFailed ? (
+              <div className="car-viewer-loading" role="status" aria-live="polite">
+                3D model could not finish loading. Try another constructor or reload the page.
               </div>
             ) : null}
 
