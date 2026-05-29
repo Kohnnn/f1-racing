@@ -8,6 +8,7 @@
 **Browser:** Chromium 148.0.7778.96, headless, viewport 1440 x 1150, deviceScaleFactor 1  
 **Evidence bundle:** `output/playwright/qa-v4/qa-v4-results.json` plus screenshots in `output/playwright/qa-v4/`  
 **Post-fix local evidence:** `output/playwright/qa-v4-ship/qa-v4-ship-results.json` plus screenshots in `output/playwright/qa-v4-ship/`
+**Post-deploy production benchmark:** `output/playwright/qa-v4-deploy-benchmark-final/qa-v4-deploy-benchmark-final-results.json` plus screenshots in `output/playwright/qa-v4-deploy-benchmark-final/`
 
 ## Executive Summary
 
@@ -22,7 +23,9 @@ The live v4 deployment gaps are important:
 - GLB hull works after settling, but the outline is jagged/noisy and feels like an exported edge artifact, not a polished educational silhouette.
 - AUS replay partial-load behavior, Race Control log behavior, and `/sessions/` deprecated duplicate behavior remain open.
 
-The local ship patch fixes the release blockers found here: the Modelview badge clears, DRS changes raw Drag by about `-5.91%`, AUS replay auto-loads to full duration, Live Race Control advances past `SESSION STARTED`, and `/sessions/` redirects to `/replay/`. These fixes still require deployment-preview and production verification before the shipped site can be marked fixed.
+The local ship patch fixes the release blockers found here: the Modelview badge clears, DRS changes raw Drag by about `-5.91%`, AUS replay auto-loads to full duration, Live Race Control advances past `SESSION STARTED`, and `/sessions/` redirects to `/replay/`.
+
+Post-deploy benchmark after follow-up commit `cd1d6a0` passes the blocking checks on production: FIA 2026 model load badge clears, DRS raw Drag changes `1.586 -> 1.467` (`-7.50%`), AUS replay reaches `Loaded 1:46:08 / 1:46:08` without manual load, `/live/` reports `OCI replay fallback` and advances Race Control to `T+416s`, `/sessions/` redirects to `/replay/`, and OCI health returns `200`.
 
 ## Console And Network Evidence
 
@@ -314,7 +317,9 @@ This is good enough for an educational visualizer if labeled honestly. It is not
 
 **Decision:** do not ship `8318c0c` as-is. The airflow commit is a meaningful improvement, but the live v4 deployment found release-blocking behavior in the primary modelview path, DRS/raw-force credibility, AUS replay loading, and Live Race Control/source status.
 
-**Post-fix local validation:** the blocker fixes pass against a local production build served from `apps/web/out` at `http://127.0.0.1:4173`. Run command evidence: `npm run build -w @f1-racing/web` passed, followed by `npm run next:build -w @f1-racing/web` after the replay-state patch. Deployment preview/production still needs the same Playwright pass before marking the shipped site fixed.
+**Post-fix local validation:** the blocker fixes pass against a local production build served from `apps/web/out` at `http://127.0.0.1:4173`. Run command evidence: `npm run build -w @f1-racing/web` passed, followed by `npm run next:build -w @f1-racing/web` after the replay-state patch.
+
+**Production release decision:** ship the follow-up production deployment, not `8318c0c` alone. The deployed production build at `https://playful-peony-77899c.netlify.app` from commit `cd1d6a0` passed the post-deploy blocker benchmark on 2026-05-29. Unique deploy URL: `https://6a190884c67d609bff6b4459--playful-peony-77899c.netlify.app`.
 
 Keep the wind tunnel framed as an educational visualizer with illustrative coefficients, not quantitative CFD.
 
@@ -325,6 +330,25 @@ Keep the wind tunnel framed as an educational visualizer with illustrative coeff
 | REG-03 | Replay loading | Auto-load all race chunks in the background while retaining chunked transport and clear progress UI. | AUS replay reaches `Loaded total / total` without pressing `Load full race`; no stalled partial default. | Pass: AUS replay reached `Loaded 1:46:08 / 1:46:08`; `Load full race` button hidden; all 7 chunks returned `200`. | `output/playwright/qa-v4-ship/replay-aus-after-fix.png`; `qa-v4-ship-results.json` |
 | REG-04 / API-02 | Live page | Normalize Race Control timestamps, load static Race Control data for replay fallback, and make source copy unambiguous. | `/live/` shows more than `SESSION STARTED` once the clock passes the next event; source reads `OCI live`, `OCI replay fallback`, or `Local replay simulator` consistently. | Pass locally: source `Local replay simulator`; Race Control showed 2 messages, including `T+99s · Lap 2 · DRS ENABLED`. OCI health returned `200`. | `output/playwright/qa-v4-ship/live-after-fix.png`; `qa-v4-ship-results.json` |
 
+## Production Post-deploy Benchmark
+
+**Status:** pass for release blockers
+**Production URL:** `https://playful-peony-77899c.netlify.app`
+**Unique deploy URL:** `https://6a190884c67d609bff6b4459--playful-peony-77899c.netlify.app`
+**Commit:** `cd1d6a0 fix(wind): strengthen DRS raw drag response`
+**Evidence:** `output/playwright/qa-v4-deploy-benchmark-final/qa-v4-deploy-benchmark-final-results.json`
+
+| Check | Production result | Evidence |
+| --- | --- | --- |
+| OCI health | `200`, body `{"ok":true,"service":"f1-racing-api"}`. | benchmark JSON |
+| Modelview | FIA 2026 model loaded in `14.5s`; visible `.car-viewer-loading` count `0`; wind tunnel visible. | `modelview-production-final.png` |
+| Procedural DRS | Raw Drag `1.586 -> 1.467` (`-7.50%`), Cd est `0.76 -> 0.68`, Cl est `-2.12 -> -1.95`, FPS `60`. | `drs-closed-production-final.png`, `drs-open-production-final.png` |
+| AUS replay | Auto-loaded to `Loaded 1:46:08 / 1:46:08`; `Load full race` hidden; all 7 chunks returned `200`. | `aus-replay-production-final.png` |
+| Live | Feed source `OCI replay fallback`; Race Control advanced beyond start to `T+416s · Lap 1 · GREEN LIGHT - PIT EXIT OPEN`. | `live-production-final.png` |
+| Regression routes | `/learn/`, `/learn/aero`, and `/replay/` render; `/sessions/` redirects to `/replay/`. | `sessions-redirect-production-final.png` |
+
+Console/network residuals: one WebGL `ReadPixels` performance warning and one transient `TypeError: Failed to fetch` console error were captured during the benchmark. They did not block the user-visible flows above, but should remain visible in the next evaluation report.
+
 ## Post-fix Validation Checklist
 
 - Modelview: primary FIA 2026 route loads, wind tunnel visible, GLB renders, loading badge clears, no page errors. **Local status: pass.**
@@ -333,16 +357,16 @@ Keep the wind tunnel framed as an educational visualizer with illustrative coeff
 - Procedural DRS: rear wing changes visibly, Cd/Cl estimates change, raw Drag changes after settling, solver warm-up clears. **Local status: pass.**
 - Yaw/rake/probe: yaw changes rake angle and Cy sign; wind rake slider/canvas click move the marker; probe shows U, Cp, vorticity, and a valid distance or inside-body state.
 - Replay: AUS race auto-loads to full duration, controls stay usable, and Race Control markers use normalized seconds. **Local status: pass.**
-- Live: OCI health check passes, `/live/` renders, feed source copy is consistent, Race Control log updates beyond the initial session-start message. **Local status: pass for local replay simulator; deployment preview still must verify OCI-live copy.**
+- Live: OCI health check passes, `/live/` renders, feed source copy is consistent, Race Control log updates beyond the initial session-start message. **Production status: pass via OCI replay fallback.**
 - Regression: `/learn/`, `/learn/aero`, `/replay/`, and `/sessions/` render or redirect intentionally; `/sessions/` no longer appears as a duplicate nav destination. **Local status: pass; `/sessions/` redirects to `/replay/`.**
 - Performance: Procedural and Airfoil remain usable while dragging sliders; no worker crashes, 1 FPS stalls, or persistent warm-up overlays.
 
 ## Remaining Prioritized Next Fixes
 
-1. Run the same Playwright ship-pass against the deployment preview, then production after release.
-2. Improve FIA 2026 SVG art coverage or hide/disable SVG mode when no SVG silhouette exists.
-3. Clean up GLB hull extraction for FIA 2026 so it reads as a car silhouette, not a noisy contour.
-4. Add a convergence/validity indicator so users know when raw solver values have settled.
-5. Make wind visualization less like a white particle band: add vector field, vorticity, separation, or pressure isoline overlays.
-6. Fix probe distance outside-body (`d -`) and label `ω` as vorticity for users.
-7. Verify OCI-live mode in deployment preview, not only the local replay simulator path.
+1. Improve FIA 2026 SVG art coverage or hide/disable SVG mode when no SVG silhouette exists.
+2. Clean up GLB hull extraction for FIA 2026 so it reads as a car silhouette, not a noisy contour.
+3. Add a convergence/validity indicator so users know when raw solver values have settled.
+4. Make wind visualization less like a white particle band: add vector field, vorticity, separation, or pressure isoline overlays.
+5. Fix probe distance outside-body (`d -`) and label `ω` as vorticity for users.
+6. Investigate the transient production `TypeError: Failed to fetch` captured in the post-deploy benchmark.
+7. Verify true OCI-live WebSocket mode during an actual live-backed session; this benchmark validated OCI replay fallback.

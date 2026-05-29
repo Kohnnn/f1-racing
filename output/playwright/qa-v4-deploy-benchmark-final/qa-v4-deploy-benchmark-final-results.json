@@ -1,0 +1,229 @@
+{
+  "title": "F1 Racing App post-deploy benchmark final",
+  "productionUrl": "https://playful-peony-77899c.netlify.app",
+  "uniqueDeployUrl": "https://6a190884c67d609bff6b4459--playful-peony-77899c.netlify.app",
+  "testedAt": "2026-05-29T03:38:05.615Z",
+  "browser": "Chromium headless via Playwright",
+  "commit": "cd1d6a0",
+  "screenshots": {
+    "modelview": "C:\\Users\\Admin\\Desktop\\PersonalWebsite\\interactive-note\\f1-racing\\output\\playwright\\qa-v4-deploy-benchmark-final\\modelview-production-final.png",
+    "drsClosed": "C:\\Users\\Admin\\Desktop\\PersonalWebsite\\interactive-note\\f1-racing\\output\\playwright\\qa-v4-deploy-benchmark-final\\drs-closed-production-final.png",
+    "drsOpen": "C:\\Users\\Admin\\Desktop\\PersonalWebsite\\interactive-note\\f1-racing\\output\\playwright\\qa-v4-deploy-benchmark-final\\drs-open-production-final.png",
+    "replay": "C:\\Users\\Admin\\Desktop\\PersonalWebsite\\interactive-note\\f1-racing\\output\\playwright\\qa-v4-deploy-benchmark-final\\aus-replay-production-final.png",
+    "live": "C:\\Users\\Admin\\Desktop\\PersonalWebsite\\interactive-note\\f1-racing\\output\\playwright\\qa-v4-deploy-benchmark-final\\live-production-final.png",
+    "sessionsRedirect": "C:\\Users\\Admin\\Desktop\\PersonalWebsite\\interactive-note\\f1-racing\\output\\playwright\\qa-v4-deploy-benchmark-final\\sessions-redirect-production-final.png"
+  },
+  "console": [
+    {
+      "page": "https://playful-peony-77899c.netlify.app/cars/current-spec/?season=2026&constructor=fia-2026&focus=front-wing",
+      "type": "warning",
+      "text": "[.WebGL-0x2d1402dd5800]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "page": "https://playful-peony-77899c.netlify.app/learn/aero/",
+      "type": "error",
+      "text": "TypeError: Failed to fetch\n    at https://playful-peony-77899c.netlify.app/_next/static/chunks/63d2ba32.945bf5c62269570a.js:1:215349"
+    }
+  ],
+  "network": [
+    {
+      "url": "https://playful-peony-77899c.netlify.app/models/2026/fia-spec/fia-2026.glb",
+      "status": 200
+    },
+    {
+      "url": "https://playful-peony-77899c.netlify.app/data/packs/seasons/2025/australian-grand-prix/race/drivers.json",
+      "status": 200
+    },
+    {
+      "url": "https://playful-peony-77899c.netlify.app/data/packs/seasons/2025/australian-grand-prix/race/replay.laps.json",
+      "status": 200
+    },
+    {
+      "url": "https://playful-peony-77899c.netlify.app/data/packs/seasons/2025/australian-grand-prix/race/laps.json",
+      "status": 200
+    },
+    {
+      "url": "https://playful-peony-77899c.netlify.app/data/packs/seasons/2025/australian-grand-prix/race/replay.race-control.json",
+      "status": 200
+    },
+    {
+      "url": "https://playful-peony-77899c.netlify.app/data/packs/seasons/2025/australian-grand-prix/race/strategy.json",
+      "status": 200
+    },
+    {
+      "url": "https://f1-api.129.150.58.64.sslip.io/api/replay/2025/australian-grand-prix/race/chunk/5",
+      "status": 200
+    },
+    {
+      "url": "https://f1-api.129.150.58.64.sslip.io/api/replay/2025/australian-grand-prix/race/chunk/4",
+      "status": 200
+    },
+    {
+      "url": "https://f1-api.129.150.58.64.sslip.io/api/replay/2025/australian-grand-prix/race/chunk/0",
+      "status": 200
+    },
+    {
+      "url": "https://f1-api.129.150.58.64.sslip.io/api/sessions/2025/australian-grand-prix/race/stints",
+      "status": 200
+    },
+    {
+      "url": "https://f1-api.129.150.58.64.sslip.io/api/replay/2025/australian-grand-prix/race/chunk/6",
+      "status": 200
+    },
+    {
+      "url": "https://f1-api.129.150.58.64.sslip.io/api/sessions/2025/australian-grand-prix/race/compare/nor-ver",
+      "status": 200
+    },
+    {
+      "url": "https://f1-api.129.150.58.64.sslip.io/api/replay/2025/australian-grand-prix/race/chunk/3",
+      "status": 200
+    },
+    {
+      "url": "https://f1-api.129.150.58.64.sslip.io/api/replay/2025/australian-grand-prix/race/chunk/1",
+      "status": 200
+    },
+    {
+      "url": "https://f1-api.129.150.58.64.sslip.io/api/replay/2025/australian-grand-prix/race/chunk/2",
+      "status": 200
+    },
+    {
+      "url": "https://f1-api.129.150.58.64.sslip.io/api/live/status",
+      "status": 200
+    },
+    {
+      "url": "https://playful-peony-77899c.netlify.app/models/2025/mclaren/mcl39.glb",
+      "status": 200
+    }
+  ],
+  "checks": {
+    "ociHealth": {
+      "status": 200,
+      "durationMs": 183,
+      "body": "{\"ok\":true,\"service\":\"f1-racing-api\"}"
+    },
+    "modelview": {
+      "url": "https://playful-peony-77899c.netlify.app/cars/current-spec/?season=2026&constructor=fia-2026&focus=front-wing",
+      "readyWithin23s": true,
+      "elapsedMs": 14518,
+      "loadingBadgeVisibleCount": 0,
+      "modelViewerLoaded": true,
+      "windTunnelVisible": true,
+      "navigation": {
+        "domContentLoadedMs": 621,
+        "loadEventMs": 1028,
+        "transferSize": 3795
+      }
+    },
+    "drs": {
+      "closed": {
+        "raw": "LIVE DRAG 1.586 LIFT 0.000 CD EST 0.76 CL EST -2.12 CY EST 0.00 ΔD +0.014 ΔL -0.000 RE 29.33M FPS 60",
+        "drag": 1.586,
+        "lift": 0,
+        "cd": 0.76,
+        "cl": -2.12,
+        "cy": 0,
+        "deltaD": 0.014,
+        "deltaL": 0,
+        "fps": 60
+      },
+      "open": {
+        "raw": "LIVE DRAG 1.467 LIFT 0.000 CD EST 0.68 CL EST -1.95 CY EST 0.00 ΔD -0.099 ΔL +0.000 RE 29.33M FPS 60",
+        "drag": 1.467,
+        "lift": 0,
+        "cd": 0.68,
+        "cl": -1.95,
+        "cy": 0,
+        "deltaD": -0.099,
+        "deltaL": 0,
+        "fps": 60
+      },
+      "rawDragDeltaPct": -7.503152585119797,
+      "passFivePctExpectedDirection": true
+    },
+    "ausReplay": {
+      "url": "https://playful-peony-77899c.netlify.app/replay/2025/australian-grand-prix/race/",
+      "fullyLoadedWithin45s": true,
+      "elapsedMs": 1499,
+      "loadedLabel": "Loaded 1:46:08 / 1:46:08",
+      "loadFullVisible": false,
+      "chunkResponses": [
+        {
+          "url": "https://f1-api.129.150.58.64.sslip.io/api/replay/2025/australian-grand-prix/race/chunk/5",
+          "status": 200
+        },
+        {
+          "url": "https://f1-api.129.150.58.64.sslip.io/api/replay/2025/australian-grand-prix/race/chunk/4",
+          "status": 200
+        },
+        {
+          "url": "https://f1-api.129.150.58.64.sslip.io/api/replay/2025/australian-grand-prix/race/chunk/0",
+          "status": 200
+        },
+        {
+          "url": "https://f1-api.129.150.58.64.sslip.io/api/replay/2025/australian-grand-prix/race/chunk/6",
+          "status": 200
+        },
+        {
+          "url": "https://f1-api.129.150.58.64.sslip.io/api/replay/2025/australian-grand-prix/race/chunk/3",
+          "status": 200
+        },
+        {
+          "url": "https://f1-api.129.150.58.64.sslip.io/api/replay/2025/australian-grand-prix/race/chunk/1",
+          "status": 200
+        },
+        {
+          "url": "https://f1-api.129.150.58.64.sslip.io/api/replay/2025/australian-grand-prix/race/chunk/2",
+          "status": 200
+        }
+      ]
+    },
+    "live": {
+      "url": "https://playful-peony-77899c.netlify.app/live/",
+      "liveReadyWithin100s": true,
+      "elapsedMs": 52803,
+      "feedSource": "OCI replay fallback",
+      "sourceCopyAllowed": true,
+      "rcLines": [
+        "GREEN",
+        "T+0s · Lap 1 · SESSION STARTED",
+        "GREEN",
+        "T+416s · Lap 1 · GREEN LIGHT - PIT EXIT OPEN"
+      ]
+    },
+    "routes": [
+      {
+        "route": "/learn/",
+        "finalUrl": "https://playful-peony-77899c.netlify.app/learn/",
+        "title": "Learn · F1 Racing",
+        "bodyHasContent": true,
+        "elapsedMs": 1388
+      },
+      {
+        "route": "/learn/aero",
+        "finalUrl": "https://playful-peony-77899c.netlify.app/learn/aero/",
+        "title": "Aero · F1 Racing",
+        "bodyHasContent": true,
+        "elapsedMs": 1730
+      },
+      {
+        "route": "/replay/",
+        "finalUrl": "https://playful-peony-77899c.netlify.app/replay/",
+        "title": "Replay · F1 Racing",
+        "bodyHasContent": true,
+        "elapsedMs": 2220
+      },
+      {
+        "route": "/sessions/",
+        "finalUrl": "https://playful-peony-77899c.netlify.app/replay/",
+        "title": "Replay · F1 Racing",
+        "bodyHasContent": true,
+        "elapsedMs": 1275
+      }
+    ]
+  },
+  "summary": {
+    "blockingChecksPass": true,
+    "errorCount": 1,
+    "warningCount": 1
+  }
+}
