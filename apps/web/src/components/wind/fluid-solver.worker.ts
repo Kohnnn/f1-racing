@@ -258,6 +258,16 @@ function computeForces() {
     }
   }
 
+  let rearArea = 0;
+  const rearStart = Math.floor(minX + (maxX - minX) * 0.82);
+  for (let y = minY; y <= maxY; y += 1) {
+    for (let x = rearStart; x <= maxX; x += 1) {
+      if (mask[idx(x, y)]) {
+        rearArea += 1;
+      }
+    }
+  }
+
   const dynamicPressure = Math.max(0.08, inletSpeed * inletSpeed + yawVelocity * yawVelocity);
   const projectedHeight = Math.max(1, maxY - minY + 1);
   const pressureTerm = Math.max(0, pressureDrag) / (dynamicPressure * projectedHeight);
@@ -265,7 +275,9 @@ function computeForces() {
     ? (wakeDeficit / wakeSamples) * (projectedHeight / NY) / dynamicPressure
     : 0;
   const geometryTerm = (exposedVerticalFaces / projectedHeight) * 0.018 + (maskArea / N) * 5.5;
-  const drag = Math.max(0, pressureTerm * 0.22 + wakeTerm * 1.35 + geometryTerm);
+  const rearBlockage = rearArea / maskArea;
+  const rearBlockageTerm = Math.max(0, rearBlockage - 0.16) * 5;
+  const drag = Math.max(0, pressureTerm * 0.22 + wakeTerm * 1.35 + geometryTerm + rearBlockageTerm);
   const normalizedLift = exposedHorizontalFaces
     ? lift / (dynamicPressure * exposedHorizontalFaces)
     : 0;
