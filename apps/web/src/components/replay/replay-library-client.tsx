@@ -117,6 +117,8 @@ export function ReplayLibraryClient({ aliasMode, latestManifest, index }: Replay
         <div className="hero-actions">
           <a className="button" href={latestReplayHref}>Open latest replay</a>
           <a className="button button--secondary" href="/live">Open live feed</a>
+          <a className="button button--ghost" href="/compare">Browse compare</a>
+          <a className="button button--ghost" href="/stints">Browse stints</a>
           <a className="button button--ghost" href="/cars/current-spec">Open modelview</a>
           <a className="button button--ghost" href="/learn">Open learn</a>
         </div>
@@ -125,6 +127,16 @@ export function ReplayLibraryClient({ aliasMode, latestManifest, index }: Replay
             <span>Latest Pack</span>
             <strong>{latestManifest.latest.grandPrixName}</strong>
             <small>{latestManifest.latest.sessionName} replay workspace</small>
+          </a>
+          <a className="discover-action-card" href="/compare">
+            <span>Lap Compare</span>
+            <strong>Driver vs driver</strong>
+            <small>Section deltas and telemetry traces per session.</small>
+          </a>
+          <a className="discover-action-card" href="/stints">
+            <span>Stint Story</span>
+            <strong>Tyre windows</strong>
+            <small>Stint length and pace evolution across the race.</small>
           </a>
           <a className="discover-action-card" href="/live">
             <span>Live Desk</span>

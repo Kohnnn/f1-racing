@@ -96,6 +96,22 @@ User decisions (2026-06-07):
 - **B5** Add Compare/Stints affordances to Replay Library cards where packs
   exist.
 
+### Track B progress
+- [x] B1 `/compare` index — 76 session cards / 76 driver pairs across 3 seasons,
+  circuit map art + session dates, deep links to the `[left]/[right]` route.
+  New `lib/discovery.ts` scans manifests at build time so only sessions that
+  ship a compare pack are listed (no `notFound()`).
+- [x] B2 `/stints` index — 81 session cards linking to the stint-story route.
+- [x] B3 nav — Compare and Stints added to the primary nav
+  (`Live · Replay · Compare · Stints` + `Modelview · Learn`).
+- [x] B4 session-summary cross-links — already above the fold in
+  `session-route-client.tsx` (Open compare route / Open stint story with
+  disabled fallbacks); verified, no change needed.
+- [x] B5 Replay Library hub — added Compare/Stints buttons to the hero actions
+  and `Lap Compare` / `Stint Story` cards to the discover-action grid.
+- [x] Build clean + local smoke (deep link `RUS vs ANT` resolves) + prod deploy
+  + prod smoke (parity with local, zero console errors) + OCI health.
+
 ---
 
 ## Track C — Wind tunnel depth (later pass)

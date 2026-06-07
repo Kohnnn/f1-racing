@@ -6054,3 +6054,120 @@ code {
   font-size: 0.6rem;
   letter-spacing: 0.05em;
 }
+
+/* Discovery surfaces: /compare and /stints index pages */
+.discovery-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  margin-top: 8px;
+}
+
+.discovery-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, rgba(13, 18, 29, 0.92), rgba(7, 11, 19, 0.94));
+  border: 1px solid var(--line);
+  color: var(--ink);
+  min-width: 0;
+}
+
+.discovery-card--link {
+  text-decoration: none;
+  transition: border-color 0.18s ease, transform 0.18s ease;
+}
+
+.discovery-card--link:hover {
+  border-color: var(--accent, #ff7a1a);
+  transform: translateY(-2px);
+}
+
+.discovery-card__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.discovery-card__map {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  flex: 0 0 auto;
+  opacity: 0.9;
+}
+
+.discovery-card__title {
+  min-width: 0;
+}
+
+.discovery-card__title h3 {
+  margin: 0;
+  font-size: 1.02rem;
+  word-break: break-word;
+}
+
+.discovery-card__meta {
+  margin: 4px 0 0;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+}
+
+.discovery-card__cta {
+  margin-top: auto;
+  color: var(--accent, #ff7a1a);
+  font-size: 0.86rem;
+  font-weight: 600;
+}
+
+.discovery-card__pairs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.discovery-pair {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm, 8px);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line);
+  text-decoration: none;
+  color: var(--ink);
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+
+.discovery-pair:hover {
+  border-color: var(--accent, #ff7a1a);
+  background: rgba(255, 122, 26, 0.08);
+}
+
+.discovery-pair__driver {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.discovery-pair__driver img {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.discovery-pair__vs {
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
