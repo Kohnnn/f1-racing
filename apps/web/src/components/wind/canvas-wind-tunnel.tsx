@@ -29,6 +29,7 @@ type SilhouetteMode = "procedural" | "airfoil" | "svg" | "glb";
 type FlowView = "ribbon" | "technical" | "diagnostic" | "smoke";
 type SolverState = "warming" | "stabilizing" | "settled" | "stale";
 type WakeZoneKind = "rearWing" | "diffuser";
+type QualityPreset = "low" | "medium" | "high";
 
 interface WindTunnelControls {
   airspeed: number;
@@ -43,6 +44,9 @@ interface WindTunnelControls {
   overlayMode: FlowView;
   silhouetteMode: SilhouetteMode;
   probeEnabled: boolean;
+  quality: QualityPreset;
+  vectorsOn: boolean;
+  separationOn: boolean;
 }
 
 const DEFAULT_CONTROLS: WindTunnelControls = {
@@ -58,6 +62,20 @@ const DEFAULT_CONTROLS: WindTunnelControls = {
   overlayMode: "ribbon",
   silhouetteMode: "procedural",
   probeEnabled: true,
+  quality: "medium",
+  vectorsOn: false,
+  separationOn: false,
+};
+
+/**
+ * Quality presets bundle the particle count (the main per-frame render cost)
+ * into one control. Picking a preset overrides the particle slider; the slider
+ * still works for fine-tuning within the chosen budget.
+ */
+const QUALITY_PRESETS: Record<QualityPreset, { particles: number; label: string }> = {
+  low: { particles: 48, label: "Low" },
+  medium: { particles: 96, label: "Medium" },
+  high: { particles: 200, label: "High" },
 };
 
 function buildDefaultControls(constructorSlug?: string): WindTunnelControls {
@@ -236,6 +254,10 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
   }>({ changedAt: 0, lastDrag: null, lastLift: null, stableSamples: 0, state: "warming" });
   const fluidFrameRef = useRef<FluidFrameState>(createEmptyFluidFrame());
   const hoverRef = useRef<{ active: boolean; nx: number; ny: number }>({ active: false, nx: 0, ny: 0 });
+  // Persistent, slowly-adapting Cp range so the surface pressure tint does not
+  // flash/jump while the solver warms up. Each frame eases the live min/max
+  // toward the running envelope instead of rescaling from scratch.
+  const cpRangeRef = useRef<{ min: number; max: number } | null>(null);
 
   const [controls, setControls] = useState<WindTunnelControls>(() => initialControls);
   const [readout, setReadout] = useState<{ drag: number; lift: number; reynolds: number; live: boolean; fps: number; solverState: SolverState } | null>(null);
@@ -329,6 +351,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
     };
     forceBaselineRef.current = null;
     setForceBaseline(null);
+    cpRangeRef.current = null;
   }
 
   function updateSolverState(frame: typeof fluidFrameRef.current, now: number): SolverState {
@@ -546,10 +569,13 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
   }, [mask, profile, componentZones]);
 
   // Initialise the small smoke pool. Ribbon and Technical views use fixed
-  // field samples instead of random particle noise.
+  // field samples instead of random particle noise. The quality preset caps
+  // the particle budget; the slider fine-tunes within it.
   useEffect(() => {
+    const budget = QUALITY_PRESETS[controls.quality].particles;
+    const count = Math.min(controls.particles, budget);
     const list: ParticleState[] = [];
-    for (let i = 0; i < controls.particles; i += 1) {
+    for (let i = 0; i < count; i += 1) {
       const trail = new Float32Array(TRAIL_LENGTH * 2);
       const x = Math.random() * 0.05;
       const y = spawnParticleY(controls.windSourceY, 0.66);
@@ -560,7 +586,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
       list.push({ x, y, age: Math.random() * 200, trail, trailHead: 0 });
     }
     particlesRef.current = list;
-  }, [controls.particles, controls.windSourceY]);
+  }, [controls.particles, controls.windSourceY, controls.quality]);
 
   // Pointer hover handlers for the live readout.
   function handlePointerMove(event: React.PointerEvent<HTMLCanvasElement>) {
@@ -950,7 +976,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
 
     function drawVectorField() {
       const target = modelFile && modelViewerReady && overlayCtx ? overlayCtx : ctx;
-      if (!target || controls.overlayMode !== "technical") return;
+      if (!target || (controls.overlayMode !== "technical" && !controls.vectorsOn)) return;
       const frame = fluidFrameRef.current;
       if (!frame.ready || !frame.u || !frame.v) return;
       target.save();
@@ -979,6 +1005,46 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
           target.lineTo(x2 - Math.cos(angle + 0.45) * 5, y2 - Math.sin(angle + 0.45) * 5);
           target.stroke();
         }
+      }
+      target.restore();
+    }
+
+    function drawSeparationMarkers() {
+      if (!controls.separationOn || !profile) return;
+      const target = modelFile && modelViewerReady && overlayCtx ? overlayCtx : ctx;
+      if (!target) return;
+      const frame = fluidFrameRef.current;
+      if (!frame.ready || !frame.u) return;
+      const polygon = profile.polygon;
+      if (polygon.length < 6) return;
+      // Walk the upper envelope (the first ~55% of the ordered polygon is the
+      // top surface in our tracer output). At each vertex sample the streamwise
+      // velocity just outside the surface; the first transition to reversed
+      // flow marks boundary-layer separation, which we flag with a ring.
+      const upperLen = Math.max(3, Math.floor(polygon.length * 0.55));
+      target.save();
+      let prevReversed = false;
+      let marks = 0;
+      for (let i = 1; i < upperLen && marks < 4; i += 1) {
+        const [x, y] = polygon[i];
+        const sample = sampleField(x, Math.max(0, y - 0.03));
+        if (!sample) continue;
+        const reversed = sample.u < -0.01;
+        if (reversed && !prevReversed) {
+          const px = x * STAGE_WIDTH;
+          const py = y * STAGE_HEIGHT;
+          target.beginPath();
+          target.arc(px, py, 5.5, 0, Math.PI * 2);
+          target.fillStyle = "rgba(255, 96, 84, 0.92)";
+          target.fill();
+          target.strokeStyle = "rgba(255, 200, 190, 0.9)";
+          target.lineWidth = 1.4;
+          target.beginPath();
+          target.arc(px, py, 9, 0, Math.PI * 2);
+          target.stroke();
+          marks += 1;
+        }
+        prevReversed = reversed;
       }
       target.restore();
     }
@@ -1348,13 +1414,28 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
           if (pv < pMin) pMin = pv;
           if (pv > pMax) pMax = pv;
         }
-        const range = pMax - pMin || 1;
+        // Ease the live frame extremes into a persistent range so colours stay
+        // stable during warm-up instead of rescaling every frame. The range can
+        // expand quickly (so genuine peaks register) but contracts slowly.
+        const prev = cpRangeRef.current;
+        if (!prev) {
+          cpRangeRef.current = { min: pMin, max: pMax };
+        } else {
+          const expand = 0.5;
+          const contract = 0.04;
+          cpRangeRef.current = {
+            min: pMin < prev.min ? prev.min + (pMin - prev.min) * expand : prev.min + (pMin - prev.min) * contract,
+            max: pMax > prev.max ? prev.max + (pMax - prev.max) * expand : prev.max + (pMax - prev.max) * contract,
+          };
+        }
+        const smoothedMin = cpRangeRef.current.min;
+        const range = (cpRangeRef.current.max - smoothedMin) || 1;
         ctx.lineCap = "round";
         ctx.lineWidth = 3.2;
         for (let i = 0; i < polygon.length; i += 1) {
           const [x1, y1] = polygon[i];
           const [x2, y2] = polygon[(i + 1) % polygon.length];
-          const t = (pressures[i] - pMin) / range;
+          const t = Math.max(0, Math.min(1, (pressures[i] - smoothedMin) / range));
           const r = Math.round(60 + (235 - 60) * t);
           const g = Math.round(160 + (90 - 160) * t);
           const b = Math.round(220 + (40 - 220) * t);
@@ -1455,6 +1536,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
         drawSmokeFlow();
         drawSilhouette();
         drawVectorField();
+        drawSeparationMarkers();
         drawDiagnosticOverlay();
         drawRibbonFlowOverlay(elapsed);
       }
@@ -1814,6 +1896,43 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
             />
             <span>Probe</span>
           </label>
+          <label className="wind-tunnel__toggle">
+            <input
+              type="checkbox"
+              checked={controls.vectorsOn}
+              onChange={(event) => setControls((prev) => ({ ...prev, vectorsOn: event.target.checked }))}
+            />
+            <span>Vectors</span>
+          </label>
+          <label className="wind-tunnel__toggle">
+            <input
+              type="checkbox"
+              checked={controls.separationOn}
+              onChange={(event) => setControls((prev) => ({ ...prev, separationOn: event.target.checked }))}
+            />
+            <span>Separation</span>
+          </label>
+          <div className="wind-tunnel__flow-view">
+            <span>Quality</span>
+            <div className="wind-tunnel__flow-buttons" role="tablist" aria-label="Quality preset">
+              {(["low", "medium", "high"] as const).map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  role="tab"
+                  aria-selected={controls.quality === preset}
+                  className={`wind-tunnel__flow-button${controls.quality === preset ? " wind-tunnel__flow-button--active" : ""}`}
+                  onClick={() => setControls((prev) => ({
+                    ...prev,
+                    quality: preset,
+                    particles: QUALITY_PRESETS[preset].particles,
+                  }))}
+                >
+                  {QUALITY_PRESETS[preset].label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -123,6 +123,26 @@ User decisions (2026-06-07):
   Jacobi iterations.
 - **C5** (stretch) Real wheel-boundary rotation tied to wheel mask positions.
 
+### Track C progress
+- [x] C1 Vector overlay — added a standalone `Vectors` toggle so the velocity
+  vector field renders in any flow view, not just Technical. (Vorticity tint
+  remains part of the Technical view.)
+- [x] C2 Separation markers — new `drawSeparationMarkers` walks the upper body
+  envelope, samples streamwise velocity just outside the surface, and rings the
+  first flow-reversal point (boundary-layer separation). Gated behind a
+  `Separation` toggle.
+- [x] C3 Stable pressure scaling — surface Cp tint now eases a persistent
+  min/max range (fast expand, slow contract) via `cpRangeRef` instead of
+  rescaling from per-frame extremes, removing the warm-up colour jump. Range
+  resets with the solver signature.
+- [x] C4 Quality presets — `Low/Medium/High` buttons cap the particle budget
+  (48 / 96 / 200); the particle init effect clamps to the preset.
+- [~] C5 real wheel-boundary rotation — deferred (stretch). Current wheel wake
+  injection is retained; full mask-tied rotation is a future pass.
+- [x] Build clean (no lint warnings) + local smoke (vectors/separation toggle,
+  quality switches, canvas animates, zero console errors) + prod deploy + prod
+  smoke + OCI health.
+
 ---
 
 ## Verification gates (per increment)
