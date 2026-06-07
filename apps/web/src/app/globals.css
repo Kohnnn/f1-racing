@@ -3115,22 +3115,48 @@ code {
 }
 
 .wind-tunnel__readout {
-  position: absolute;
-  right: 12px;
-  bottom: 12px;
-  display: inline-flex;
+  display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 12px;
-  padding: 8px 14px;
-  border-radius: 12px;
+  align-items: center;
+  gap: 8px 12px;
+  min-width: 0;
+  padding: 9px 12px;
+  border-radius: 10px;
   border: 1px solid rgba(167, 189, 219, 0.18);
-  background: rgba(11, 15, 24, 0.78);
+  background: rgba(7, 11, 18, 0.78);
   color: rgba(231, 237, 247, 0.84);
   font-size: 0.74rem;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+}
+
+.wind-tunnel__instrument-rail {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.wind-tunnel__flow-status {
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  min-width: 190px;
+  padding: 9px 12px;
+  border: 1px solid rgba(167, 189, 219, 0.18);
+  border-radius: 10px;
+  background: rgba(7, 11, 18, 0.68);
+  color: rgba(231, 237, 247, 0.7);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.wind-tunnel__flow-status strong {
+  color: #e0f2fe;
+  font-family: "IBM Plex Mono", Consolas, monospace;
 }
 
 .wind-tunnel__live {
@@ -3161,6 +3187,29 @@ code {
   background: #4ade80;
   box-shadow: 0 0 6px rgba(74, 222, 128, 0.85);
   animation: wind-tunnel-live-pulse 1.4s ease-in-out infinite;
+}
+
+.wind-tunnel__solver-state {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(125, 211, 252, 0.12);
+  color: rgba(220, 242, 254, 0.88);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.wind-tunnel__solver-state--settled {
+  background: rgba(255, 122, 26, 0.18);
+  color: #fff2e8;
+}
+
+.wind-tunnel__solver-state--stale {
+  background: rgba(248, 113, 113, 0.16);
+  color: #fecaca;
 }
 
 @keyframes wind-tunnel-live-pulse {
@@ -3221,6 +3270,29 @@ code {
   cursor: crosshair;
 }
 
+.wind-tunnel__flow-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: block;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.wind-tunnel__model-layer {
+  position: absolute;
+  left: 7.5%;
+  top: 16%;
+  z-index: 3;
+  width: 85%;
+  height: 73%;
+  pointer-events: none;
+  background: transparent;
+  --poster-color: transparent;
+  filter: drop-shadow(0 18px 26px rgba(0, 0, 0, 0.48)) saturate(1.08) contrast(1.04);
+}
+
 .wind-tunnel__heat,
 .wind-tunnel__heat-canvas,
 .wind-tunnel__legend,
@@ -3276,10 +3348,24 @@ code {
   display: none;
 }
 
+.wind-tunnel__control-panel {
+  display: grid;
+  gap: 10px;
+}
+
 .wind-tunnel__controls {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px 18px;
+  gap: 10px 16px;
+}
+
+.wind-tunnel__controls--primary {
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+.wind-tunnel__controls--secondary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
 }
 
 .wind-tunnel__controls label {
@@ -3287,12 +3373,12 @@ code {
   grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 10px;
+  min-width: 0;
   color: rgba(231, 237, 247, 0.72);
   font-size: 0.74rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  max-width: min(760px, calc(100% - 24px));
 }
 
 .wind-tunnel__stage-hint {
@@ -3335,6 +3421,52 @@ code {
   accent-color: #ff7a1a;
 }
 
+.wind-tunnel__flow-view {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(231, 237, 247, 0.72);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.wind-tunnel__flow-buttons,
+.wind-tunnel__overlay-mode {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 5px;
+  border: 1px solid rgba(167, 189, 219, 0.14);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
+  max-width: 100%;
+}
+
+.wind-tunnel__flow-button,
+.wind-tunnel__overlay-button {
+  padding: 6px 9px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: rgba(231, 237, 247, 0.68);
+  font: inherit;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.wind-tunnel__flow-button--active,
+.wind-tunnel__overlay-button--active {
+  border-color: rgba(125, 211, 252, 0.28);
+  background: rgba(125, 211, 252, 0.12);
+  color: #e0f2fe;
+}
+
 .wind-tunnel__mode {
   display: flex;
   flex-wrap: wrap;
@@ -3368,6 +3500,15 @@ code {
   color: #fff2e8;
 }
 
+.wind-tunnel__mode-button--subtle:not(.wind-tunnel__mode-button--active) {
+  opacity: 0.62;
+}
+
+.wind-tunnel__mode-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.42;
+}
+
 .wind-tunnel__mode-source {
   font-family: "IBM Plex Mono", Consolas, monospace;
   font-size: 0.66rem;
@@ -3378,6 +3519,90 @@ code {
 
 .wind-tunnel__mode-source strong {
   color: rgba(255, 232, 168, 0.94);
+}
+
+@media (max-width: 760px) {
+  .wind-tunnel {
+    padding: 14px;
+  }
+
+  .wind-tunnel__stage {
+    border-radius: 12px;
+  }
+
+  .wind-tunnel__model-layer {
+    left: 5%;
+    top: 17%;
+    width: 90%;
+    height: 72%;
+  }
+
+  .wind-tunnel__instrument-rail {
+    grid-template-columns: 1fr;
+  }
+
+  .wind-tunnel__readout {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    font-size: 0.66rem;
+  }
+
+  .wind-tunnel__flow-status {
+    min-width: 0;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: center;
+  }
+
+  .wind-tunnel__controls--primary {
+    grid-template-columns: 1fr;
+  }
+
+  .wind-tunnel__controls--secondary {
+    gap: 8px;
+  }
+
+  .wind-tunnel__controls label {
+    grid-template-columns: 72px minmax(0, 1fr) 56px;
+    font-size: 0.66rem;
+  }
+
+  .wind-tunnel__toggle {
+    min-height: 32px;
+    padding: 4px 8px;
+    border: 1px solid rgba(167, 189, 219, 0.12);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.035);
+  }
+
+  .wind-tunnel__flow-view {
+    display: grid;
+    grid-template-columns: 72px minmax(0, 1fr);
+    flex: 1 1 100%;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .wind-tunnel__flow-buttons {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+    gap: 4px;
+  }
+
+  .wind-tunnel__flow-button {
+    min-width: 0;
+    padding-inline: 4px;
+    font-size: 0.56rem;
+    letter-spacing: 0.04em;
+    text-align: center;
+  }
+
+  .wind-tunnel__stage-hint {
+    max-width: calc(100% - 24px);
+    white-space: normal;
+    line-height: 1.2;
+  }
 }
 
 .replay-rc-panel__list {

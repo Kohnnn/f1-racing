@@ -4,7 +4,7 @@
     "sao-paulo"
   ],
   "circuitKey": 14,
-  "name": "São Paulo",
+  "name": "S\u00e3o Paulo",
   "country": "Brazil",
   "rotationDeg": 258,
   "centerline": [
@@ -1146,142 +1146,115 @@
       "number": 1,
       "letter": "",
       "angleDeg": -87.79175741763308,
-      "trackPosition": {
-        "x": -2393.436279296875,
-        "y": -8518.955078125
-      }
+      "trackPosition": 364.4793182610682
     },
     {
       "number": 2,
       "letter": "",
       "angleDeg": -94.1689759560868,
-      "trackPosition": {
-        "x": -1548.525146484375,
-        "y": -8083.34912109375
-      }
+      "trackPosition": 455.8015365823987
     },
     {
       "number": 3,
       "letter": "",
       "angleDeg": -58.64512614629921,
-      "trackPosition": {
-        "x": 225.64907836914062,
-        "y": -8132.4267578125
-      }
+      "trackPosition": 652.0443731334913
     },
     {
       "number": 4,
       "letter": "",
       "angleDeg": 30.204598325065245,
-      "trackPosition": {
-        "x": 2323.666015625,
-        "y": -1064.5079345703125
-      }
+      "trackPosition": 1389.8378301572327
     },
     {
       "number": 5,
       "letter": "",
       "angleDeg": 101.23021811722906,
-      "trackPosition": {
-        "x": 821.3036499023438,
-        "y": -714.7282104492188
-      }
+      "trackPosition": 1571.5917182839655
     },
     {
       "number": 6,
       "letter": "",
       "angleDeg": -63.591039489545885,
-      "trackPosition": {
-        "x": -2024.5311279296875,
-        "y": -3964.448486328125
-      }
+      "trackPosition": 1999.1567435222842
     },
     {
       "number": 7,
       "letter": "",
       "angleDeg": 38.70287788765292,
-      "trackPosition": {
-        "x": -3261.28466796875,
-        "y": -3714.666015625
-      }
+      "trackPosition": 2140.847365366725
     },
     {
       "number": 8,
       "letter": "",
       "angleDeg": 148.83843695055168,
-      "trackPosition": {
-        "x": -3523.720703125,
-        "y": -2188.38525390625
-      }
+      "trackPosition": 2297.971635572793
     },
     {
       "number": 9,
       "letter": "",
       "angleDeg": -54.666533570246095,
-      "trackPosition": {
-        "x": -2383.04833984375,
-        "y": -2240.02099609375
-      }
+      "trackPosition": 2428.387683475824
     },
     {
       "number": 10,
       "letter": "",
       "angleDeg": 118.47024660701335,
-      "trackPosition": {
-        "x": -3075.818115234375,
-        "y": 258.4669189453125
-      }
+      "trackPosition": 2711.923894378569
     },
     {
       "number": 11,
       "letter": "",
       "angleDeg": 93.56740821839766,
-      "trackPosition": {
-        "x": -1368.5802001953125,
-        "y": -706.1390991210938
-      }
+      "trackPosition": 2923.988443960264
     },
     {
       "number": 12,
       "letter": "",
       "angleDeg": -146.1850849034437,
-      "trackPosition": {
-        "x": 140.72178649902344,
-        "y": 1484.997314453125
-      }
+      "trackPosition": 3213.896623457025
     },
     {
       "number": 13,
       "letter": "",
       "angleDeg": 86.7865108166282,
-      "trackPosition": {
-        "x": -871.7373657226562,
-        "y": 1881.447021484375
-      }
+      "trackPosition": 3323.9702897577085
     },
     {
       "number": 14,
       "letter": "",
       "angleDeg": 142.05075362970024,
-      "trackPosition": {
-        "x": -3189.6416015625,
-        "y": 938.1722412109375
-      }
+      "trackPosition": 3589.5606989912317
     },
     {
       "number": 15,
       "letter": "",
       "angleDeg": 1.0861553243590512,
-      "trackPosition": {
-        "x": -4130.12744140625,
-        "y": -2877.100830078125
-      }
+      "trackPosition": 3997.7140272797687
     }
   ],
-  "drsZones": [],
+  "drsZones": [
+    {
+      "id": "DRS1",
+      "fromRatio": 0.93,
+      "toRatio": 0.04,
+      "from": 39116.328217271555,
+      "to": 1682.4227190224324
+    },
+    {
+      "id": "DRS2",
+      "fromRatio": 0.3,
+      "toRatio": 0.4,
+      "from": 12618.170392668242,
+      "to": 16824.227190224323
+    }
+  ],
   "pitEntryDistance": null,
   "pitExitDistance": null,
   "length": 42060.56797556081,
   "source": "multiviewer.app",
-  "fetchedAt": "2026-05-20T16:27:21.032Z"
+  "fetchedAt": "2026-05-20T16:27:21.032Z",
+  "drsZonesSeededAt": "2026-05-21T05:06:44.195Z",
+  "drsZonesSource": "fia-2025-event-notes",
+  "fastF1HydratedAt": "computed-via-fastf1-circuit-info"
 }

@@ -1,0 +1,599 @@
+{
+  "title": "F1 Racing App QA Evaluation Report v5 evidence",
+  "productionUrl": "https://playful-peony-77899c.netlify.app",
+  "primaryRoute": "https://playful-peony-77899c.netlify.app/cars/current-spec/?season=2026&constructor=fia-2026&focus=front-wing",
+  "testedAt": "2026-05-29T04:46:53.904Z",
+  "browser": "Chromium headless via Playwright",
+  "viewport": {
+    "width": 1440,
+    "height": 1150,
+    "deviceScaleFactor": 1
+  },
+  "screenshots": {
+    "modelview": "C:\\Users\\Admin\\Desktop\\PersonalWebsite\\interactive-note\\f1-racing\\output\\playwright\\qa-v5\\modelview-primary.png",
+    "mode_Procedural": "C:\\Users\\Admin\\Desktop\\PersonalWebsite\\interactive-note\\f1-racing\\output\\playwright\\qa-v5\\mode-procedural.png",
+    "mode_Airfoil": "C:\\Users\\Admin\\Desktop\\PersonalWebsite\\interactive-note\\f1-racing\\output\\playwright\\qa-v5\\mode-airfoil.png",
+    "mode_SVG art": "C:\\Users\\Admin\\Desktop\\PersonalWebsite\\interactive-note\\f1-racing\\output\\playwright\\qa-v5\\mode-svg-art.png",
+    "mode_GLB hull": "C:\\Users\\Admin\\Desktop\\PersonalWebsite\\interactive-note\\f1-racing\\output\\playwright\\qa-v5\\mode-glb-hull.png",
+    "airfoilNegative": "C:\\Users\\Admin\\Desktop\\PersonalWebsite\\interactive-note\\f1-racing\\output\\playwright\\qa-v5\\airfoil-aoa-negative.png",
+    "airfoilPositive": "C:\\Users\\Admin\\Desktop\\PersonalWebsite\\interactive-note\\f1-racing\\output\\playwright\\qa-v5\\airfoil-aoa-positive.png",
+    "drsClosed": "C:\\Users\\Admin\\Desktop\\PersonalWebsite\\interactive-note\\f1-racing\\output\\playwright\\qa-v5\\procedural-drs-closed.png",
+    "drsOpen": "C:\\Users\\Admin\\Desktop\\PersonalWebsite\\interactive-note\\f1-racing\\output\\playwright\\qa-v5\\procedural-drs-open.png",
+    "yawMinus15": "C:\\Users\\Admin\\Desktop\\PersonalWebsite\\interactive-note\\f1-racing\\output\\playwright\\qa-v5\\yaw--15.png",
+    "yawZero": "C:\\Users\\Admin\\Desktop\\PersonalWebsite\\interactive-note\\f1-racing\\output\\playwright\\qa-v5\\yaw-0.png",
+    "yawPlus15": "C:\\Users\\Admin\\Desktop\\PersonalWebsite\\interactive-note\\f1-racing\\output\\playwright\\qa-v5\\yaw-15.png",
+    "windRakeLow": "C:\\Users\\Admin\\Desktop\\PersonalWebsite\\interactive-note\\f1-racing\\output\\playwright\\qa-v5\\wind-rake-low.png",
+    "windRakeHigh": "C:\\Users\\Admin\\Desktop\\PersonalWebsite\\interactive-note\\f1-racing\\output\\playwright\\qa-v5\\wind-rake-high.png",
+    "windRakeClickUpper": "C:\\Users\\Admin\\Desktop\\PersonalWebsite\\interactive-note\\f1-racing\\output\\playwright\\qa-v5\\wind-rake-click-upper.png",
+    "windRakeClickLower": "C:\\Users\\Admin\\Desktop\\PersonalWebsite\\interactive-note\\f1-racing\\output\\playwright\\qa-v5\\wind-rake-click-lower.png",
+    "hoverProbe": "C:\\Users\\Admin\\Desktop\\PersonalWebsite\\interactive-note\\f1-racing\\output\\playwright\\qa-v5\\hover-probe.png",
+    "rollingOff": "C:\\Users\\Admin\\Desktop\\PersonalWebsite\\interactive-note\\f1-racing\\output\\playwright\\qa-v5\\rolling-road-wheels-off.png",
+    "rollingOn": "C:\\Users\\Admin\\Desktop\\PersonalWebsite\\interactive-note\\f1-racing\\output\\playwright\\qa-v5\\rolling-road-wheels-on.png",
+    "ausReplay": "C:\\Users\\Admin\\Desktop\\PersonalWebsite\\interactive-note\\f1-racing\\output\\playwright\\qa-v5\\aus-replay.png",
+    "live": "C:\\Users\\Admin\\Desktop\\PersonalWebsite\\interactive-note\\f1-racing\\output\\playwright\\qa-v5\\live.png",
+    "sessions": "C:\\Users\\Admin\\Desktop\\PersonalWebsite\\interactive-note\\f1-racing\\output\\playwright\\qa-v5\\sessions-redirect.png"
+  },
+  "console": [
+    {
+      "page": "https://playful-peony-77899c.netlify.app/cars/current-spec/?season=2026&constructor=fia-2026&focus=front-wing",
+      "type": "warning",
+      "text": "[.WebGL-0x1a7c001aee00]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels"
+    },
+    {
+      "page": "https://playful-peony-77899c.netlify.app/cars/current-spec/?season=2026&constructor=fia-2026&focus=front-wing",
+      "type": "warning",
+      "text": "Canvas2D: Multiple readback operations using getImageData are faster with the willReadFrequently attribute set to true. See: https://html.spec.whatwg.org/multipage/canvas.html#concept-canvas-will-read-frequently"
+    },
+    {
+      "page": "https://playful-peony-77899c.netlify.app/cars/current-spec/?season=2026&constructor=fia-2026&focus=front-wing",
+      "type": "error",
+      "text": "Failed to load resource: the server responded with a status of 404 ()"
+    },
+    {
+      "page": "https://playful-peony-77899c.netlify.app/learn/aero/",
+      "type": "error",
+      "text": "TypeError: Failed to fetch\n    at https://playful-peony-77899c.netlify.app/_next/static/chunks/63d2ba32.945bf5c62269570a.js:1:215349"
+    }
+  ],
+  "network": [
+    {
+      "url": "https://playful-peony-77899c.netlify.app/models/2026/fia-spec/fia-2026.glb",
+      "status": 200
+    },
+    {
+      "url": "https://playful-peony-77899c.netlify.app/data/silhouettes/fia-2026.json",
+      "status": 404
+    },
+    {
+      "url": "https://playful-peony-77899c.netlify.app/data/wind-profiles/fia-2026.json",
+      "status": 200
+    },
+    {
+      "url": "https://playful-peony-77899c.netlify.app/data/packs/seasons/2025/australian-grand-prix/race/strategy.json",
+      "status": 200
+    },
+    {
+      "url": "https://playful-peony-77899c.netlify.app/data/packs/seasons/2025/australian-grand-prix/race/replay.laps.json",
+      "status": 200
+    },
+    {
+      "url": "https://playful-peony-77899c.netlify.app/data/packs/seasons/2025/australian-grand-prix/race/drivers.json",
+      "status": 200
+    },
+    {
+      "url": "https://playful-peony-77899c.netlify.app/data/packs/seasons/2025/australian-grand-prix/race/laps.json",
+      "status": 200
+    },
+    {
+      "url": "https://playful-peony-77899c.netlify.app/data/packs/seasons/2025/australian-grand-prix/race/replay.race-control.json",
+      "status": 200
+    },
+    {
+      "url": "https://f1-api.129.150.58.64.sslip.io/api/sessions/2025/australian-grand-prix/race/compare/nor-ver",
+      "status": 200
+    },
+    {
+      "url": "https://f1-api.129.150.58.64.sslip.io/api/sessions/2025/australian-grand-prix/race/stints",
+      "status": 200
+    },
+    {
+      "url": "https://f1-api.129.150.58.64.sslip.io/api/replay/2025/australian-grand-prix/race/chunk/5",
+      "status": 200
+    },
+    {
+      "url": "https://f1-api.129.150.58.64.sslip.io/api/replay/2025/australian-grand-prix/race/chunk/0",
+      "status": 200
+    },
+    {
+      "url": "https://f1-api.129.150.58.64.sslip.io/api/replay/2025/australian-grand-prix/race/chunk/3",
+      "status": 200
+    },
+    {
+      "url": "https://f1-api.129.150.58.64.sslip.io/api/replay/2025/australian-grand-prix/race/chunk/4",
+      "status": 200
+    },
+    {
+      "url": "https://f1-api.129.150.58.64.sslip.io/api/replay/2025/australian-grand-prix/race/chunk/1",
+      "status": 200
+    },
+    {
+      "url": "https://f1-api.129.150.58.64.sslip.io/api/replay/2025/australian-grand-prix/race/chunk/2",
+      "status": 200
+    },
+    {
+      "url": "https://f1-api.129.150.58.64.sslip.io/api/replay/2025/australian-grand-prix/race/chunk/6",
+      "status": 200
+    },
+    {
+      "url": "https://f1-api.129.150.58.64.sslip.io/api/live/status",
+      "status": 200
+    },
+    {
+      "url": "https://playful-peony-77899c.netlify.app/models/2025/mclaren/mcl39.glb",
+      "status": 200
+    }
+  ],
+  "checks": {
+    "ociHealth": {
+      "status": 200,
+      "durationMs": 138,
+      "body": "{\"ok\":true,\"service\":\"f1-racing-api\"}"
+    },
+    "modelview": {
+      "url": "https://playful-peony-77899c.netlify.app/cars/current-spec/?season=2026&constructor=fia-2026&focus=front-wing",
+      "readyWithin23s": true,
+      "elapsedMs": 9119,
+      "navigation": {
+        "domContentLoadedMs": 435,
+        "loadEventMs": 521,
+        "transferSize": 3795
+      },
+      "modelViewerLoaded": true,
+      "loadingBadgeVisibleCount": 0,
+      "windTunnelVisible": true,
+      "modelRequests": [
+        {
+          "url": "https://playful-peony-77899c.netlify.app/models/2026/fia-spec/fia-2026.glb",
+          "status": 200
+        }
+      ]
+    },
+    "modes": [
+      {
+        "modeName": "Procedural",
+        "activeState": "true",
+        "labelText": "SILHOUETTE: PROCEDURAL",
+        "overlayText": [],
+        "cleanFallbackCopy": true,
+        "readout": {
+          "raw": "LIVE DRAG 1.571 LIFT 0.000 CD EST 0.76 CL EST -2.12 CY EST 0.00 ΔD +0.008 ΔL +0.000 RE 29.33M FPS 60",
+          "drag": 1.571,
+          "lift": 0,
+          "cd": 0.76,
+          "cl": -2.12,
+          "cy": 0,
+          "deltaD": 0.008,
+          "deltaL": 0,
+          "fps": 60
+        },
+        "canvas": {
+          "width": 1024,
+          "height": 460,
+          "hash": 2211819082,
+          "litRatio": 0.11532322426177175
+        }
+      },
+      {
+        "modeName": "Airfoil",
+        "activeState": "true",
+        "labelText": "SILHOUETTE: AIRFOIL",
+        "overlayText": [],
+        "cleanFallbackCopy": true,
+        "readout": {
+          "raw": "LIVE DRAG 0.375 LIFT -0.000 CD EST 0.13 CL EST 0.48 CY EST 0.00 ΔD -0.010 ΔL -0.000 RE 29.33M FPS 60",
+          "drag": 0.375,
+          "lift": 0,
+          "cd": 0.13,
+          "cl": 0.48,
+          "cy": 0,
+          "deltaD": -0.01,
+          "deltaL": 0,
+          "fps": 60
+        },
+        "canvas": {
+          "width": 1024,
+          "height": 460,
+          "hash": 976211073,
+          "litRatio": 0.0893854748603352
+        }
+      },
+      {
+        "modeName": "SVG art",
+        "activeState": "true",
+        "labelText": "SILHOUETTE: -",
+        "overlayText": [
+          "Silhouette not available for this constructor yet.Switch to Procedural or Airfoil mode for the live solver while this constructor-specific outline is prepared."
+        ],
+        "cleanFallbackCopy": true,
+        "readout": {
+          "raw": "IDLE DRAG 0.000 LIFT 0.000 CD EST 0.76 CL EST -2.12 CY EST 0.00 ΔD +0.000 ΔL +0.000 RE 29.33M FPS 60",
+          "drag": 0,
+          "lift": 0,
+          "cd": 0.76,
+          "cl": -2.12,
+          "cy": 0,
+          "deltaD": 0,
+          "deltaL": 0,
+          "fps": 60
+        },
+        "canvas": {
+          "width": 1024,
+          "height": 460,
+          "hash": 1189613031,
+          "litRatio": 0.014365522745411013
+        }
+      },
+      {
+        "modeName": "GLB hull",
+        "activeState": "true",
+        "labelText": "SILHOUETTE: GLB",
+        "overlayText": [],
+        "cleanFallbackCopy": true,
+        "readout": {
+          "raw": "LIVE DRAG 1.786 LIFT 0.000 CD EST 0.76 CL EST -2.12 CY EST 0.00 ΔD -0.099 ΔL +0.000 RE 29.33M FPS 60",
+          "drag": 1.786,
+          "lift": 0,
+          "cd": 0.76,
+          "cl": -2.12,
+          "cy": 0,
+          "deltaD": -0.099,
+          "deltaL": 0,
+          "fps": 60
+        },
+        "canvas": {
+          "width": 1024,
+          "height": 460,
+          "hash": 381175018,
+          "litRatio": 0.15003990422984836
+        }
+      }
+    ],
+    "airfoil": {
+      "sliderVisible": true,
+      "drsVisibleInAirfoil": false,
+      "negative": {
+        "label": "AIRFOIL AOA -12°",
+        "readout": {
+          "raw": "LIVE DRAG 0.315 LIFT 0.000 CD EST 0.22 CL EST -1.44 CY EST 0.00 ΔD -0.063 ΔL +0.000 RE 29.33M FPS 60",
+          "drag": 0.315,
+          "lift": 0,
+          "cd": 0.22,
+          "cl": -1.44,
+          "cy": 0,
+          "deltaD": -0.063,
+          "deltaL": 0,
+          "fps": 60
+        },
+        "canvas": {
+          "width": 1024,
+          "height": 460,
+          "hash": 1824997841,
+          "litRatio": 0.15003990422984836
+        }
+      },
+      "positive": {
+        "label": "AIRFOIL AOA 16°",
+        "readout": {
+          "raw": "LIVE DRAG 0.262 LIFT -0.000 CD EST 0.27 CL EST 1.92 CY EST 0.00 ΔD -0.066 ΔL -0.000 RE 29.33M FPS 60",
+          "drag": 0.262,
+          "lift": 0,
+          "cd": 0.27,
+          "cl": 1.92,
+          "cy": 0,
+          "deltaD": -0.066,
+          "deltaL": 0,
+          "fps": 60
+        },
+        "canvas": {
+          "width": 1024,
+          "height": 460,
+          "hash": 1008273302,
+          "litRatio": 0.1494413407821229
+        }
+      },
+      "clDirectionPass": true,
+      "cdPositivePass": true,
+      "solverLiveAfterRepeatedChanges": true,
+      "canvasHashChanged": true
+    },
+    "drs": {
+      "closed": {
+        "readout": {
+          "raw": "LIVE DRAG 1.576 LIFT 0.000 CD EST 0.76 CL EST -2.12 CY EST 0.00 ΔD -0.090 ΔL +0.000 RE 29.33M FPS 60",
+          "drag": 1.576,
+          "lift": 0,
+          "cd": 0.76,
+          "cl": -2.12,
+          "cy": 0,
+          "deltaD": -0.09,
+          "deltaL": 0,
+          "fps": 60
+        },
+        "canvas": {
+          "width": 1024,
+          "height": 460,
+          "hash": 1669528317,
+          "litRatio": 0.11612130885873903
+        },
+        "warmingVisible": 0
+      },
+      "open": {
+        "readout": {
+          "raw": "LIVE DRAG 1.467 LIFT 0.000 CD EST 0.68 CL EST -1.95 CY EST 0.00 ΔD -0.099 ΔL +0.000 RE 29.33M FPS 60",
+          "drag": 1.467,
+          "lift": 0,
+          "cd": 0.68,
+          "cl": -1.95,
+          "cy": 0,
+          "deltaD": -0.099,
+          "deltaL": 0,
+          "fps": 60
+        },
+        "canvas": {
+          "width": 1024,
+          "height": 460,
+          "hash": 1294138138,
+          "litRatio": 0.11612130885873903
+        },
+        "warmingVisible": 0
+      },
+      "rawDragDeltaPct": -6.916243654822334,
+      "rawDragPass": true,
+      "estimatePass": true,
+      "warmingCleared": true,
+      "canvasHashChanged": true
+    },
+    "yaw": {
+      "samples": [
+        {
+          "yaw": -15,
+          "label": "YAW -15°",
+          "readout": {
+            "raw": "LIVE DRAG 1.591 LIFT -0.000 CD EST 0.81 CL EST -2.31 CY EST -0.36 ΔD -0.062 ΔL -0.000 RE 29.33M FPS 60",
+            "drag": 1.591,
+            "lift": 0,
+            "cd": 0.81,
+            "cl": -2.31,
+            "cy": -0.36,
+            "deltaD": -0.062,
+            "deltaL": 0,
+            "fps": 60
+          },
+          "canvas": {
+            "width": 1024,
+            "height": 460,
+            "hash": 1538916179,
+            "litRatio": 0.14225857940941738
+          },
+          "screenshot": "C:\\Users\\Admin\\Desktop\\PersonalWebsite\\interactive-note\\f1-racing\\output\\playwright\\qa-v5\\yaw--15.png"
+        },
+        {
+          "yaw": 0,
+          "label": "YAW 0°",
+          "readout": {
+            "raw": "LIVE DRAG 1.573 LIFT 0.000 CD EST 0.76 CL EST -2.12 CY EST 0.00 ΔD -0.080 ΔL +0.000 RE 29.33M FPS 60",
+            "drag": 1.573,
+            "lift": 0,
+            "cd": 0.76,
+            "cl": -2.12,
+            "cy": 0,
+            "deltaD": -0.08,
+            "deltaL": 0,
+            "fps": 60
+          },
+          "canvas": {
+            "width": 1024,
+            "height": 460,
+            "hash": 1941807076,
+            "litRatio": 0.11352753391859537
+          },
+          "screenshot": "C:\\Users\\Admin\\Desktop\\PersonalWebsite\\interactive-note\\f1-racing\\output\\playwright\\qa-v5\\yaw-0.png"
+        },
+        {
+          "yaw": 15,
+          "label": "YAW 15°",
+          "readout": {
+            "raw": "LIVE DRAG 1.567 LIFT 0.000 CD EST 0.81 CL EST -2.31 CY EST 0.36 ΔD -0.086 ΔL +0.000 RE 29.33M FPS 60",
+            "drag": 1.567,
+            "lift": 0,
+            "cd": 0.81,
+            "cl": -2.31,
+            "cy": 0.36,
+            "deltaD": -0.086,
+            "deltaL": 0,
+            "fps": 60
+          },
+          "canvas": {
+            "width": 1024,
+            "height": 460,
+            "hash": 218744681,
+            "litRatio": 0.08399840383080606
+          },
+          "screenshot": "C:\\Users\\Admin\\Desktop\\PersonalWebsite\\interactive-note\\f1-racing\\output\\playwright\\qa-v5\\yaw-15.png"
+        }
+      ],
+      "cySignPass": true,
+      "labelsChanged": [
+        "YAW -15°",
+        "YAW 0°",
+        "YAW 15°"
+      ],
+      "noStuckLabels": true
+    },
+    "windRake": {
+      "afterUpperClickLabel": "WIND RAKE 28%",
+      "afterLowerClickLabel": "WIND RAKE 78%",
+      "clickPlacementPass": true,
+      "hoverText": "U\n65.8 m/s\nCp\n0.000\nω\n0.187\nd\n0.9%",
+      "hoverPass": true
+    },
+    "rollingRoad": {
+      "off": {
+        "readout": {
+          "raw": "LIVE DRAG 1.568 LIFT 0.000 CD EST 0.76 CL EST -2.12 CY EST 0.00 ΔD -0.085 ΔL +0.000 RE 29.33M FPS 60",
+          "drag": 1.568,
+          "lift": 0,
+          "cd": 0.76,
+          "cl": -2.12,
+          "cy": 0,
+          "deltaD": -0.085,
+          "deltaL": 0,
+          "fps": 60
+        },
+        "canvas": {
+          "width": 1024,
+          "height": 460,
+          "hash": 4151773234,
+          "litRatio": 0.061652035115722266
+        }
+      },
+      "on": {
+        "readout": {
+          "raw": "LIVE DRAG 1.573 LIFT 0.000 CD EST 0.76 CL EST -2.12 CY EST 0.00 ΔD -0.080 ΔL +0.000 RE 29.33M FPS 60",
+          "drag": 1.573,
+          "lift": 0,
+          "cd": 0.76,
+          "cl": -2.12,
+          "cy": 0,
+          "deltaD": -0.08,
+          "deltaL": 0,
+          "fps": 60
+        },
+        "canvas": {
+          "width": 1024,
+          "height": 460,
+          "hash": 1955811835,
+          "litRatio": 0.06225059856344772
+        }
+      },
+      "visualHashChanged": true,
+      "readoutChanged": false
+    },
+    "ausReplay": {
+      "elapsedMs": 1467,
+      "fullyLoadedWithin45s": true,
+      "loadedLabel": "Loaded 1:46:08 / 1:46:08",
+      "loadFullVisible": false,
+      "chunkResponses": [
+        {
+          "url": "https://f1-api.129.150.58.64.sslip.io/api/replay/2025/australian-grand-prix/race/chunk/5",
+          "status": 200
+        },
+        {
+          "url": "https://f1-api.129.150.58.64.sslip.io/api/replay/2025/australian-grand-prix/race/chunk/0",
+          "status": 200
+        },
+        {
+          "url": "https://f1-api.129.150.58.64.sslip.io/api/replay/2025/australian-grand-prix/race/chunk/3",
+          "status": 200
+        },
+        {
+          "url": "https://f1-api.129.150.58.64.sslip.io/api/replay/2025/australian-grand-prix/race/chunk/4",
+          "status": 200
+        },
+        {
+          "url": "https://f1-api.129.150.58.64.sslip.io/api/replay/2025/australian-grand-prix/race/chunk/1",
+          "status": 200
+        },
+        {
+          "url": "https://f1-api.129.150.58.64.sslip.io/api/replay/2025/australian-grand-prix/race/chunk/2",
+          "status": 200
+        },
+        {
+          "url": "https://f1-api.129.150.58.64.sslip.io/api/replay/2025/australian-grand-prix/race/chunk/6",
+          "status": 200
+        }
+      ]
+    },
+    "live": {
+      "elapsedMs": 52778,
+      "liveReadyWithin100s": true,
+      "feedSource": "OCI replay fallback",
+      "sourceCopyAllowed": true,
+      "rcLines": [
+        "GREEN",
+        "T+0s · Lap 1 · SESSION STARTED",
+        "GREEN",
+        "T+416s · Lap 1 · GREEN LIGHT - PIT EXIT OPEN"
+      ]
+    },
+    "routes": [
+      {
+        "route": "/learn/",
+        "finalUrl": "https://playful-peony-77899c.netlify.app/learn/",
+        "title": "Learn · F1 Racing",
+        "bodyHasContent": true,
+        "elapsedMs": 1463,
+        "navigation": {
+          "domContentLoadedMs": 252,
+          "loadEventMs": 260,
+          "transferSize": 3142
+        }
+      },
+      {
+        "route": "/learn/aero",
+        "finalUrl": "https://playful-peony-77899c.netlify.app/learn/aero/",
+        "title": "Aero · F1 Racing",
+        "bodyHasContent": true,
+        "elapsedMs": 1679,
+        "navigation": {
+          "domContentLoadedMs": 473,
+          "loadEventMs": 491,
+          "transferSize": 3713
+        }
+      },
+      {
+        "route": "/replay/",
+        "finalUrl": "https://playful-peony-77899c.netlify.app/replay/",
+        "title": "Replay · F1 Racing",
+        "bodyHasContent": true,
+        "elapsedMs": 2068,
+        "navigation": {
+          "domContentLoadedMs": 862,
+          "loadEventMs": 865,
+          "transferSize": 7108
+        }
+      },
+      {
+        "route": "/sessions/",
+        "finalUrl": "https://playful-peony-77899c.netlify.app/replay/",
+        "title": "Replay · F1 Racing",
+        "bodyHasContent": true,
+        "elapsedMs": 1292,
+        "navigation": {
+          "domContentLoadedMs": 75,
+          "loadEventMs": 178,
+          "transferSize": 1924
+        }
+      }
+    ]
+  },
+  "summary": {
+    "blockerChecksPass": true,
+    "consoleErrorCount": 2,
+    "consoleWarningCount": 2,
+    "networkNonOk": [
+      {
+        "url": "https://playful-peony-77899c.netlify.app/data/silhouettes/fia-2026.json",
+        "status": 404
+      }
+    ],
+    "perf": {
+      "modelReadyMs": 9119,
+      "replayFullLoadMs": 1467,
+      "liveRaceControlMs": 52778,
+      "proceduralFps": 60,
+      "airfoilFps": 60
+    }
+  }
+}

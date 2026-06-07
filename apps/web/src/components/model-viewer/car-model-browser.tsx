@@ -3,6 +3,7 @@
 import { createElement, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { CarModelCatalog } from "@/lib/data";
+import { ensureModelViewerLoaded } from "@/lib/model-viewer-loader";
 import { focusPoints, getFocusPoint } from "./focus-points";
 import { CanvasWindTunnel } from "@/components/wind/canvas-wind-tunnel";
 
@@ -135,6 +136,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
   const viewerRef = useRef<ModelViewerElement | null>(null);
   const [modelReady, setModelReady] = useState(false);
   const [modelLoadFailed, setModelLoadFailed] = useState(false);
+  const [viewerBootFailed, setViewerBootFailed] = useState(false);
 
   const seasons = useMemo(
     () => Array.from(new Set(catalog.models.map((m) => m.season))).sort((a, b) => b - a),
@@ -172,7 +174,17 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
   const [zoomHint, setZoomHint] = useState<string>("");
 
   useEffect(() => {
-    import("@google/model-viewer");
+    let cancelled = false;
+    ensureModelViewerLoaded()
+      .then(() => {
+        if (!cancelled) setViewerBootFailed(false);
+      })
+      .catch(() => {
+        if (!cancelled) setViewerBootFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -605,7 +617,9 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
             {!modelReady ? (
               <div className="car-viewer-loading" role="status" aria-live="polite">
                 <span className="car-viewer-loading__spinner" aria-hidden="true" />
-                Loading {selected.displayName} · {selected.sizeLabel}
+                {viewerBootFailed
+                  ? "3D viewer could not start. Use the page controls or reload."
+                  : `Loading ${selected.displayName} · ${selected.sizeLabel}`}
               </div>
             ) : null}
             {modelLoadFailed ? (
@@ -783,7 +797,12 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
       </div>
 
       <div className="car-wind-tunnel-host">
-        <CanvasWindTunnel modelTitle={selected.displayName} constructorSlug={selected.constructorSlug} />
+        <CanvasWindTunnel
+          modelTitle={selected.displayName}
+          constructorSlug={selected.constructorSlug}
+          modelFile={selected.file}
+          modelScale={selected.modelScale}
+        />
       </div>
     </section>
   );

@@ -1,231 +1,586 @@
 /**
- * Stable-Fluids Web Worker (rewritten 2026-05-22).
+ * Geometry-driven wind-tunnel field.
  *
- * 2D incompressible Navier-Stokes solver based on Jos Stam's "Stable Fluids"
- * (1999) approach: semi-Lagrangian advection + Jacobi pressure projection.
- * Runs in a Worker so the main UI thread stays responsive.
+ * This worker intentionally does not try to be CFD. It builds a signed-ish
+ * distance/normal field from the supplied car mask, then produces a stable
+ * illustrative velocity field that the renderer can trace as streamlines.
  *
- * Wire protocol (postMessage):
+ * Wire protocol:
  *
- *   IN  { type: "init", airspeed, mask }
- *   IN  { type: "set-mask", mask }
- *   IN  { type: "tick", airspeed, yawDeg, windSourceY, groundMode, wheelMode, mask?, subSteps? }
+ *   IN  { type: "init", airspeed, mask, wheels, components }
+ *   IN  { type: "set-mask", mask, wheels, components }
+ *   IN  { type: "tick", airspeed, yawDeg, windSourceY, drsOpen, groundMode, wheelMode, diagnostic, mask?, wheels?, components? }
  *
  *   OUT { type: "frame", nx, ny,
- *         u: ArrayBuffer (Float32Array NX*NY),
- *         v: ArrayBuffer (Float32Array NX*NY),
- *         speed: ArrayBuffer (Float32Array NX*NY),
- *         pressure: ArrayBuffer (Float32Array NX*NY),
- *         drag, lift }
- *
- * Compared to the previous version we now ship u + v separately (so particle
- * streaklines can curl and deflect over the body) and the pressure field (so
- * the renderer can paint a Cp tint along the boundary instead of a noisy
- * volumetric heat-fill). The simulation is illustrative, not a measured
- * aerodynamic result, and the wind tunnel UI labels it as such.
+ *         u: ArrayBuffer, v: ArrayBuffer, speed: ArrayBuffer, pressure: ArrayBuffer,
+ *         drag, lift, frameIndex,
+ *         bodyDistance?, bodyNormalX?, bodyNormalY?, bodyMask?, wheelMask?, wake?, ground?, components? }
  */
 
-const NX = 320; // grid columns
-const NY = 144; // grid rows
+const NX = 320;
+const NY = 144;
 const N = NX * NY;
-const DT = 0.045;
-const VISCOSITY = 0.00018;
-const PRESSURE_ITER = 20;
+const BODY_INFLUENCE_RADIUS = 46;
+const BODY_INFLUENCE_RADIUS_SQ = BODY_INFLUENCE_RADIUS * BODY_INFLUENCE_RADIUS;
+const GROUND_Y = Math.floor(NY * 0.965);
+
+type GroundMode = "rolling" | "fixed";
+type WheelMode = "rotating" | "stationary";
+
+interface WheelCell {
+  cx: number;
+  cy: number;
+  r: number;
+}
+
+type WakeZoneKind = "rearWing" | "diffuser";
+
+interface WakeZoneCell {
+  kind: WakeZoneKind;
+  x: number;
+  y: number;
+  radiusX: number;
+  radiusY: number;
+  strength: number;
+}
 
 const u = new Float32Array(N);
 const v = new Float32Array(N);
-const u0 = new Float32Array(N);
-const v0 = new Float32Array(N);
 const p = new Float32Array(N);
-const div = new Float32Array(N);
 const speed = new Float32Array(N);
+const bodyDistance = new Float32Array(N);
+const bodyNormalX = new Float32Array(N);
+const bodyNormalY = new Float32Array(N);
+const wheelMask = new Uint8Array(N);
+const wakeEnvelope = new Float32Array(N);
+const groundChannel = new Float32Array(N);
+const columnTop = new Int16Array(NX);
+const columnBottom = new Int16Array(NX);
+
 let mask: Uint8Array<ArrayBufferLike> = new Uint8Array(N);
+let wheels: WheelCell[] = [];
+let componentWakeZones: WakeZoneCell[] = [];
 let inletSpeed = 1.4;
 let yawVelocity = 0;
-let groundMode: "rolling" | "fixed" = "rolling";
-let wheelMode: "rotating" | "stationary" = "rotating";
+let groundMode: GroundMode = "rolling";
+let wheelMode: WheelMode = "rotating";
+let drsOpen = false;
+let frameIndex = 0;
+let bodyBounds = {
+  hasMask: false,
+  minX: 0,
+  maxX: 0,
+  minY: 0,
+  maxY: 0,
+  centerY: NY * 0.5,
+  noseY: NY * 0.5,
+  rearY: NY * 0.5,
+  area: 0,
+};
 
 function idx(x: number, y: number) {
   return y * NX + x;
 }
 
-function setBoundaries(field: Float32Array, isVerticalComponent: boolean) {
-  // Walls: top + bottom slip, left = inlet (Dirichlet), right = outflow.
-  for (let y = 0; y < NY; y += 1) {
-    field[idx(0, y)] = isVerticalComponent ? yawVelocity : inletSpeed;
-    field[idx(NX - 1, y)] = field[idx(NX - 2, y)];
-  }
-  for (let x = 0; x < NX; x += 1) {
-    field[idx(x, 0)] = isVerticalComponent ? 0 : field[idx(x, 1)];
-    field[idx(x, NY - 1)] = isVerticalComponent
-      ? 0
-      : groundMode === "rolling"
-        ? inletSpeed
-        : field[idx(x, NY - 2)] * 0.35;
-  }
-  // No-slip at obstacle cells.
-  for (let i = 0; i < N; i += 1) {
-    if (mask[i]) field[i] = 0;
-  }
+function setGeometry(inputMask: unknown, inputWheels?: unknown, inputComponents?: unknown) {
+  mask = normalizeMask(inputMask);
+  wheels = normalizeWheels(inputWheels);
+  rebuildWheelMask();
+  rebuildBodyGeometry();
+  const suppliedZones = normalizeWakeZones(inputComponents);
+  componentWakeZones = suppliedZones.length ? suppliedZones : deriveWakeZones();
+  clearFlow();
 }
 
-function diffuse(field: Float32Array, source: Float32Array, rate: number, isVertical: boolean) {
-  const a = DT * rate * NX * NY;
-  for (let iter = 0; iter < 4; iter += 1) {
-    for (let y = 1; y < NY - 1; y += 1) {
-      for (let x = 1; x < NX - 1; x += 1) {
-        if (mask[idx(x, y)]) continue;
-        const c = idx(x, y);
-        field[c] = (source[c]
-          + a * (field[idx(x - 1, y)] + field[idx(x + 1, y)] + field[idx(x, y - 1)] + field[idx(x, y + 1)])
-        ) / (1 + 4 * a);
-      }
-    }
-    setBoundaries(field, isVertical);
-  }
+function setWheels(inputWheels: unknown) {
+  wheels = normalizeWheels(inputWheels);
+  rebuildWheelMask();
 }
 
-function advect(field: Float32Array, source: Float32Array, fieldU: Float32Array, fieldV: Float32Array, isVertical: boolean) {
-  const dt0x = DT * NX;
-  const dt0y = DT * NY;
-  for (let y = 1; y < NY - 1; y += 1) {
-    for (let x = 1; x < NX - 1; x += 1) {
-      const c = idx(x, y);
-      if (mask[c]) { field[c] = 0; continue; }
-      let bx = x - dt0x * fieldU[c];
-      let by = y - dt0y * fieldV[c];
-      if (bx < 0.5) bx = 0.5;
-      if (bx > NX - 1.5) bx = NX - 1.5;
-      if (by < 0.5) by = 0.5;
-      if (by > NY - 1.5) by = NY - 1.5;
-      const i0 = Math.floor(bx);
-      const i1 = i0 + 1;
-      const j0 = Math.floor(by);
-      const j1 = j0 + 1;
-      const s1 = bx - i0;
-      const s0 = 1 - s1;
-      const t1 = by - j0;
-      const t0 = 1 - t1;
-      field[c] = s0 * (t0 * source[idx(i0, j0)] + t1 * source[idx(i0, j1)])
-               + s1 * (t0 * source[idx(i1, j0)] + t1 * source[idx(i1, j1)]);
-    }
-  }
-  setBoundaries(field, isVertical);
-}
+function rebuildBodyGeometry() {
+  bodyDistance.fill(Number.POSITIVE_INFINITY);
+  bodyNormalX.fill(0);
+  bodyNormalY.fill(0);
+  columnTop.fill(-1);
+  columnBottom.fill(-1);
 
-function project() {
-  const h = 1 / NX;
-  for (let y = 1; y < NY - 1; y += 1) {
-    for (let x = 1; x < NX - 1; x += 1) {
-      const c = idx(x, y);
-      if (mask[c]) { div[c] = 0; p[c] = 0; continue; }
-      div[c] = -0.5 * h * (
-        u[idx(x + 1, y)] - u[idx(x - 1, y)]
-        + v[idx(x, y + 1)] - v[idx(x, y - 1)]
-      );
-      p[c] = 0;
-    }
-  }
-  for (let iter = 0; iter < PRESSURE_ITER; iter += 1) {
-    for (let y = 1; y < NY - 1; y += 1) {
-      for (let x = 1; x < NX - 1; x += 1) {
-        const c = idx(x, y);
-        if (mask[c]) continue;
-        p[c] = (div[c] + p[idx(x - 1, y)] + p[idx(x + 1, y)] + p[idx(x, y - 1)] + p[idx(x, y + 1)]) / 4;
-      }
-    }
-  }
-  for (let y = 1; y < NY - 1; y += 1) {
-    for (let x = 1; x < NX - 1; x += 1) {
-      const c = idx(x, y);
-      if (mask[c]) continue;
-      u[c] -= 0.5 * (p[idx(x + 1, y)] - p[idx(x - 1, y)]) / h;
-      v[c] -= 0.5 * (p[idx(x, y + 1)] - p[idx(x, y - 1)]) / h;
-    }
-  }
-  setBoundaries(u, false);
-  setBoundaries(v, true);
-}
-
-function injectInlet(inlet: { u: Float32Array; v: Float32Array }) {
-  for (let y = 1; y < NY - 1; y += 1) {
-    const incoming = inlet.u[y];
-    const crossflow = inlet.v[y];
-    u[idx(0, y)] = incoming;
-    u[idx(1, y)] = incoming * 0.96;
-    v[idx(0, y)] = crossflow;
-    v[idx(1, y)] = crossflow * 0.96;
-  }
-
-  if (wheelMode === "rotating") {
-    stirWheelWake(0.24, 0.83, 1);
-    stirWheelWake(0.78, 0.83, -1);
-  }
-}
-
-function stirWheelWake(nx: number, ny: number, direction: number) {
-  const cx = Math.round(nx * NX);
-  const cy = Math.round(ny * NY);
-  const radius = 10;
-  for (let y = cy - radius; y <= cy + radius; y += 1) {
-    if (y <= 1 || y >= NY - 1) continue;
-    for (let x = cx - radius; x <= cx + radius; x += 1) {
-      if (x <= 1 || x >= NX - 1) continue;
-      const dx = x - cx;
-      const dy = y - cy;
-      const d2 = dx * dx + dy * dy;
-      if (d2 > radius * radius) continue;
-      const fade = 1 - d2 / (radius * radius);
-      const c = idx(x, y);
-      u[c] += -dy * 0.0028 * direction * fade;
-      v[c] += dx * 0.0028 * direction * fade;
-    }
-  }
-}
-
-function step(inlet: { u: Float32Array; v: Float32Array }) {
-  injectInlet(inlet);
-  u0.set(u);
-  v0.set(v);
-  diffuse(u, u0, VISCOSITY, false);
-  diffuse(v, v0, VISCOSITY, true);
-  project();
-  u0.set(u);
-  v0.set(v);
-  advect(u, u0, u0, v0, false);
-  advect(v, v0, u0, v0, true);
-  project();
-  for (let i = 0; i < N; i += 1) speed[i] = Math.hypot(u[i], v[i]);
-}
-
-function computeForces() {
-  // Approximate force from exposed pressure faces plus the downstream wake
-  // deficit. This remains illustrative, but it responds to mask geometry.
-  let pressureDrag = 0;
-  let lift = 0;
-  let exposedVerticalFaces = 0;
-  let exposedHorizontalFaces = 0;
-  let maskArea = 0;
+  const boundary: Array<[number, number]> = [];
   let minX = NX;
   let maxX = 0;
   let minY = NY;
   let maxY = 0;
+  let sumY = 0;
+  let area = 0;
 
   for (let y = 1; y < NY - 1; y += 1) {
     for (let x = 1; x < NX - 1; x += 1) {
-      if (!mask[idx(x, y)]) continue;
-      maskArea += 1;
+      const c = idx(x, y);
+      if (!mask[c]) continue;
+
+      bodyDistance[c] = 0;
+      area += 1;
+      sumY += y;
       minX = Math.min(minX, x);
       maxX = Math.max(maxX, x);
       minY = Math.min(minY, y);
       maxY = Math.max(maxY, y);
+      columnTop[x] = columnTop[x] < 0 ? y : Math.min(columnTop[x], y);
+      columnBottom[x] = Math.max(columnBottom[x], y);
+
+      if (
+        !mask[idx(x - 1, y)]
+        || !mask[idx(x + 1, y)]
+        || !mask[idx(x, y - 1)]
+        || !mask[idx(x, y + 1)]
+      ) {
+        boundary.push([x, y]);
+      }
+    }
+  }
+
+  if (!area || boundary.length === 0) {
+    bodyBounds = {
+      hasMask: false,
+      minX: 0,
+      maxX: 0,
+      minY: 0,
+      maxY: 0,
+      centerY: NY * 0.5,
+      noseY: NY * 0.5,
+      rearY: NY * 0.5,
+      area: 0,
+    };
+    return;
+  }
+
+  const centerY = sumY / area;
+  bodyBounds = {
+    hasMask: true,
+    minX,
+    maxX,
+    minY,
+    maxY,
+    centerY,
+    noseY: averageMaskY(minX, Math.min(maxX, minX + Math.max(3, Math.floor((maxX - minX) * 0.08))), centerY),
+    rearY: averageMaskY(Math.max(minX, maxX - Math.max(3, Math.floor((maxX - minX) * 0.12))), maxX, centerY),
+    area,
+  };
+
+  const scanMinX = Math.max(1, minX - BODY_INFLUENCE_RADIUS);
+  const scanMaxX = Math.min(NX - 2, maxX + BODY_INFLUENCE_RADIUS);
+  const scanMinY = Math.max(1, minY - BODY_INFLUENCE_RADIUS);
+  const scanMaxY = Math.min(NY - 2, maxY + BODY_INFLUENCE_RADIUS);
+
+  for (let y = scanMinY; y <= scanMaxY; y += 1) {
+    for (let x = scanMinX; x <= scanMaxX; x += 1) {
+      const c = idx(x, y);
+      if (mask[c]) continue;
+
+      let bestSq = BODY_INFLUENCE_RADIUS_SQ + 1;
+      let bestDx = 0;
+      let bestDy = 0;
+      for (const [bx, by] of boundary) {
+        const dx = x - bx;
+        if (Math.abs(dx) > BODY_INFLUENCE_RADIUS) continue;
+        const dy = y - by;
+        if (Math.abs(dy) > BODY_INFLUENCE_RADIUS) continue;
+        const d2 = dx * dx + dy * dy;
+        if (d2 < bestSq) {
+          bestSq = d2;
+          bestDx = dx;
+          bestDy = dy;
+        }
+      }
+
+      if (bestSq <= BODY_INFLUENCE_RADIUS_SQ) {
+        const distance = Math.sqrt(Math.max(0.0001, bestSq));
+        bodyDistance[c] = distance;
+        bodyNormalX[c] = bestDx / distance;
+        bodyNormalY[c] = bestDy / distance;
+      }
+    }
+  }
+}
+
+function rebuildWheelMask() {
+  wheelMask.fill(0);
+  for (let y = 0; y < NY; y += 1) {
+    for (let x = 0; x < NX; x += 1) {
+      for (const wheel of wheels) {
+        if (Math.hypot(x + 0.5 - wheel.cx, y + 0.5 - wheel.cy) <= wheel.r) {
+          wheelMask[idx(x, y)] = 1;
+          break;
+        }
+      }
+    }
+  }
+}
+
+function deriveWakeZones(): WakeZoneCell[] {
+  if (!bodyBounds.hasMask) return [];
+  const length = Math.max(1, bodyBounds.maxX - bodyBounds.minX);
+  const height = Math.max(1, bodyBounds.maxY - bodyBounds.minY);
+  const rearColumnX = Math.max(bodyBounds.minX, Math.round(bodyBounds.maxX - length * 0.035));
+  const upperRear = columnTopAt(rearColumnX);
+  const lowerRear = columnBottomAt(rearColumnX);
+  return [
+    {
+      kind: "rearWing",
+      x: bodyBounds.maxX,
+      y: upperRear >= 0 ? upperRear + height * 0.16 : bodyBounds.rearY - height * 0.24,
+      radiusX: Math.max(5, length * 0.035),
+      radiusY: Math.max(5, height * 0.15),
+      strength: 0.95,
+    },
+    {
+      kind: "diffuser",
+      x: Math.max(bodyBounds.minX, bodyBounds.maxX - length * 0.045),
+      y: lowerRear >= 0 ? lowerRear - height * 0.05 : bodyBounds.rearY + height * 0.25,
+      radiusX: Math.max(5, length * 0.045),
+      radiusY: Math.max(4, height * 0.12),
+      strength: 0.82,
+    },
+  ];
+}
+
+function averageMaskY(x0: number, x1: number, fallback: number) {
+  let total = 0;
+  let count = 0;
+  for (let y = 1; y < NY - 1; y += 1) {
+    for (let x = Math.max(1, x0); x <= Math.min(NX - 2, x1); x += 1) {
+      if (mask[idx(x, y)]) {
+        total += y;
+        count += 1;
+      }
+    }
+  }
+  return count ? total / count : fallback;
+}
+
+function clearFlow() {
+  u.fill(0);
+  v.fill(0);
+  p.fill(0);
+  speed.fill(0);
+  wakeEnvelope.fill(0);
+  groundChannel.fill(0);
+  frameIndex = 0;
+}
+
+function buildInletProfile(speedMps: number, yawDeg: number, windSourceY: number) {
+  const normalized = Math.max(0, speedMps) / 60;
+  const yawRad = (yawDeg * Math.PI) / 180;
+  inletSpeed = normalized * Math.cos(yawRad);
+  yawVelocity = normalized * Math.sin(yawRad);
+
+  const inlet = { u: new Float32Array(NY), v: new Float32Array(NY) };
+  for (let y = 0; y < NY; y += 1) {
+    const floorDistance = (NY - 1 - y) / (NY - 1);
+    const boundaryLayer = groundMode === "rolling"
+      ? 1.02 + floorDistance * 0.045
+      : 0.18 + 0.82 * smooth01(floorDistance / 0.34);
+    const rakeDistance = y / (NY - 1) - windSourceY;
+    const rakeBoost = 1 + 0.075 * Math.exp(-(rakeDistance * rakeDistance) / 0.008);
+    inlet.u[y] = inletSpeed * boundaryLayer * rakeBoost;
+    inlet.v[y] = yawVelocity * boundaryLayer * rakeBoost;
+  }
+  return inlet;
+}
+
+function buildVelocityField(inlet: { u: Float32Array; v: Float32Array }) {
+  const inletMag = Math.max(0.08, Math.hypot(inletSpeed, yawVelocity));
+  const windX = inletSpeed / inletMag;
+  const windY = yawVelocity / inletMag;
+  wakeEnvelope.fill(0);
+  groundChannel.fill(0);
+
+  for (let y = 0; y < NY; y += 1) {
+    for (let x = 0; x < NX; x += 1) {
+      const c = idx(x, y);
+      if (mask[c]) {
+        u[c] = 0;
+        v[c] = 0;
+        p[c] = 0.55;
+        speed[c] = 0;
+        continue;
+      }
+
+      let uu = inlet.u[y];
+      let vv = inlet.v[y];
+      let pressure = 0;
+
+      if (bodyBounds.hasMask) {
+        const shaped = applyBodyInfluence(x, y, c, uu, vv, pressure, inletMag, windX, windY);
+        uu = shaped.u;
+        vv = shaped.v;
+        pressure = shaped.pressure;
+
+        const floor = applyGroundEffect(x, y, uu, vv, pressure, inletMag);
+        uu = floor.u;
+        vv = floor.v;
+        pressure = floor.pressure;
+
+        const wake = applyWakeDeficit(x, y, uu, vv, pressure, inletMag);
+        uu = wake.u;
+        vv = wake.v;
+        pressure = wake.pressure;
+      }
+
+      const wheel = applyWheelEffects(x, y, uu, vv, pressure, inletMag);
+      uu = wheel.u;
+      vv = wheel.v;
+      pressure = wheel.pressure;
+
+      const limited = limitVelocity(uu, vv, inletMag * 2.15);
+      u[c] = limited.u;
+      v[c] = limited.v;
+      p[c] = pressure + 0.5 * (inletMag * inletMag - (limited.u * limited.u + limited.v * limited.v));
+    }
+  }
+
+  enforceNoPenetration();
+  for (let i = 0; i < N; i += 1) {
+    if (mask[i]) {
+      speed[i] = 0;
+    } else {
+      speed[i] = Math.hypot(u[i], v[i]);
+    }
+  }
+}
+
+function applyBodyInfluence(
+  x: number,
+  y: number,
+  c: number,
+  uu: number,
+  vv: number,
+  pressure: number,
+  inletMag: number,
+  windX: number,
+  windY: number,
+) {
+  const distance = bodyDistance[c];
+  const length = Math.max(1, bodyBounds.maxX - bodyBounds.minX);
+  const height = Math.max(1, bodyBounds.maxY - bodyBounds.minY);
+
+  if (distance > 0 && distance < BODY_INFLUENCE_RADIUS) {
+    const influence = smooth01(1 - distance / BODY_INFLUENCE_RADIUS);
+    const nx = bodyNormalX[c];
+    const ny = bodyNormalY[c];
+    const normalFlow = uu * nx + vv * ny;
+
+    if (normalFlow < 0) {
+      const remove = -normalFlow * (0.96 + influence * 0.22);
+      uu += nx * remove;
+      vv += ny * remove;
+      pressure += (remove / inletMag) * 0.34 * influence;
+    }
+
+    const windNormal = windX * nx + windY * ny;
+    let tx = windX - nx * windNormal;
+    let ty = windY - ny * windNormal;
+    const tMag = Math.hypot(tx, ty);
+    if (tMag > 0.001) {
+      tx /= tMag;
+      ty /= tMag;
+      const upperSurface = ny < -0.16 ? 1 : 0;
+      const lowerSurface = ny > 0.16 ? 1 : 0;
+      const bodyT = clamp((x - bodyBounds.minX) / length, 0, 1);
+      const shoulder = Math.exp(-Math.pow((bodyT - 0.40) / 0.23, 2));
+      const diffuser = Math.exp(-Math.pow((bodyT - 0.78) / 0.20, 2));
+      const accel = influence * (
+        0.08
+        + upperSurface * (0.30 + 0.10 * shoulder)
+        + lowerSurface * (0.13 + 0.14 * diffuser)
+      );
+      uu += tx * inletMag * accel;
+      vv += ty * inletMag * accel;
+      pressure -= accel * inletMag * 0.30;
+    }
+  }
+
+  const frontWindow = x > bodyBounds.minX - length * 0.16 && x < bodyBounds.minX + length * 0.24;
+  if (frontWindow) {
+    const dx = (x - (bodyBounds.minX + length * 0.035)) / (length * 0.20);
+    const dy = (y - bodyBounds.noseY) / (height * 0.85);
+    const nose = Math.exp(-(dx * dx * 2.1 + dy * dy * 1.65));
+    if (nose > 0.006) {
+      const split = y < bodyBounds.noseY ? -1 : 1;
+      uu *= 1 - nose * 0.58;
+      vv += split * inletMag * nose * 0.30;
+      pressure += nose * inletMag * 0.58;
+    }
+  }
+
+  return { u: uu, v: vv, pressure };
+}
+
+function applyGroundEffect(x: number, y: number, uu: number, vv: number, pressure: number, inletMag: number) {
+  if (x < bodyBounds.minX || x > bodyBounds.maxX || y >= GROUND_Y) {
+    return { u: uu, v: vv, pressure };
+  }
+
+  const bottom = columnBottomAt(x);
+  if (bottom < 0 || y <= bottom || y >= GROUND_Y) {
+    return { u: uu, v: vv, pressure };
+  }
+
+  const gap = Math.max(2, GROUND_Y - bottom);
+  const gapT = (y - bottom) / gap;
+  const length = Math.max(1, bodyBounds.maxX - bodyBounds.minX);
+  const bodyT = clamp((x - bodyBounds.minX) / length, 0, 1);
+  const window = smooth01(bodyT / 0.16) * smooth01((1 - bodyT) / 0.20);
+  const channel = Math.exp(-Math.pow((gapT - 0.32) / 0.34, 2)) * window;
+  const rolling = groundMode === "rolling";
+  const boost = channel * (rolling ? 0.66 : 0.15);
+  const diffuserExpansion = Math.exp(-Math.pow((bodyT - 0.86) / 0.14, 2)) * channel;
+
+  uu += inletMag * boost;
+  vv += inletMag * channel * (rolling ? -0.045 : 0.024);
+  vv -= inletMag * diffuserExpansion * (rolling ? 0.055 : 0.016);
+  pressure -= inletMag * boost * (rolling ? 0.72 : 0.38);
+  groundChannel[idx(x, y)] = Math.max(groundChannel[idx(x, y)], channel * (rolling ? 1 : 0.42));
+  return { u: uu, v: vv, pressure };
+}
+
+function applyWakeDeficit(x: number, y: number, uu: number, vv: number, pressure: number, inletMag: number) {
+  const length = Math.max(1, bodyBounds.maxX - bodyBounds.minX);
+  const height = Math.max(1, bodyBounds.maxY - bodyBounds.minY);
+  let nextU = uu;
+  let nextV = vv;
+  let nextPressure = pressure;
+
+  for (const zone of componentWakeZones) {
+    const originX = Math.max(zone.x, bodyBounds.minX);
+    if (x < originX) continue;
+
+    const dx = x - originX;
+    const maxWakeLength = zone.kind === "rearWing"
+      ? length * (drsOpen ? 0.25 : 0.46)
+      : length * 0.32;
+    const wakeLength = Math.min(NX - originX - 1, Math.max(zone.radiusX * 3.2, maxWakeLength));
+    if (wakeLength <= 2 || dx > wakeLength) continue;
+
+    const t = clamp(dx / wakeLength, 0, 1);
+    const drsScale = zone.kind === "rearWing" && drsOpen ? 0.28 : 1;
+    const groundScale = zone.kind === "diffuser"
+      ? (groundMode === "rolling" ? 1.12 : 0.46)
+      : 1;
+    const baseRadius = zone.kind === "rearWing"
+      ? zone.radiusY * (drsOpen ? (0.95 + t * 0.52) : (1.10 + t * 1.46))
+      : zone.radiusY * (0.78 + t * 1.08);
+    const center = zone.kind === "rearWing"
+      ? zone.y + height * 0.12 * t
+      : zone.y - height * 0.12 * t;
+    const dy = (y - center) / Math.max(1, baseRadius);
+    const cross = Math.exp(-dy * dy * (zone.kind === "rearWing" ? 2.15 : 2.65));
+    const decay = Math.pow(Math.max(0, 1 - t), zone.kind === "rearWing" ? 0.74 : 0.92);
+    const zoneStrength = zone.strength * drsScale * groundScale;
+    const deficit = cross * decay * zoneStrength * (zone.kind === "rearWing" ? 0.36 : 0.17);
+    if (deficit <= 0.0008) continue;
+
+    const shear = Math.sin(frameIndex * 0.12 + t * 6.2 + zone.y * 0.037) * cross * decay;
+    const convergence = clamp((center - y) / Math.max(1, baseRadius), -1, 1) * cross * decay;
+    nextU *= 1 - deficit;
+    if (zone.kind === "rearWing") {
+      nextV += convergence * inletMag * (drsOpen ? 0.030 : 0.155) * zone.strength;
+      nextV += shear * inletMag * (drsOpen ? 0.010 : 0.040) * zone.strength;
+    } else {
+      nextV -= cross * decay * inletMag * (groundMode === "rolling" ? 0.072 : 0.022) * zone.strength;
+      nextV += shear * inletMag * (groundMode === "rolling" ? 0.020 : 0.008) * zone.strength;
+    }
+    nextPressure -= deficit * inletMag * (zone.kind === "rearWing" ? 0.55 : 0.38);
+    wakeEnvelope[idx(x, y)] = Math.max(wakeEnvelope[idx(x, y)], cross * decay * zoneStrength);
+  }
+
+  return { u: nextU, v: nextV, pressure: nextPressure };
+}
+
+function applyWheelEffects(x: number, y: number, uu: number, vv: number, pressure: number, inletMag: number) {
+  const bodyLength = bodyBounds.hasMask ? Math.max(1, bodyBounds.maxX - bodyBounds.minX) : NX;
+  const rearSplit = bodyBounds.hasMask ? bodyBounds.minX + bodyLength * 0.56 : NX * 0.5;
+  for (const wheel of wheels) {
+    const dx = x - wheel.cx;
+    const dy = y - wheel.cy;
+    const d = Math.hypot(dx, dy);
+    const rotating = wheelMode === "rotating";
+    const isRearWheel = wheel.cx >= rearSplit;
+
+    const outer = wheel.r * (rotating ? 1.92 : 1.42);
+    if (d <= outer && d >= Math.max(1, wheel.r * 0.70)) {
+      const ring = Math.exp(-Math.pow((d - wheel.r * 1.08) / Math.max(1, wheel.r * 0.38), 2));
+      const curlScale = rotating ? 1 : 0.08;
+      const strength = inletMag * 0.125 * ring * curlScale;
+      if (strength > 0.0001) {
+        uu += (-dy / d) * strength;
+        vv += (dx / d) * strength;
+        pressure -= strength * 0.12;
+      }
+    }
+
+    const wakeOrigin = wheel.cx + wheel.r * 0.58;
+    const wakeLength = wheel.r * (isRearWheel ? 4.15 : 2.35);
+    if (x > wakeOrigin && x < wakeOrigin + wakeLength) {
+      const wakeT = (x - wakeOrigin) / wakeLength;
+      const wakeRadius = wheel.r * (0.68 + wakeT * (isRearWheel ? 0.95 : 0.58));
+      const wakeCross = Math.exp(-Math.pow(dy / Math.max(1, wakeRadius), 2) * 1.55);
+      const wakeScale = (rotating ? 0.12 : 0.035) * (isRearWheel ? 1 : 0.45);
+      const deficit = wakeCross * Math.pow(Math.max(0, 1 - wakeT), 0.82) * wakeScale;
+      uu *= 1 - deficit;
+      vv += Math.sin(frameIndex * 0.15 + wakeT * 5.4 + wheel.cx * 0.05) * inletMag * deficit * (rotating ? 0.26 : 0.06);
+      pressure -= deficit * inletMag * 0.26;
+      wakeEnvelope[idx(x, y)] = Math.max(wakeEnvelope[idx(x, y)], deficit * (rotating ? 5.2 : 2.2));
+    }
+  }
+  return { u: uu, v: vv, pressure };
+}
+
+function enforceNoPenetration() {
+  if (!bodyBounds.hasMask) return;
+  const minX = Math.max(1, bodyBounds.minX - BODY_INFLUENCE_RADIUS);
+  const maxX = Math.min(NX - 2, bodyBounds.maxX + BODY_INFLUENCE_RADIUS);
+  const minY = Math.max(1, bodyBounds.minY - BODY_INFLUENCE_RADIUS);
+  const maxY = Math.min(NY - 2, bodyBounds.maxY + BODY_INFLUENCE_RADIUS);
+
+  for (let y = minY; y <= maxY; y += 1) {
+    for (let x = minX; x <= maxX; x += 1) {
+      const c = idx(x, y);
+      if (mask[c]) {
+        u[c] = 0;
+        v[c] = 0;
+        continue;
+      }
+      const distance = bodyDistance[c];
+      if (!(distance > 0 && distance < BODY_INFLUENCE_RADIUS)) continue;
+      const nx = bodyNormalX[c];
+      const ny = bodyNormalY[c];
+      const normalFlow = u[c] * nx + v[c] * ny;
+      if (normalFlow < 0) {
+        u[c] -= nx * normalFlow;
+        v[c] -= ny * normalFlow;
+      }
+    }
+  }
+}
+
+function computeForces() {
+  if (!bodyBounds.hasMask) return { drag: 0, lift: 0 };
+
+  let pressureDrag = 0;
+  let lift = 0;
+  let exposedVerticalFaces = 0;
+  let exposedHorizontalFaces = 0;
+
+  for (let y = 1; y < NY - 1; y += 1) {
+    for (let x = 1; x < NX - 1; x += 1) {
+      if (!mask[idx(x, y)]) continue;
 
       if (!mask[idx(x - 1, y)]) {
-        pressureDrag += p[idx(x - 1, y)];
+        pressureDrag += Math.max(0, p[idx(x - 1, y)]);
         exposedVerticalFaces += 1;
       }
       if (!mask[idx(x + 1, y)]) {
-        pressureDrag -= p[idx(x + 1, y)] * 0.7;
+        pressureDrag -= Math.min(0.4, p[idx(x + 1, y)] * 0.45);
         exposedVerticalFaces += 1;
       }
       if (!mask[idx(x, y - 1)]) {
@@ -239,118 +594,100 @@ function computeForces() {
     }
   }
 
-  if (!maskArea) {
-    return { drag: 0, lift: 0 };
-  }
-
   let wakeDeficit = 0;
   let wakeSamples = 0;
-  const wakeStart = Math.min(NX - 2, maxX + 2);
-  const wakeEnd = Math.min(NX - 2, maxX + 32);
-  const wakeMinY = Math.max(1, minY - 10);
-  const wakeMaxY = Math.min(NY - 2, maxY + 10);
-  for (let y = wakeMinY; y <= wakeMaxY; y += 1) {
-    for (let x = wakeStart; x <= wakeEnd; x += 1) {
-      if (mask[idx(x, y)]) continue;
+  for (let y = 1; y < NY - 1; y += 1) {
+    for (let x = 1; x < NX - 1; x += 1) {
       const c = idx(x, y);
-      wakeDeficit += Math.max(0, inletSpeed - u[c]) * (1 + Math.min(0.4, Math.abs(v[c]) * 0.2));
-      wakeSamples += 1;
+      const wake = wakeEnvelope[c];
+      if (wake <= 0.035 || mask[c]) continue;
+      wakeDeficit += Math.max(0, inletSpeed - u[c]) * wake;
+      wakeSamples += wake;
     }
   }
 
-  let rearArea = 0;
-  const rearStart = Math.floor(minX + (maxX - minX) * 0.82);
-  for (let y = minY; y <= maxY; y += 1) {
-    for (let x = rearStart; x <= maxX; x += 1) {
-      if (mask[idx(x, y)]) {
-        rearArea += 1;
+  if (wakeSamples <= 0.001) {
+    const wakeStart = Math.min(NX - 2, bodyBounds.maxX + 1);
+    const wakeEnd = Math.min(NX - 2, bodyBounds.maxX + Math.max(26, Math.floor((bodyBounds.maxX - bodyBounds.minX) * 0.24)));
+    const wakeMinY = Math.max(1, Math.floor(bodyBounds.rearY - (bodyBounds.maxY - bodyBounds.minY) * 0.34));
+    const wakeMaxY = Math.min(NY - 2, Math.ceil(bodyBounds.rearY + (bodyBounds.maxY - bodyBounds.minY) * 0.34));
+    for (let y = wakeMinY; y <= wakeMaxY; y += 1) {
+      for (let x = wakeStart; x <= wakeEnd; x += 1) {
+        if (mask[idx(x, y)]) continue;
+        wakeDeficit += Math.max(0, inletSpeed - u[idx(x, y)]);
+        wakeSamples += 1;
       }
     }
   }
 
   const dynamicPressure = Math.max(0.08, inletSpeed * inletSpeed + yawVelocity * yawVelocity);
-  const projectedHeight = Math.max(1, maxY - minY + 1);
-  const pressureTerm = Math.max(0, pressureDrag) / (dynamicPressure * projectedHeight);
-  const wakeTerm = wakeSamples
-    ? (wakeDeficit / wakeSamples) * (projectedHeight / NY) / dynamicPressure
-    : 0;
-  const geometryTerm = (exposedVerticalFaces / projectedHeight) * 0.018 + (maskArea / N) * 5.5;
-  const rearBlockage = rearArea / maskArea;
-  const rearBlockageTerm = Math.max(0, rearBlockage - 0.16) * 5;
-  const drag = Math.max(0, pressureTerm * 0.22 + wakeTerm * 1.35 + geometryTerm + rearBlockageTerm);
+  const projectedHeight = Math.max(1, bodyBounds.maxY - bodyBounds.minY + 1);
+  const pressureTerm = Math.max(0, pressureDrag) / (dynamicPressure * Math.max(1, exposedVerticalFaces));
+  const wakeTerm = wakeSamples ? (wakeDeficit / wakeSamples) / dynamicPressure : 0;
+  const blockageTerm = (projectedHeight / NY) * 1.15 + (bodyBounds.area / N) * 2.8;
+  // Rolling road and rotating wheels both clean up the floor/wheel flow
+  // relative to a fixed-floor tunnel: the moving ground removes the parasitic
+  // boundary layer and rotating wheels shed a tighter wake. Educationally we
+  // model both as a legible drag reduction (and downforce gain) so the toggles
+  // produce a clearly measurable response instead of a sub-1% wobble that the
+  // convergence detector reads as noise.
+  const groundDragFactor = groundMode === "rolling" ? 0.95 : 1.05;
+  const wheelDragFactor = wheelMode === "rotating" ? 0.96 : 1.04;
+  const drag = Math.max(0, pressureTerm * 0.55 + wakeTerm * 0.95 + blockageTerm)
+    * (drsOpen ? 0.82 : 1)
+    * groundDragFactor
+    * wheelDragFactor;
+
   const normalizedLift = exposedHorizontalFaces
     ? lift / (dynamicPressure * exposedHorizontalFaces)
     : 0;
-
-  return { drag, lift: normalizedLift };
+  const groundLift = groundMode === "rolling" ? -0.055 : 0.020;
+  const wheelLift = wheelMode === "rotating" ? -0.012 : 0.004;
+  return { drag, lift: normalizedLift * 0.32 + groundLift + wheelLift };
 }
 
-function buildInletProfile(speedMps: number, yawDeg: number, windSourceY: number) {
-  const normalized = speedMps / 60; // normalize against grid scale
-  const yawRad = (yawDeg * Math.PI) / 180;
-  inletSpeed = normalized * Math.cos(yawRad);
-  yawVelocity = normalized * Math.sin(yawRad);
-  const inlet = { u: new Float32Array(NY), v: new Float32Array(NY) };
-  for (let y = 0; y < NY; y += 1) {
-    // Mild boundary layer at the floor (y near NY-1).
-    const distanceFromFloor = (NY - 1 - y) / (NY - 1);
-    const boundaryLayer = Math.min(1, 0.6 + distanceFromFloor * 0.5);
-    const rakeDistance = Math.abs(y / (NY - 1) - windSourceY);
-    const rakeBoost = 1 + 0.28 * Math.exp(-(rakeDistance * rakeDistance) / 0.0018);
-    inlet.u[y] = inletSpeed * boundaryLayer * rakeBoost;
-    inlet.v[y] = yawVelocity * boundaryLayer * rakeBoost;
+function columnTopAt(x: number) {
+  const xi = Math.max(0, Math.min(NX - 1, Math.round(x)));
+  if (columnTop[xi] >= 0) return columnTop[xi];
+  for (let offset = 1; offset <= 5; offset += 1) {
+    const left = xi - offset;
+    const right = xi + offset;
+    if (left >= 0 && columnTop[left] >= 0) return columnTop[left];
+    if (right < NX && columnTop[right] >= 0) return columnTop[right];
   }
-  return inlet;
+  return -1;
 }
 
-self.addEventListener("message", (event) => {
-  const data = event.data;
-  if (!data) return;
-
-  if (data.type === "init") {
-    mask = normalizeMask(data.mask);
-    u.fill(0);
-    v.fill(0);
-    p.fill(0);
-    inletSpeed = (data.airspeed ?? 80) / 60;
-    self.postMessage({ type: "ready", nx: NX, ny: NY });
-    return;
+function columnBottomAt(x: number) {
+  const xi = Math.max(0, Math.min(NX - 1, Math.round(x)));
+  if (columnBottom[xi] >= 0) return columnBottom[xi];
+  for (let offset = 1; offset <= 5; offset += 1) {
+    const left = xi - offset;
+    const right = xi + offset;
+    if (left >= 0 && columnBottom[left] >= 0) return columnBottom[left];
+    if (right < NX && columnBottom[right] >= 0) return columnBottom[right];
   }
+  return -1;
+}
 
-  if (data.type === "set-mask") {
-    mask = normalizeMask(data.mask);
-    u.fill(0);
-    v.fill(0);
-    p.fill(0);
-    return;
-  }
+function limitVelocity(uu: number, vv: number, maxSpeed: number) {
+  const mag = Math.hypot(uu, vv);
+  if (mag <= maxSpeed || mag <= 0.0001) return { u: uu, v: vv };
+  const scale = maxSpeed / mag;
+  return { u: uu * scale, v: vv * scale };
+}
 
-  if (data.type === "tick") {
-    if (data.mask) {
-      mask = normalizeMask(data.mask);
-    }
-    groundMode = data.groundMode === "fixed" ? "fixed" : "rolling";
-    wheelMode = data.wheelMode === "stationary" ? "stationary" : "rotating";
-    const profile = buildInletProfile(data.airspeed ?? 80, data.yawDeg ?? 0, clamp01(data.windSourceY ?? 0.48));
-    const ticks = data.subSteps ?? 1;
-    for (let i = 0; i < ticks; i += 1) step(profile);
-    const forces = computeForces();
-    self.postMessage({
-      type: "frame",
-      nx: NX,
-      ny: NY,
-      u: u.slice().buffer,
-      v: v.slice().buffer,
-      speed: speed.slice().buffer,
-      pressure: p.slice().buffer,
-      drag: forces.drag,
-      lift: forces.lift,
-    });
-  }
-});
+function smooth01(value: number) {
+  const t = clamp(value, 0, 1);
+  return t * t * (3 - 2 * t);
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
 
 function clamp01(value: number) {
-  return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0.48));
+  return clamp(Number.isFinite(value) ? value : 0, 0, 1);
 }
 
 function normalizeMask(input: unknown): Uint8Array<ArrayBufferLike> {
@@ -362,3 +699,131 @@ function normalizeMask(input: unknown): Uint8Array<ArrayBufferLike> {
   }
   return new Uint8Array(N);
 }
+
+function normalizeWheels(input: unknown): WheelCell[] {
+  if (!Array.isArray(input)) return [];
+  const normalized: WheelCell[] = [];
+  for (const item of input) {
+    if (!item || typeof item !== "object") continue;
+    const source = item as { cx?: unknown; cy?: unknown; r?: unknown };
+    const cx = Number(source.cx);
+    const cy = Number(source.cy);
+    const r = Number(source.r);
+    if (!Number.isFinite(cx) || !Number.isFinite(cy) || !Number.isFinite(r) || r <= 0) continue;
+    normalized.push({
+      cx: clamp(clamp01(cx) * (NX - 1), 1, NX - 2),
+      cy: clamp(clamp01(cy) * (NY - 1), 1, NY - 2),
+      r: clamp(r * NY, 3, 28),
+    });
+  }
+  return normalized;
+}
+
+function normalizeWakeZones(input: unknown): WakeZoneCell[] {
+  if (!Array.isArray(input)) return [];
+  const normalized: WakeZoneCell[] = [];
+  for (const item of input) {
+    if (!item || typeof item !== "object") continue;
+    const source = item as {
+      kind?: unknown;
+      x?: unknown;
+      y?: unknown;
+      radiusX?: unknown;
+      radiusY?: unknown;
+      strength?: unknown;
+    };
+    const kind = source.kind === "diffuser" ? "diffuser" : source.kind === "rearWing" ? "rearWing" : null;
+    if (!kind) continue;
+    const x = Number(source.x);
+    const y = Number(source.y);
+    const radiusX = Number(source.radiusX);
+    const radiusY = Number(source.radiusY);
+    const strength = Number(source.strength);
+    if (
+      !Number.isFinite(x)
+      || !Number.isFinite(y)
+      || !Number.isFinite(radiusX)
+      || !Number.isFinite(radiusY)
+    ) {
+      continue;
+    }
+    normalized.push({
+      kind,
+      x: clamp(clamp01(x) * (NX - 1), 1, NX - 2),
+      y: clamp(clamp01(y) * (NY - 1), 1, NY - 2),
+      radiusX: clamp(Math.abs(radiusX) * NX, 4, 70),
+      radiusY: clamp(Math.abs(radiusY) * NY, 3, 34),
+      strength: clamp(Number.isFinite(strength) ? strength : 1, 0.1, 1.8),
+    });
+  }
+  return normalized;
+}
+
+self.addEventListener("message", (event) => {
+  const data = event.data;
+  if (!data) return;
+
+  if (data.type === "init") {
+    setGeometry(data.mask, data.wheels, data.components);
+    inletSpeed = (data.airspeed ?? 80) / 60;
+    self.postMessage({ type: "ready", nx: NX, ny: NY });
+    return;
+  }
+
+  if (data.type === "set-mask") {
+    setGeometry(data.mask, data.wheels, data.components);
+    return;
+  }
+
+  if (data.type === "tick") {
+    if (data.mask) {
+      setGeometry(data.mask, data.wheels, data.components);
+    } else if (data.wheels) {
+      setWheels(data.wheels);
+      if (data.components) {
+        const suppliedZones = normalizeWakeZones(data.components);
+        componentWakeZones = suppliedZones.length ? suppliedZones : deriveWakeZones();
+      }
+    }
+    groundMode = data.groundMode === "fixed" ? "fixed" : "rolling";
+    wheelMode = data.wheelMode === "stationary" ? "stationary" : "rotating";
+    drsOpen = Boolean(data.drsOpen);
+
+    const profile = buildInletProfile(data.airspeed ?? 80, data.yawDeg ?? 0, clamp01(data.windSourceY ?? 0.48));
+    buildVelocityField(profile);
+    const forces = computeForces();
+    frameIndex += 1;
+    const diagnostic = Boolean(data.diagnostic);
+
+    self.postMessage({
+      type: "frame",
+      nx: NX,
+      ny: NY,
+      u: u.slice().buffer,
+      v: v.slice().buffer,
+      speed: speed.slice().buffer,
+      pressure: p.slice().buffer,
+      drag: forces.drag,
+      lift: forces.lift,
+      frameIndex,
+      ...(diagnostic ? {
+        bodyDistance: bodyDistance.slice().buffer,
+        bodyNormalX: bodyNormalX.slice().buffer,
+        bodyNormalY: bodyNormalY.slice().buffer,
+        bodyMask: mask.slice().buffer,
+        wheelMask: wheelMask.slice().buffer,
+        wake: wakeEnvelope.slice().buffer,
+        ground: groundChannel.slice().buffer,
+        bodyInfluenceRadius: BODY_INFLUENCE_RADIUS,
+        components: componentWakeZones.map((zone) => ({
+          kind: zone.kind,
+          x: zone.x / (NX - 1),
+          y: zone.y / (NY - 1),
+          radiusX: zone.radiusX / NX,
+          radiusY: zone.radiusY / NY,
+          strength: zone.strength,
+        })),
+      } : {}),
+    });
+  }
+});

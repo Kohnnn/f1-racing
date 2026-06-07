@@ -5,26 +5,30 @@
  *
  * Mode switcher: silhouette source can be procedural (always-an-F1-shape),
  * SVG (hand-curated per constructor), or GLB-derived (column-envelope).
- * The procedural mode is now default because the GLB extraction loses
- * cockpit / wing detail and the SVG art catalog is not yet authored.
+ * Constructors with curated side profiles default to the model-backed
+ * SVG profile; procedural remains the fallback for constructors without
+ * a curated silhouette.
  *
  * Renderer polish:
  * - Dark glossy paint with rim-light and team-colour accent stripe.
  * - Ground shadow ellipse beneath the body.
  * - Animated rolling-road dashes whose speed scales with airspeed.
- * - 7 thicker inlet streaklines from the left edge in addition to the
- *   particle field, so the wind reads as wind even at low particle counts.
- * - Wake-instability puff downstream of the tail.
+ * - Ribbon / Technical / Smoke display modes, with Ribbon as the default
+ *   instrument view so the airflow stays sparse and shaped by the car.
  * - Frame-rate counter in the readout.
  * - Stage canvas height bumped to 460.
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { createElement, useEffect, useMemo, useRef, useState } from "react";
+import { ensureModelViewerLoaded } from "@/lib/model-viewer-loader";
 import { buildAirfoilSilhouette, buildProceduralSilhouette } from "./procedural-silhouette";
 
 type GroundMode = "rolling" | "fixed";
 type WheelMode = "rotating" | "stationary";
 type SilhouetteMode = "procedural" | "airfoil" | "svg" | "glb";
+type FlowView = "ribbon" | "technical" | "diagnostic" | "smoke";
+type SolverState = "warming" | "stabilizing" | "settled" | "stale";
+type WakeZoneKind = "rearWing" | "diffuser";
 
 interface WindTunnelControls {
   airspeed: number;
@@ -36,9 +40,9 @@ interface WindTunnelControls {
   groundMode: GroundMode;
   wheelMode: WheelMode;
   particles: number;
-  showStreamlines: boolean;
-  showCp: boolean;
+  overlayMode: FlowView;
   silhouetteMode: SilhouetteMode;
+  probeEnabled: boolean;
 }
 
 const DEFAULT_CONTROLS: WindTunnelControls = {
@@ -50,19 +54,56 @@ const DEFAULT_CONTROLS: WindTunnelControls = {
   drsOpen: false,
   groundMode: "rolling",
   wheelMode: "rotating",
-  particles: 320,
-  showStreamlines: true,
-  showCp: true,
+  particles: 96,
+  overlayMode: "ribbon",
   silhouetteMode: "procedural",
+  probeEnabled: true,
 };
+
+function buildDefaultControls(constructorSlug?: string): WindTunnelControls {
+  return {
+    ...DEFAULT_CONTROLS,
+    silhouetteMode: constructorSlug && CURATED_SVG_SILHOUETTES.has(constructorSlug) ? "svg" : "procedural",
+  };
+}
 
 const STAGE_WIDTH = 1024;
 const STAGE_HEIGHT = 460;
 const SOLVER_NX = 320;
 const SOLVER_NY = 144;
-const TRAIL_LENGTH = 18;
+const STREAMLINE_Y_GAIN = 0.98;
+const TRAIL_LENGTH = 16;
 
-const INLET_LANES = [0.20, 0.30, 0.40, 0.48, 0.58, 0.66, 0.76];
+const INLET_MARKERS = [0.20, 0.30, 0.40, 0.52, 0.64, 0.76, 0.86];
+const STREAMLINE_SEEDS = [0.28, 0.36, 0.44, 0.52, 0.60, 0.68, 0.76, 0.84, 0.91];
+const CURATED_SVG_SILHOUETTES = new Set(["fia-2026"]);
+
+const FLOW_VIEW_META: Record<FlowView, { label: string; description: string; low: string; high: string }> = {
+  ribbon: {
+    label: "Ribbon",
+    description: "Field streamlines",
+    low: "calm",
+    high: "fast",
+  },
+  technical: {
+    label: "Technical",
+    description: "Sparse vectors + pressure bands",
+    low: "low Cp",
+    high: "high Cp",
+  },
+  diagnostic: {
+    label: "Diagnostic",
+    description: "Solver mask + wake zones",
+    low: "geometry",
+    high: "field",
+  },
+  smoke: {
+    label: "Smoke",
+    description: "Soft plume trails",
+    low: "thin",
+    high: "wake",
+  },
+};
 
 interface ParticleState {
   x: number;
@@ -86,6 +127,36 @@ interface WindProfileData {
   source: SilhouetteMode;
 }
 
+interface FlowComponentZone {
+  kind: WakeZoneKind;
+  x: number;
+  y: number;
+  radiusX: number;
+  radiusY: number;
+  strength: number;
+}
+
+interface FluidFrameState {
+  u: Float32Array | null;
+  v: Float32Array | null;
+  speed: Float32Array | null;
+  pressure: Float32Array | null;
+  bodyDistance: Float32Array | null;
+  bodyNormalX: Float32Array | null;
+  bodyNormalY: Float32Array | null;
+  bodyMask: Uint8Array | null;
+  wheelMask: Uint8Array | null;
+  wake: Float32Array | null;
+  ground: Float32Array | null;
+  componentZones: FlowComponentZone[];
+  bodyInfluenceRadius: number;
+  drag: number;
+  lift: number;
+  ready: boolean;
+  lastFrameAt: number;
+  frameIndex: number;
+}
+
 const AERO_PROFILE_BY_CONSTRUCTOR: Record<string, { rearWingHeight: number; noseHeight: number; cd: number; cl: number }> = {
   "red-bull": { rearWingHeight: 0.30, noseHeight: 0.72, cd: 0.83, cl: -2.85 },
   mclaren: { rearWingHeight: 0.31, noseHeight: 0.73, cd: 0.82, cl: -2.78 },
@@ -100,14 +171,41 @@ const DEFAULT_AERO_PROFILE = { rearWingHeight: 0.32, noseHeight: 0.74, cd: 0.85,
 
 type BuiltSilhouette = ReturnType<typeof buildProceduralSilhouette>;
 
+function createEmptyFluidFrame(): FluidFrameState {
+  return {
+    u: null,
+    v: null,
+    speed: null,
+    pressure: null,
+    bodyDistance: null,
+    bodyNormalX: null,
+    bodyNormalY: null,
+    bodyMask: null,
+    wheelMask: null,
+    wake: null,
+    ground: null,
+    componentZones: [],
+    bodyInfluenceRadius: 46,
+    drag: 0,
+    lift: 0,
+    ready: false,
+    lastFrameAt: 0,
+    frameIndex: 0,
+  };
+}
+
 export interface CanvasWindTunnelProps {
   modelTitle: string;
   accentColor?: string;
   constructorSlug?: string;
+  modelFile?: string;
+  modelScale?: string;
 }
 
-export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", constructorSlug }: CanvasWindTunnelProps) {
+export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", constructorSlug, modelFile, modelScale }: CanvasWindTunnelProps) {
+  const initialControls = useMemo(() => buildDefaultControls(constructorSlug), [constructorSlug]);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const flowOverlayRef = useRef<HTMLCanvasElement | null>(null);
   const isVisibleRef = useRef<boolean>(true);
   useEffect(() => {
     const node = canvasRef.current;
@@ -127,22 +225,20 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
   const animationRef = useRef<number | null>(null);
   const particlesRef = useRef<ParticleState[]>([]);
   const workerRef = useRef<Worker | null>(null);
-  const controlsRef = useRef<WindTunnelControls>(DEFAULT_CONTROLS);
+  const controlsRef = useRef<WindTunnelControls>(initialControls);
   const forceBaselineRef = useRef<{ drag: number; lift: number } | null>(null);
-  const fluidFrameRef = useRef<{
-    u: Float32Array | null;
-    v: Float32Array | null;
-    speed: Float32Array | null;
-    pressure: Float32Array | null;
-    drag: number;
-    lift: number;
-    ready: boolean;
-    lastFrameAt: number;
-  }>({ u: null, v: null, speed: null, pressure: null, drag: 0, lift: 0, ready: false, lastFrameAt: 0 });
+  const solverStateRef = useRef<{
+    changedAt: number;
+    lastDrag: number | null;
+    lastLift: number | null;
+    stableSamples: number;
+    state: SolverState;
+  }>({ changedAt: 0, lastDrag: null, lastLift: null, stableSamples: 0, state: "warming" });
+  const fluidFrameRef = useRef<FluidFrameState>(createEmptyFluidFrame());
   const hoverRef = useRef<{ active: boolean; nx: number; ny: number }>({ active: false, nx: 0, ny: 0 });
 
-  const [controls, setControls] = useState<WindTunnelControls>(DEFAULT_CONTROLS);
-  const [readout, setReadout] = useState<{ drag: number; lift: number; reynolds: number; live: boolean; fps: number } | null>(null);
+  const [controls, setControls] = useState<WindTunnelControls>(() => initialControls);
+  const [readout, setReadout] = useState<{ drag: number; lift: number; reynolds: number; live: boolean; fps: number; solverState: SolverState } | null>(null);
   const [forceBaseline, setForceBaseline] = useState<{ drag: number; lift: number } | null>(null);
   const [hoverData, setHoverData] = useState<{
     speed: number;
@@ -156,14 +252,119 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
   } | null>(null);
   const [profile, setProfile] = useState<WindProfileData | null>(null);
   const [profileMissing, setProfileMissing] = useState(false);
+  const [modelViewerReady, setModelViewerReady] = useState(false);
+  const hasCuratedSvg = Boolean(constructorSlug && CURATED_SVG_SILHOUETTES.has(constructorSlug));
+  const solverSignature = useMemo(() => JSON.stringify([
+    controls.airspeed,
+    controls.yawDeg,
+    controls.airfoilAngleDeg,
+    controls.windSourceY,
+    controls.drsOpen,
+    controls.groundMode,
+    controls.wheelMode,
+    controls.silhouetteMode,
+    constructorSlug,
+  ]), [
+    controls.airspeed,
+    controls.yawDeg,
+    controls.airfoilAngleDeg,
+    controls.windSourceY,
+    controls.drsOpen,
+    controls.groundMode,
+    controls.wheelMode,
+    controls.silhouetteMode,
+    constructorSlug,
+  ]);
 
   useEffect(() => {
     controlsRef.current = controls;
   }, [controls]);
 
   useEffect(() => {
+    setControls((prev) => ({
+      ...prev,
+      silhouetteMode: buildDefaultControls(constructorSlug).silhouetteMode,
+    }));
+  }, [constructorSlug]);
+
+  useEffect(() => {
+    if (!modelFile) {
+      setModelViewerReady(false);
+      return;
+    }
+    let cancelled = false;
+    setModelViewerReady(false);
+    ensureModelViewerLoaded(2)
+      .then(() => {
+        if (!cancelled) setModelViewerReady(true);
+      })
+      .catch(() => {
+        if (!cancelled) setModelViewerReady(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [modelFile]);
+
+  useEffect(() => {
+    if (controls.silhouetteMode !== "svg" || hasCuratedSvg) return;
+    setControls((prev) => (
+      prev.silhouetteMode === "svg"
+        ? { ...prev, silhouetteMode: "procedural" }
+        : prev
+    ));
+  }, [controls.silhouetteMode, hasCuratedSvg]);
+
+  useEffect(() => {
     forceBaselineRef.current = forceBaseline;
   }, [forceBaseline]);
+
+  function resetSolverSettlement() {
+    solverStateRef.current = {
+      changedAt: performance.now(),
+      lastDrag: null,
+      lastLift: null,
+      stableSamples: 0,
+      state: "warming",
+    };
+    forceBaselineRef.current = null;
+    setForceBaseline(null);
+  }
+
+  function updateSolverState(frame: typeof fluidFrameRef.current, now: number): SolverState {
+    const ageMs = now - frame.lastFrameAt;
+    if (!frame.ready) {
+      solverStateRef.current.state = "warming";
+      return "warming";
+    }
+    if (ageMs > 1000) {
+      solverStateRef.current.state = "stale";
+      return "stale";
+    }
+
+    const state = solverStateRef.current;
+    if (now - state.changedAt < 900 || state.lastDrag == null || state.lastLift == null) {
+      state.lastDrag = frame.drag;
+      state.lastLift = frame.lift;
+      state.state = "warming";
+      return state.state;
+    }
+
+    const dragTolerance = Math.max(0.004, Math.abs(frame.drag) * 0.006);
+    const liftTolerance = Math.max(0.002, Math.abs(frame.lift) * 0.02);
+    const stable = Math.abs(frame.drag - state.lastDrag) <= dragTolerance
+      && Math.abs(frame.lift - state.lastLift) <= liftTolerance;
+    state.stableSamples = stable ? state.stableSamples + 1 : 0;
+    state.lastDrag = frame.drag;
+    state.lastLift = frame.lift;
+    state.state = state.stableSamples >= 3 && now - state.changedAt > 2000 ? "settled" : "stabilizing";
+    return state.state;
+  }
+
+  useEffect(() => {
+    resetSolverSettlement();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [solverSignature]);
 
   // Load constructor-specific silhouette JSON. Mode switcher controls
   // whether we use the procedural F1 outline (default), a hand-curated SVG,
@@ -192,6 +393,11 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
     }
 
     if (controls.silhouetteMode === "svg" && constructorSlug) {
+      if (!hasCuratedSvg) {
+        setProfile(null);
+        setProfileMissing(true);
+        return;
+      }
       // Try the curated SVG endpoint. We expect a polyline manifest file
       // sitting alongside the SVG: `/data/silhouettes/<slug>.json` with
       // `{ polygon, wheelArches, aspect, details }`. If absent, we mark
@@ -205,9 +411,9 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
             const aspect = typeof payload.aspect === "number" ? payload.aspect : computeAspect(payload.polygon);
             setProfile({
               polygon: remapToTunnelFrame(payload.polygon, aspect),
-              wheelArches: Array.isArray(payload.wheelArches) ? payload.wheelArches : [],
+              wheelArches: remapWheelArches(payload.wheelArches, aspect),
               aspect,
-              details: Array.isArray(payload.details) ? payload.details : [],
+              details: remapProfileDetails(payload.details, aspect),
               source: "svg",
             });
             setProfileMissing(false);
@@ -231,7 +437,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
             const aspect = typeof payload.aspect === "number" ? payload.aspect : computeAspect(payload.polygon);
             setProfile({
               polygon: remapToTunnelFrame(payload.polygon, aspect),
-              wheelArches: Array.isArray(payload.wheelArches) ? payload.wheelArches : [],
+              wheelArches: remapWheelArches(payload.wheelArches, aspect),
               aspect,
               source: "glb",
             });
@@ -248,12 +454,17 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
 
     setProfileMissing(true);
     return () => { cancelled = true; };
-  }, [controls.silhouetteMode, controls.drsOpen, controls.airfoilAngleDeg, constructorSlug, accentColor]);
+  }, [controls.silhouetteMode, controls.drsOpen, controls.airfoilAngleDeg, constructorSlug, accentColor, hasCuratedSvg]);
 
   // Build the obstacle mask on the solver grid. Empty until the profile loads.
   const mask = useMemo(() => {
     if (!profile) return new Uint8Array(SOLVER_NX * SOLVER_NY);
-    return buildMask(profile.polygon, SOLVER_NX, SOLVER_NY);
+    return buildMask(profile.polygon, profile.wheelArches, SOLVER_NX, SOLVER_NY);
+  }, [profile]);
+
+  const componentZones = useMemo(() => {
+    if (!profile) return [];
+    return buildFlowComponentZones(profile);
   }, [profile]);
 
   // Initialize / reinitialize the worker once we have a profile.
@@ -267,8 +478,8 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
       return;
     }
     workerRef.current = worker;
-    fluidFrameRef.current = { u: null, v: null, speed: null, pressure: null, drag: 0, lift: 0, ready: false, lastFrameAt: 0 };
-    worker.postMessage({ type: "init", airspeed: controls.airspeed, mask });
+    fluidFrameRef.current = createEmptyFluidFrame();
+    worker.postMessage({ type: "init", airspeed: controls.airspeed, mask, wheels: profile.wheelArches, components: componentZones });
 
     function handleMessage(event: MessageEvent) {
       if (cancelled) return;
@@ -279,10 +490,20 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
         v: new Float32Array(data.v),
         speed: new Float32Array(data.speed),
         pressure: new Float32Array(data.pressure),
+        bodyDistance: data.bodyDistance ? new Float32Array(data.bodyDistance) : null,
+        bodyNormalX: data.bodyNormalX ? new Float32Array(data.bodyNormalX) : null,
+        bodyNormalY: data.bodyNormalY ? new Float32Array(data.bodyNormalY) : null,
+        bodyMask: data.bodyMask ? new Uint8Array(data.bodyMask) : null,
+        wheelMask: data.wheelMask ? new Uint8Array(data.wheelMask) : null,
+        wake: data.wake ? new Float32Array(data.wake) : null,
+        ground: data.ground ? new Float32Array(data.ground) : null,
+        componentZones: normalizeDebugZones(data.components),
+        bodyInfluenceRadius: Number.isFinite(data.bodyInfluenceRadius) ? data.bodyInfluenceRadius : 46,
         drag: data.drag ?? 0,
         lift: data.lift ?? 0,
         ready: true,
         lastFrameAt: performance.now(),
+        frameIndex: data.frameIndex ?? 0,
       };
     }
     worker.addEventListener("message", handleMessage);
@@ -296,8 +517,10 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
         airspeed: latestControls.airspeed,
         yawDeg: latestControls.yawDeg,
         windSourceY: latestControls.windSourceY,
+        drsOpen: latestControls.drsOpen,
         groundMode: latestControls.groundMode,
         wheelMode: latestControls.wheelMode,
+        diagnostic: latestControls.overlayMode === "diagnostic",
         subSteps: 1,
       });
       window.setTimeout(tick, 32);
@@ -316,20 +539,20 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
 
   // Push fresh mask whenever the silhouette changes.
   useEffect(() => {
-    if (workerRef.current) workerRef.current.postMessage({ type: "set-mask", mask });
-    fluidFrameRef.current = { u: null, v: null, speed: null, pressure: null, drag: 0, lift: 0, ready: false, lastFrameAt: 0 };
-    forceBaselineRef.current = null;
-    setForceBaseline(null);
-  }, [mask]);
+    if (workerRef.current) workerRef.current.postMessage({ type: "set-mask", mask, wheels: profile?.wheelArches ?? [], components: componentZones });
+    fluidFrameRef.current = createEmptyFluidFrame();
+    resetSolverSettlement();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mask, profile, componentZones]);
 
-  // Initialise particle pool. Each particle has a fading trail so the field
-  // reads as streaklines instead of dust.
+  // Initialise the small smoke pool. Ribbon and Technical views use fixed
+  // field samples instead of random particle noise.
   useEffect(() => {
     const list: ParticleState[] = [];
     for (let i = 0; i < controls.particles; i += 1) {
       const trail = new Float32Array(TRAIL_LENGTH * 2);
       const x = Math.random() * 0.05;
-      const y = spawnParticleY(controls.windSourceY);
+      const y = spawnParticleY(controls.windSourceY, 0.66);
       for (let t = 0; t < TRAIL_LENGTH; t += 1) {
         trail[t * 2] = x;
         trail[t * 2 + 1] = y;
@@ -343,6 +566,11 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
   function handlePointerMove(event: React.PointerEvent<HTMLCanvasElement>) {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    if (!controlsRef.current.probeEnabled) {
+      hoverRef.current = { active: false, nx: 0, ny: 0 };
+      setHoverData(null);
+      return;
+    }
     const rect = canvas.getBoundingClientRect();
     const nx = (event.clientX - rect.left) / rect.width;
     const ny = (event.clientY - rect.top) / rect.height;
@@ -368,6 +596,8 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
+    const overlayCanvas = flowOverlayRef.current;
+    const overlayCtx = overlayCanvas?.getContext("2d") ?? null;
 
     const animationStartedAt = performance.now();
     let frameTickCount = 0;
@@ -375,6 +605,14 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
     let measuredFps = 0;
     let lastForceRead = performance.now();
     let lastHoverRead = performance.now();
+    const flowBounds = profile
+      ? profile.polygon.reduce((bounds, [x, y]) => ({
+        minX: Math.min(bounds.minX, x),
+        maxX: Math.max(bounds.maxX, x),
+        minY: Math.min(bounds.minY, y),
+        maxY: Math.max(bounds.maxY, y),
+      }), { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity })
+      : null;
 
     function clearStage() {
       if (!canvas || !ctx) return;
@@ -385,7 +623,15 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
         canvas.width = targetW;
         canvas.height = targetH;
       }
+      if (overlayCanvas && (overlayCanvas.width !== targetW || overlayCanvas.height !== targetH)) {
+        overlayCanvas.width = targetW;
+        overlayCanvas.height = targetH;
+      }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      if (overlayCtx) {
+        overlayCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        overlayCtx.clearRect(0, 0, STAGE_WIDTH, STAGE_HEIGHT);
+      }
       // Subtle vertical gradient for the tunnel volume.
       const grad = ctx.createLinearGradient(0, 0, 0, STAGE_HEIGHT);
       grad.addColorStop(0, "#08101e");
@@ -436,75 +682,475 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
       ctx.fillRect(0, floorY - 1, STAGE_WIDTH, 1);
     }
 
+    function clamp(value: number, min: number, max: number) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function clampFlowY(value: number) {
+      return clamp(value, 0.04, 0.94);
+    }
+
     function sampleField(nx: number, ny: number) {
       const frame = fluidFrameRef.current;
       if (frame.ready && frame.u && frame.v) {
-        const xi = Math.max(0, Math.min(SOLVER_NX - 1, Math.floor(nx * SOLVER_NX)));
-        const yi = Math.max(0, Math.min(SOLVER_NY - 1, Math.floor(ny * SOLVER_NY)));
-        const i = yi * SOLVER_NX + xi;
+        const gx = clamp(nx * (SOLVER_NX - 1), 0, SOLVER_NX - 1);
+        const gy = clamp(ny * (SOLVER_NY - 1), 0, SOLVER_NY - 1);
+        const x0 = Math.floor(gx);
+        const y0 = Math.floor(gy);
+        const x1 = Math.min(SOLVER_NX - 1, x0 + 1);
+        const y1 = Math.min(SOLVER_NY - 1, y0 + 1);
+        const tx = gx - x0;
+        const ty = gy - y0;
+        const i00 = y0 * SOLVER_NX + x0;
+        const i10 = y0 * SOLVER_NX + x1;
+        const i01 = y1 * SOLVER_NX + x0;
+        const i11 = y1 * SOLVER_NX + x1;
+        const mix = (values: Float32Array | null | undefined, fallback: number) => {
+          if (!values) return fallback;
+          const a = values[i00] * (1 - tx) + values[i10] * tx;
+          const b = values[i01] * (1 - tx) + values[i11] * tx;
+          return a * (1 - ty) + b * ty;
+        };
+        const fu = mix(frame.u, 0);
+        const fv = mix(frame.v, 0);
         return {
-          u: frame.u[i],
-          v: frame.v[i],
-          speed: frame.speed?.[i] ?? Math.hypot(frame.u[i], frame.v[i]),
-          pressure: frame.pressure?.[i] ?? 0,
+          u: fu,
+          v: fv,
+          speed: mix(frame.speed, Math.hypot(fu, fv)),
+          pressure: mix(frame.pressure, 0),
         };
       }
       return null;
     }
 
-    function drawStreaklines() {
-      if (!ctx || !controls.showStreamlines) return;
+    function streamlineSeeds() {
+      const rakeShift = (controls.windSourceY - 0.48) * 0.18;
+      return STREAMLINE_SEEDS.map((seed) => clampFlowY(seed + rakeShift));
+    }
+
+    function traceRibbonPath(laneY: number) {
+      const yawRad = (controls.yawDeg * Math.PI) / 180;
+      const points: Array<{ x: number; y: number; speed: number }> = [];
+      let x = -0.035;
+      let y = clampFlowY(laneY);
+      const stepBase = 0.0068 + Math.min(0.0026, controls.airspeed / 52000);
+
+      for (let i = 0; i < 190; i += 1) {
+        if (x >= 0 && x <= 1 && pointInsideProfile(x, y)) break;
+        const sample = sampleField(x, y);
+        const speed = sample?.speed ?? 1;
+        points.push({ x, y, speed });
+        if (x > 1.06 || y < -0.04 || y > 1.04) break;
+
+        const u = sample ? sample.u : Math.cos(yawRad);
+        const v = sample ? sample.v : Math.sin(yawRad);
+        const magnitude = Math.max(0.045, Math.hypot(u, v));
+        if (sample && magnitude <= 0.055 && x > 0.12) break;
+        const localStep = stepBase + Math.min(0.006, Math.max(0, speed) * 0.0025);
+        const nextX = x + (u / magnitude) * localStep;
+        const nextY = clampFlowY(y + (v / magnitude) * localStep * STREAMLINE_Y_GAIN);
+        if (segmentHitsProfile(x, y, nextX, nextY)) break;
+        x = nextX;
+        y = nextY;
+      }
+      return points;
+    }
+
+    function strokeStreamline(
+      target: CanvasRenderingContext2D,
+      points: Array<{ x: number; y: number; speed: number }>,
+      laneIndex: number,
+      elapsedMs: number,
+      overlay = false,
+    ) {
+      if (points.length < 2) return;
+      const avgSpeed = points.reduce((total, point) => total + Math.max(0, Math.min(1.8, point.speed)), 0) / points.length;
+      const speedTone = Math.max(0, Math.min(1, avgSpeed * 0.58));
+      const passes = overlay ? 2 : 3;
+      for (let pass = 0; pass < passes; pass += 1) {
+        const glowPass = pass === 0;
+        const corePass = pass === passes - 1;
+        const alpha = glowPass
+          ? (overlay ? 0.030 : 0.052) + speedTone * 0.035
+          : corePass
+            ? 0.18 + speedTone * 0.16
+            : 0.16 + speedTone * 0.12;
+        target.strokeStyle = glowPass
+          ? `rgba(45, 141, 255, ${alpha.toFixed(3)})`
+          : corePass
+            ? `rgba(232, 249, 255, ${alpha.toFixed(3)})`
+            : `rgba(${Math.round(102 + speedTone * 86)}, ${Math.round(196 + speedTone * 34)}, 255, ${alpha.toFixed(3)})`;
+        target.lineWidth = glowPass ? (overlay ? 4.8 : 8.5) : corePass ? (overlay ? 0.9 : 1.1) : 2.0;
+        target.setLineDash([]);
+        target.beginPath();
+        let drawing = false;
+        for (const point of points) {
+          if (pointInsideProfile(point.x, point.y)) {
+            if (drawing) target.stroke();
+            drawing = false;
+            target.beginPath();
+            continue;
+          }
+          const px = point.x * STAGE_WIDTH;
+          const py = point.y * STAGE_HEIGHT;
+          if (!drawing) {
+            target.moveTo(px, py);
+            drawing = true;
+          } else {
+            target.lineTo(px, py);
+          }
+        }
+        if (drawing) target.stroke();
+      }
+
+      const beadT = (elapsedMs * controls.airspeed * 0.000045 + laneIndex * 0.113) % 1;
+      const bead = points[Math.max(0, Math.min(points.length - 1, Math.floor(beadT * (points.length - 1))))];
+      if (bead && !pointInsideProfile(bead.x, bead.y)) {
+        target.fillStyle = `rgba(220, 248, 255, ${(0.18 + speedTone * 0.16).toFixed(3)})`;
+        target.beginPath();
+        target.arc(bead.x * STAGE_WIDTH, bead.y * STAGE_HEIGHT, overlay ? 1.7 : 2.2, 0, Math.PI * 2);
+        target.fill();
+      }
+    }
+
+    function drawRibbonFlow(elapsedMs: number) {
+      if (!ctx || controls.overlayMode !== "ribbon") return;
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.globalCompositeOperation = "lighter";
+
+      streamlineSeeds().forEach((laneY, laneIndex) => {
+        const points = traceRibbonPath(laneY);
+        strokeStreamline(ctx, points, laneIndex, elapsedMs);
+      });
+      ctx.restore();
+    }
+
+    function pointInsideProfile(nx: number, ny: number) {
+      if (!profile) return false;
+      for (const arch of profile.wheelArches) {
+        const dx = (nx - arch.cx) * (STAGE_WIDTH / STAGE_HEIGHT);
+        const dy = ny - arch.cy;
+        if (Math.hypot(dx, dy) < arch.r * 1.40) return true;
+      }
+      if (pointInNormalizedPolygon(nx, ny, profile.polygon)) return true;
+      return distanceToNormalizedPolygon(nx, ny, profile.polygon) < 0.018;
+    }
+
+    function segmentHitsProfile(x0: number, y0: number, x1: number, y1: number) {
+      if (!profile) return false;
+      const checks = Math.max(2, Math.ceil(Math.hypot((x1 - x0) * STAGE_WIDTH, (y1 - y0) * STAGE_HEIGHT) / 7));
+      for (let i = 1; i <= checks; i += 1) {
+        const t = i / checks;
+        if (pointInsideProfile(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t)) return true;
+      }
+      return false;
+    }
+
+    function drawRibbonFlowOverlay(elapsedMs: number) {
+      if (!overlayCtx || controls.overlayMode !== "ribbon" || !modelFile || !modelViewerReady) return;
+      overlayCtx.save();
+      overlayCtx.lineCap = "round";
+      overlayCtx.lineJoin = "round";
+      overlayCtx.globalCompositeOperation = "lighter";
+
+      streamlineSeeds().forEach((laneY, laneIndex) => {
+        const points = traceRibbonPath(laneY);
+        strokeStreamline(overlayCtx, points, laneIndex, elapsedMs, true);
+      });
+      overlayCtx.setLineDash([]);
+      overlayCtx.restore();
+    }
+
+    function drawSmokeFlow() {
+      const target = modelFile && modelViewerReady && overlayCtx ? overlayCtx : ctx;
+      if (!target || controls.overlayMode !== "smoke") return;
       const particles = particlesRef.current;
       const yawRad = (controls.yawDeg * Math.PI) / 180;
       const yawCos = Math.cos(yawRad);
       const yawSin = Math.sin(yawRad);
-      const baseStep = (controls.airspeed / 80) * 0.0085;
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
+      const baseStep = (controls.airspeed / 80) * 0.0072;
+      target.save();
+      target.globalCompositeOperation = "lighter";
+      target.filter = "blur(1.2px)";
+      target.lineCap = "round";
+      target.lineJoin = "round";
+
+      const pickWheelSmokeSeed = () => {
+        if (controls.wheelMode !== "rotating" || !profile?.wheelArches.length) return null;
+        for (let attempt = 0; attempt < 10; attempt += 1) {
+          const arch = profile.wheelArches[Math.floor(Math.random() * profile.wheelArches.length)];
+          const side = Math.random() < 0.5 ? -1 : 1;
+          const downstream = Math.random() < 0.72;
+          const x = downstream
+            ? arch.cx + arch.r * (1.18 + Math.random() * 0.84)
+            : arch.cx - arch.r * (1.65 + Math.random() * 0.72);
+          const y = clampFlowY(arch.cy + side * arch.r * (0.62 + Math.random() * 0.95));
+          if (!pointInsideProfile(x, y)) return { x, y };
+        }
+        return null;
+      };
+
+      const resetParticle = (particle: ParticleState) => {
+        const wheelSeed = Math.random() < 0.34 ? pickWheelSmokeSeed() : null;
+        particle.x = wheelSeed?.x ?? (-0.05 + Math.random() * 0.05);
+        particle.y = wheelSeed?.y ?? spawnParticleY(controls.windSourceY, 0.66);
+        particle.age = 170 + Math.random() * 90;
+        for (let t = 0; t < TRAIL_LENGTH; t += 1) {
+          particle.trail[t * 2] = particle.x;
+          particle.trail[t * 2 + 1] = particle.y;
+        }
+      };
+
       for (const particle of particles) {
         const sample = sampleField(particle.x, particle.y);
-        const u = sample ? sample.u * 0.012 : baseStep * yawCos;
-        const v = sample ? sample.v * 0.012 : baseStep * yawSin;
+        const mag = sample ? Math.max(0.04, Math.hypot(sample.u, sample.v)) : 1;
+        const u = sample && sample.speed > 0.018 ? (sample.u / mag) * baseStep : baseStep * yawCos;
+        const v = sample && sample.speed > 0.018 ? (sample.v / mag) * baseStep * STREAMLINE_Y_GAIN : baseStep * yawSin;
         if (
           particle.age <= 0
           || particle.x > 1.05
-          || particle.x < -0.05
-          || particle.y < -0.02
-          || particle.y > 1.02
-          || (sample && sample.speed === 0)
+          || particle.x < -0.08
+          || particle.y < -0.04
+          || particle.y > 1.04
+          || pointInsideProfile(particle.x, particle.y)
         ) {
-          particle.x = -0.04 + Math.random() * 0.08;
-          particle.y = spawnParticleY(controls.windSourceY);
-          particle.age = 220 + Math.random() * 120;
-          for (let t = 0; t < TRAIL_LENGTH; t += 1) {
-            particle.trail[t * 2] = particle.x;
-            particle.trail[t * 2 + 1] = particle.y;
-          }
+          resetParticle(particle);
           continue;
         }
         particle.trail[particle.trailHead * 2] = particle.x;
         particle.trail[particle.trailHead * 2 + 1] = particle.y;
         particle.trailHead = (particle.trailHead + 1) % TRAIL_LENGTH;
-        particle.x += u;
-        particle.y += v;
+        const nextX = particle.x + u;
+        const nextY = clampFlowY(particle.y + v + (Math.random() - 0.5) * 0.0010);
+        if (segmentHitsProfile(particle.x, particle.y, nextX, nextY)) {
+          resetParticle(particle);
+          continue;
+        }
+        particle.x = nextX;
+        particle.y = nextY;
         particle.age -= 1;
-        const intensity = Math.min(1, sample ? sample.speed * 0.85 : 0.4);
-        const alpha = (0.32 + 0.45 * intensity).toFixed(3);
-        const r = Math.round(120 + 110 * intensity);
-        const g = Math.round(200 + 35 * intensity);
-        const b = 255;
-        ctx.strokeStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
-        ctx.lineWidth = 0.9 + intensity * 1.1;
-        ctx.beginPath();
+        const intensity = Math.min(1, sample ? sample.speed * 0.55 : 0.34);
+        const alpha = 0.026 + intensity * 0.045;
+        target.strokeStyle = `rgba(130, 190, 220, ${alpha.toFixed(3)})`;
+        target.lineWidth = 4.4 + intensity * 5.2;
+        target.beginPath();
         for (let t = 0; t < TRAIL_LENGTH; t += 1) {
           const ringIdx = (particle.trailHead + t) % TRAIL_LENGTH;
           const px = particle.trail[ringIdx * 2] * STAGE_WIDTH;
           const py = particle.trail[ringIdx * 2 + 1] * STAGE_HEIGHT;
-          if (t === 0) ctx.moveTo(px, py);
-          else ctx.lineTo(px, py);
+          if (t === 0) target.moveTo(px, py);
+          else target.lineTo(px, py);
         }
-        ctx.stroke();
+        target.stroke();
       }
+      target.restore();
+    }
+
+    function drawVectorField() {
+      const target = modelFile && modelViewerReady && overlayCtx ? overlayCtx : ctx;
+      if (!target || controls.overlayMode !== "technical") return;
+      const frame = fluidFrameRef.current;
+      if (!frame.ready || !frame.u || !frame.v) return;
+      target.save();
+      target.lineCap = "round";
+      target.lineJoin = "round";
+      for (let y = 54; y < STAGE_HEIGHT - 56; y += 48) {
+        for (let x = 84; x < STAGE_WIDTH - 34; x += 72) {
+          if (pointInsideProfile(x / STAGE_WIDTH, y / STAGE_HEIGHT)) continue;
+          const sample = sampleField(x / STAGE_WIDTH, y / STAGE_HEIGHT);
+          if (!sample || sample.speed <= 0.03) continue;
+          const len = Math.min(22, 7 + sample.speed * 7);
+          const angle = Math.atan2(sample.v, sample.u);
+          const x2 = x + Math.cos(angle) * len;
+          const y2 = y + Math.sin(angle) * len;
+          const alpha = Math.min(0.48, 0.16 + sample.speed * 0.16);
+          target.strokeStyle = `rgba(145, 210, 255, ${alpha.toFixed(3)})`;
+          target.lineWidth = 1;
+          target.beginPath();
+          target.moveTo(x, y);
+          target.lineTo(x2, y2);
+          target.stroke();
+          target.beginPath();
+          target.moveTo(x2, y2);
+          target.lineTo(x2 - Math.cos(angle - 0.45) * 5, y2 - Math.sin(angle - 0.45) * 5);
+          target.moveTo(x2, y2);
+          target.lineTo(x2 - Math.cos(angle + 0.45) * 5, y2 - Math.sin(angle + 0.45) * 5);
+          target.stroke();
+        }
+      }
+      target.restore();
+    }
+
+    function drawVorticityField() {
+      const target = modelFile && modelViewerReady && overlayCtx ? overlayCtx : ctx;
+      if (!target || controls.overlayMode !== "technical") return;
+      const frame = fluidFrameRef.current;
+      if (!frame.ready || !frame.u || !frame.v) return;
+      target.save();
+      const stepX = 10;
+      const stepY = 9;
+      const cellW = (stepX / SOLVER_NX) * STAGE_WIDTH + 1;
+      const cellH = (stepY / SOLVER_NY) * STAGE_HEIGHT + 1;
+      for (let yi = 2; yi < SOLVER_NY - 2; yi += stepY) {
+        for (let xi = 2; xi < SOLVER_NX - 2; xi += stepX) {
+          if (pointInsideProfile(xi / SOLVER_NX, yi / SOLVER_NY)) continue;
+          const dvdx = (frame.v[yi * SOLVER_NX + xi + 1] - frame.v[yi * SOLVER_NX + xi - 1]) * 0.5;
+          const dudy = (frame.u[(yi + 1) * SOLVER_NX + xi] - frame.u[(yi - 1) * SOLVER_NX + xi]) * 0.5;
+          const curl = dvdx - dudy;
+          const p = frame.pressure?.[yi * SOLVER_NX + xi] ?? 0;
+          const curlStrength = Math.tanh(Math.abs(curl) * 5);
+          const pressureStrength = Math.tanh(Math.abs(p) * 2.6);
+          const strength = Math.max(curlStrength, pressureStrength);
+          if (strength < 0.065) continue;
+          const alpha = Math.min(0.22, 0.030 + strength * 0.14);
+          const warm = p > 0 || curl >= 0;
+          target.fillStyle = warm
+            ? `rgba(255, 142, 82, ${alpha.toFixed(3)})`
+            : `rgba(80, 178, 255, ${alpha.toFixed(3)})`;
+          target.fillRect((xi / SOLVER_NX) * STAGE_WIDTH, (yi / SOLVER_NY) * STAGE_HEIGHT, cellW, cellH);
+        }
+      }
+      target.restore();
+    }
+
+    function drawDiagnosticOverlay() {
+      if (controls.overlayMode !== "diagnostic") return;
+      const target = overlayCtx ?? ctx;
+      if (!target) return;
+      const frame = fluidFrameRef.current;
+      const bodyMask = frame.bodyMask ?? mask;
+      const wheelDebugMask = frame.wheelMask;
+      const cellW = STAGE_WIDTH / SOLVER_NX;
+      const cellH = STAGE_HEIGHT / SOLVER_NY;
+      const influenceRadius = Math.max(1, frame.bodyInfluenceRadius || 46);
+      const smooth = (value: number) => {
+        const t = Math.max(0, Math.min(1, value));
+        return t * t * (3 - 2 * t);
+      };
+
+      target.save();
+      target.globalCompositeOperation = "source-over";
+
+      if (frame.bodyDistance) {
+        for (let yi = 1; yi < SOLVER_NY - 1; yi += 3) {
+          for (let xi = 1; xi < SOLVER_NX - 1; xi += 3) {
+            const c = yi * SOLVER_NX + xi;
+            const distance = frame.bodyDistance[c];
+            if (!(distance > 0 && distance < influenceRadius)) continue;
+            const t = smooth(1 - distance / influenceRadius);
+            if (t < 0.08) continue;
+            target.fillStyle = `rgba(76, 178, 255, ${(0.018 + t * 0.125).toFixed(3)})`;
+            target.fillRect(xi * cellW, yi * cellH, cellW * 3.2, cellH * 3.2);
+          }
+        }
+      }
+
+      if (frame.ground) {
+        for (let yi = 1; yi < SOLVER_NY - 1; yi += 2) {
+          for (let xi = 1; xi < SOLVER_NX - 1; xi += 2) {
+            const c = yi * SOLVER_NX + xi;
+            if (bodyMask[c]) continue;
+            const channel = frame.ground[c];
+            if (channel <= 0.04) continue;
+            const lowPressure = Math.max(0, -(frame.pressure?.[c] ?? 0));
+            const alpha = Math.min(0.24, 0.026 + channel * 0.16 + lowPressure * 0.025);
+            target.fillStyle = `rgba(54, 224, 190, ${alpha.toFixed(3)})`;
+            target.fillRect(xi * cellW, yi * cellH, cellW * 2.2, cellH * 2.2);
+          }
+        }
+      }
+
+      if (frame.wake) {
+        for (let yi = 1; yi < SOLVER_NY - 1; yi += 2) {
+          for (let xi = 1; xi < SOLVER_NX - 1; xi += 2) {
+            const c = yi * SOLVER_NX + xi;
+            if (bodyMask[c]) continue;
+            const wake = frame.wake[c];
+            if (wake <= 0.035) continue;
+            const alpha = Math.min(0.26, 0.024 + wake * 0.19);
+            target.fillStyle = `rgba(255, 132, 72, ${alpha.toFixed(3)})`;
+            target.fillRect(xi * cellW, yi * cellH, cellW * 2.2, cellH * 2.2);
+          }
+        }
+      }
+
+      if (bodyMask.length === SOLVER_NX * SOLVER_NY) {
+        for (let yi = 0; yi < SOLVER_NY; yi += 2) {
+          for (let xi = 0; xi < SOLVER_NX; xi += 2) {
+            const c = yi * SOLVER_NX + xi;
+            if (!bodyMask[c]) continue;
+            target.fillStyle = wheelDebugMask?.[c]
+              ? "rgba(255, 198, 94, 0.35)"
+              : "rgba(232, 242, 255, 0.16)";
+            target.fillRect(xi * cellW, yi * cellH, cellW * 2.05, cellH * 2.05);
+          }
+        }
+      }
+
+      if (!wheelDebugMask && profile?.wheelArches.length) {
+        target.strokeStyle = "rgba(255, 198, 94, 0.48)";
+        target.lineWidth = 2;
+        for (const arch of profile.wheelArches) {
+          target.beginPath();
+          target.arc(arch.cx * STAGE_WIDTH, arch.cy * STAGE_HEIGHT, Math.max(8, arch.r * STAGE_HEIGHT), 0, Math.PI * 2);
+          target.stroke();
+        }
+      }
+
+      const zones = frame.componentZones.length ? frame.componentZones : componentZones;
+      for (const zone of zones) {
+        const px = zone.x * STAGE_WIDTH;
+        const py = zone.y * STAGE_HEIGHT;
+        const rx = Math.max(8, zone.radiusX * STAGE_WIDTH);
+        const ry = Math.max(6, zone.radiusY * STAGE_HEIGHT);
+        target.strokeStyle = zone.kind === "rearWing" ? "rgba(255, 232, 168, 0.74)" : "rgba(74, 222, 128, 0.70)";
+        target.fillStyle = zone.kind === "rearWing" ? "rgba(255, 232, 168, 0.46)" : "rgba(74, 222, 128, 0.42)";
+        target.lineWidth = 1.3;
+        target.beginPath();
+        target.ellipse(px, py, rx, ry, 0, 0, Math.PI * 2);
+        target.stroke();
+        target.beginPath();
+        target.arc(px, py, 3.4, 0, Math.PI * 2);
+        target.fill();
+      }
+
+      if (frame.bodyDistance && frame.bodyNormalX && frame.bodyNormalY) {
+        target.strokeStyle = "rgba(226, 242, 255, 0.66)";
+        target.fillStyle = "rgba(226, 242, 255, 0.72)";
+        target.lineWidth = 1;
+        for (let yi = 5; yi < SOLVER_NY - 5; yi += 10) {
+          for (let xi = 5; xi < SOLVER_NX - 5; xi += 10) {
+            const c = yi * SOLVER_NX + xi;
+            const distance = frame.bodyDistance[c];
+            if (!(distance > 1.2 && distance < 8.5) || bodyMask[c]) continue;
+            const nx = frame.bodyNormalX[c];
+            const ny = frame.bodyNormalY[c];
+            if (Math.hypot(nx, ny) < 0.4) continue;
+            const x0 = xi * cellW;
+            const y0 = yi * cellH;
+            const x1 = x0 + nx * 12;
+            const y1 = y0 + ny * 12;
+            target.beginPath();
+            target.moveTo(x0, y0);
+            target.lineTo(x1, y1);
+            target.stroke();
+            target.beginPath();
+            target.arc(x1, y1, 1.5, 0, Math.PI * 2);
+            target.fill();
+          }
+        }
+      }
+
+      target.fillStyle = "rgba(125, 211, 252, 0.9)";
+      for (const seedY of streamlineSeeds()) {
+        target.beginPath();
+        target.arc(18, seedY * STAGE_HEIGHT, 3.2, 0, Math.PI * 2);
+        target.fill();
+      }
+
+      target.restore();
     }
 
     function silhouettePath(polygon: Array<[number, number]>) {
@@ -570,17 +1216,22 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
     function drawInletStreaks(elapsedMs: number) {
       if (!ctx) return;
       const speed = controls.airspeed;
-      const dashOffset = (elapsedMs * speed * 0.014) % 36;
+      const offset = (elapsedMs * speed * 0.010) % 28;
       ctx.save();
-      ctx.lineWidth = 1.6;
+      ctx.lineWidth = 1.2;
       ctx.lineCap = "round";
-      ctx.setLineDash([18, 18]);
-      ctx.lineDashOffset = -dashOffset;
-      for (const lane of INLET_LANES) {
-        ctx.strokeStyle = "rgba(150, 200, 255, 0.42)";
+      for (const lane of INLET_MARKERS) {
+        const y = lane * STAGE_HEIGHT;
+        const x0 = 18 + offset;
+        const x1 = x0 + 42;
+        ctx.strokeStyle = "rgba(150, 200, 255, 0.16)";
         ctx.beginPath();
-        ctx.moveTo(0, lane * STAGE_HEIGHT);
-        ctx.lineTo(STAGE_WIDTH * 0.16, lane * STAGE_HEIGHT);
+        ctx.moveTo(x0, y);
+        ctx.lineTo(x1, y);
+        ctx.moveTo(x1, y);
+        ctx.lineTo(x1 - 7, y - 4);
+        ctx.moveTo(x1, y);
+        ctx.lineTo(x1 - 7, y + 4);
         ctx.stroke();
       }
       ctx.restore();
@@ -594,15 +1245,16 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
       ctx.strokeStyle = "rgba(125, 211, 252, 0.72)";
       ctx.fillStyle = "rgba(125, 211, 252, 0.12)";
       ctx.lineWidth = 1.4;
-      ctx.setLineDash([6, 8]);
-      ctx.beginPath();
-      ctx.moveTo(0, y);
-      ctx.lineTo(STAGE_WIDTH, y + yawOffset);
-      ctx.stroke();
-      ctx.setLineDash([]);
       ctx.beginPath();
       ctx.arc(24, y, 13, 0, Math.PI * 2);
       ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(39, y);
+      ctx.lineTo(86, y + yawOffset * 0.06);
+      ctx.lineTo(78, y + yawOffset * 0.06 - 5);
+      ctx.moveTo(86, y + yawOffset * 0.06);
+      ctx.lineTo(78, y + yawOffset * 0.06 + 5);
       ctx.stroke();
       ctx.font = "700 10px IBM Plex Mono, Consolas, monospace";
       ctx.fillStyle = "rgba(220, 242, 254, 0.9)";
@@ -610,37 +1262,11 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
       ctx.restore();
     }
 
-    function drawWakePuff(elapsedMs: number) {
-      if (!ctx || !profile) return;
-      let maxX = -Infinity, midY = 0, midCount = 0;
-      for (const [x, y] of profile.polygon) {
-        if (x > maxX) maxX = x;
-        midY += y; midCount += 1;
-      }
-      midY /= Math.max(1, midCount);
-      const cx = maxX * STAGE_WIDTH;
-      const cy = midY * STAGE_HEIGHT;
-      const phase = (elapsedMs * 0.0025) % (Math.PI * 2);
-      ctx.save();
-      ctx.lineWidth = 1.4;
-      ctx.lineCap = "round";
-      ctx.strokeStyle = "rgba(255, 188, 120, 0.32)";
-      const wakeWidth = STAGE_WIDTH * 0.10;
-      for (let i = 0; i < 4; i += 1) {
-        const t = (elapsedMs * 0.001 + i * 0.4) % 4;
-        const xOff = wakeWidth * (t / 4);
-        const yOff = Math.sin(phase + i) * 8;
-        ctx.beginPath();
-        ctx.arc(cx + xOff + 18, cy + yOff, 6 + i * 1.5, 0, Math.PI * 2);
-        ctx.stroke();
-      }
-      ctx.restore();
-    }
-
     function drawSilhouette() {
       if (!ctx || !profile) return;
       const polygon = profile.polygon;
       if (!polygon.length) return;
+      if (modelFile && modelViewerReady && controls.silhouetteMode !== "airfoil") return;
 
       ctx.save();
       // Glossy paint with vertical gradient.
@@ -711,7 +1337,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
         }
       }
 
-      if (controls.showCp) {
+      if (controls.overlayMode === "technical") {
         const pressures: number[] = new Array(polygon.length).fill(0);
         let pMin = Infinity;
         let pMax = -Infinity;
@@ -781,6 +1407,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
 
     function drawHoverProbe() {
       if (!ctx) return;
+      if (!controls.probeEnabled) return;
       const hover = hoverRef.current;
       if (!hover.active) return;
       const px = hover.nx * STAGE_WIDTH;
@@ -803,36 +1430,6 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
       ctx.restore();
     }
 
-    function drawLegend() {
-      if (!ctx) return;
-      const x = 16;
-      const y = STAGE_HEIGHT - 78;
-      ctx.fillStyle = "rgba(8, 12, 20, 0.8)";
-      ctx.fillRect(x, y, 220, 60);
-      ctx.strokeStyle = "rgba(120, 140, 170, 0.4)";
-      ctx.lineWidth = 1;
-      ctx.strokeRect(x, y, 220, 60);
-      ctx.font = "600 11px IBM Plex Mono, Consolas, monospace";
-      ctx.fillStyle = "rgba(220, 230, 250, 0.95)";
-      ctx.fillText("Streaklines · live u/v field", x + 10, y + 16);
-      ctx.fillText("Boundary tint · pressure (Cp)", x + 10, y + 32);
-      const scaleX = x + 10;
-      const scaleY = y + 40;
-      const scaleW = 200;
-      const scaleH = 8;
-      const grad = ctx.createLinearGradient(scaleX, scaleY, scaleX + scaleW, scaleY);
-      grad.addColorStop(0, "rgba(60,160,220,1)");
-      grad.addColorStop(1, "rgba(235,90,40,1)");
-      ctx.fillStyle = grad;
-      ctx.fillRect(scaleX, scaleY, scaleW, scaleH);
-      ctx.fillStyle = "rgba(160, 180, 210, 0.85)";
-      ctx.font = "10px IBM Plex Mono, Consolas, monospace";
-      ctx.fillText("low Cp", scaleX, scaleY + scaleH + 11);
-      ctx.textAlign = "right";
-      ctx.fillText("high Cp", scaleX + scaleW, scaleY + scaleH + 11);
-      ctx.textAlign = "start";
-    }
-
     function frame() {
       if (!isVisibleRef.current) {
         animationRef.current = requestAnimationFrame(frame);
@@ -853,29 +1450,35 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
       drawWindSource();
       if (profile) {
         drawGroundShadow();
-        drawStreaklines();
-        drawWakePuff(elapsed);
+        drawVorticityField();
+        drawRibbonFlow(elapsed);
+        drawSmokeFlow();
         drawSilhouette();
+        drawVectorField();
+        drawDiagnosticOverlay();
+        drawRibbonFlowOverlay(elapsed);
       }
       drawHoverProbe();
-      drawLegend();
 
       if (now - lastForceRead > 750) {
         lastForceRead = now;
         const f = fluidFrameRef.current;
         const reynolds = (controls.airspeed * 5.5) / 1.5e-5;
         const live = now - f.lastFrameAt < 600 && f.ready;
-        if (f.ready && !forceBaselineRef.current && Math.abs(f.drag) > 0.001) {
+        const solverState = updateSolverState(f, now);
+        if (solverState === "settled" && f.ready && !forceBaselineRef.current && Math.abs(f.drag) > 0.001) {
           const baseline = { drag: f.drag, lift: f.lift };
           forceBaselineRef.current = baseline;
           setForceBaseline(baseline);
         }
-        setReadout({ drag: f.drag, lift: f.lift, reynolds, live, fps: measuredFps });
+        setReadout({ drag: f.drag, lift: f.lift, reynolds, live, fps: measuredFps, solverState });
       }
       if (now - lastHoverRead > 80) {
         lastHoverRead = now;
         const hover = hoverRef.current;
-        if (hover.active) {
+        if (!controls.probeEnabled) {
+          setHoverData(null);
+        } else if (hover.active) {
           const sample = sampleField(hover.nx, hover.ny);
           if (sample) {
             const xi = Math.max(0, Math.min(SOLVER_NX - 1, Math.floor(hover.nx * SOLVER_NX)));
@@ -938,7 +1541,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
       if (animationRef.current) cancelAnimationFrame(animationRef.current);
       animationRef.current = null;
     };
-  }, [accentColor, controls, profile]);
+  }, [accentColor, controls, profile, modelFile, modelViewerReady, mask, componentZones]);
 
   const aeroProfile = AERO_PROFILE_BY_CONSTRUCTOR[constructorSlug ?? ""] ?? DEFAULT_AERO_PROFILE;
   const dragDelta = forceBaseline && readout ? readout.drag - forceBaseline.drag : 0;
@@ -950,16 +1553,16 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
     ? 0.12 * controls.airfoilAngleDeg
     : aeroProfile.cl * (controls.drsOpen ? 0.92 : 1) * (1 + Math.abs(controls.yawDeg) * 0.006);
   const estimatedCy = Math.sin((controls.yawDeg * Math.PI) / 180) * (controls.silhouetteMode === "airfoil" ? 0.7 : 1.4);
+  const activeFlowView = FLOW_VIEW_META[controls.overlayMode];
 
   return (
     <div className="wind-tunnel" data-constructor={constructorSlug ?? "default"}>
       <div className="wind-tunnel__header">
-        <p className="eyebrow">Wind tunnel · 2D Navier-Stokes</p>
+        <p className="eyebrow">Wind tunnel · geometry field</p>
         <h3>Airflow simulation around {modelTitle}</h3>
         <p className="wind-tunnel__copy">
-          {SOLVER_NX} × {SOLVER_NY} grid, semi-Lagrangian advection with {20} Jacobi pressure projections per tick,
-          running in a Web Worker. Streaklines are particles advected through the live u/v field; boundary tint is the pressure (Cp) at the surface.
-          Visual guide for intuition: controls alter the obstacle and inlet field, but coefficients remain illustrative.
+          {SOLVER_NX} × {SOLVER_NY} silhouette-derived distance field running in a Web Worker.
+          Ribbon, Technical, and Smoke views sample the same live u/v field while Cd, Cl, and Cy remain educational estimates.
         </p>
       </div>
 
@@ -972,6 +1575,40 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerLeave={handlePointerLeave}
+        />
+        {modelFile && modelViewerReady && controls.silhouetteMode !== "airfoil" ? createElement("model-viewer", {
+          key: `${modelFile}-wind-tunnel`,
+          className: "wind-tunnel__model-layer",
+          src: modelFile,
+          alt: `${modelTitle} side-on wind tunnel model`,
+          scale: modelScale,
+          reveal: "auto",
+          loading: "lazy",
+          "camera-orbit": "90deg 88deg 6m",
+          "camera-target": "0m 0.22m 0m",
+          "field-of-view": "24deg",
+          "min-camera-orbit": "auto auto 4m",
+          "max-camera-orbit": "auto auto 14m",
+          exposure: "1.08",
+          "shadow-intensity": "0",
+          "shadow-softness": "0",
+          "tone-mapping": "commerce",
+          "environment-image": "neutral",
+          "interaction-prompt": "none",
+          "disable-pan": true,
+          "disable-zoom": true,
+          "touch-action": "none",
+          onLoad: (event: Event) => {
+            const node = event.currentTarget as { jumpCameraToGoal?: () => void };
+            node.jumpCameraToGoal?.();
+          },
+        }) : null}
+        <canvas
+          ref={flowOverlayRef}
+          width={STAGE_WIDTH}
+          height={STAGE_HEIGHT}
+          className="wind-tunnel__flow-overlay"
+          aria-hidden="true"
         />
         {!profile && profileMissing ? (
           <div className="wind-tunnel__overlay">
@@ -986,20 +1623,12 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
             <p>Solver warming up...</p>
           </div>
         ) : null}
-        <div className="wind-tunnel__stage-hint">Click the canvas to place the wind rake · hover to probe U/Cp/vorticity</div>
-        <div className="wind-tunnel__readout">
-          <span className={`wind-tunnel__live${readout?.live ? " wind-tunnel__live--on" : ""}`}>{readout?.live ? "live" : "idle"}</span>
-          <span>Drag <strong>{readout ? formatForce(readout.drag) : "-"}</strong></span>
-          <span>Lift <strong>{readout ? formatForce(readout.lift) : "-"}</strong></span>
-          <span>Cd est <strong>{estimatedCd.toFixed(2)}</strong></span>
-          <span>Cl est <strong>{estimatedCl.toFixed(2)}</strong></span>
-          <span>Cy est <strong>{estimatedCy.toFixed(2)}</strong></span>
-          <span>ΔD <strong>{readout ? signed(dragDelta) : "-"}</strong></span>
-          <span>ΔL <strong>{readout ? signed(liftDelta) : "-"}</strong></span>
-          <span>Re <strong>{readout?.reynolds ? `${(readout.reynolds / 1e6).toFixed(2)}M` : "-"}</strong></span>
-          <span>FPS <strong>{readout?.fps ? readout.fps.toFixed(0) : "-"}</strong></span>
+        <div className="wind-tunnel__stage-hint">
+          {controls.overlayMode === "diagnostic"
+            ? "Diagnostic · mask / sdf / wake / floor"
+            : <>Rake {Math.round(controls.windSourceY * 100)}% · Probe {controls.probeEnabled ? "armed" : "off"}</>}
         </div>
-        {hoverData ? (
+        {controls.probeEnabled && hoverData ? (
           <div
             className="wind-tunnel__hover"
             style={{
@@ -1019,21 +1648,49 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
         ) : null}
       </div>
 
+      <div className="wind-tunnel__instrument-rail">
+        <div className="wind-tunnel__readout" aria-label="Wind tunnel readout">
+          <span className={`wind-tunnel__live${readout?.live ? " wind-tunnel__live--on" : ""}`}>{readout?.live ? "live" : "idle"}</span>
+          <span className={`wind-tunnel__solver-state wind-tunnel__solver-state--${readout?.solverState ?? "warming"}`}>
+            {readout?.solverState ?? "warming"}
+          </span>
+          <span>Drag <strong>{readout ? formatForce(readout.drag) : "-"}</strong></span>
+          <span>Lift <strong>{readout ? formatForce(readout.lift) : "-"}</strong></span>
+          <span>Cd est <strong>{estimatedCd.toFixed(2)}</strong></span>
+          <span>Cl est <strong>{estimatedCl.toFixed(2)}</strong></span>
+          <span>Cy est <strong>{estimatedCy.toFixed(2)}</strong></span>
+          <span>ΔD <strong>{readout ? signed(dragDelta) : "-"}</strong></span>
+          <span>ΔL <strong>{readout ? signed(liftDelta) : "-"}</strong></span>
+          <span>Re <strong>{readout?.reynolds ? `${(readout.reynolds / 1e6).toFixed(2)}M` : "-"}</strong></span>
+          <span>FPS <strong>{readout?.fps ? readout.fps.toFixed(0) : "-"}</strong></span>
+        </div>
+        <div className="wind-tunnel__flow-status">
+          <span>Flow view <strong>{activeFlowView.label}</strong></span>
+          <span>{activeFlowView.description}</span>
+          <span>{activeFlowView.low} → {activeFlowView.high}</span>
+        </div>
+      </div>
+
       <div className="wind-tunnel__mode" role="tablist" aria-label="Silhouette source">
         {(["procedural", "airfoil", "svg", "glb"] as const).map((mode) => (
           <button
             key={mode}
             type="button"
             role="tab"
+            disabled={mode === "svg" && !hasCuratedSvg}
             aria-selected={controls.silhouetteMode === mode}
-            className={`wind-tunnel__mode-button${controls.silhouetteMode === mode ? " wind-tunnel__mode-button--active" : ""}`}
-            onClick={() => setControls((prev) => ({ ...prev, silhouetteMode: mode }))}
+            aria-disabled={mode === "svg" && !hasCuratedSvg}
+            className={`wind-tunnel__mode-button${mode === "glb" ? " wind-tunnel__mode-button--subtle" : ""}${controls.silhouetteMode === mode ? " wind-tunnel__mode-button--active" : ""}`}
+            onClick={() => {
+              if (mode === "svg" && !hasCuratedSvg) return;
+              setControls((prev) => ({ ...prev, silhouetteMode: mode }));
+            }}
             title={mode === "procedural"
               ? "Hand-tuned canonical F1 outline (always available)"
               : mode === "airfoil"
                 ? "NACA-style wing section for validating angle-of-attack flow"
                 : mode === "svg"
-                  ? "Hand-curated per-constructor SVG"
+                  ? hasCuratedSvg ? "Hand-curated per-constructor SVG" : "No curated SVG silhouette is available for this constructor"
                   : "GLB-derived column-envelope hull"}
           >
             {mode === "procedural" ? "Procedural" : mode === "airfoil" ? "Airfoil" : mode === "svg" ? "SVG art" : "GLB hull"}
@@ -1044,111 +1701,120 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
         </span>
       </div>
 
-      <div className="wind-tunnel__controls">
-        <label>
-          <span>Airspeed</span>
-          <input
-            type="range"
-            min={20}
-            max={140}
-            step={5}
-            value={controls.airspeed}
-            onChange={(event) => setControls((prev) => ({ ...prev, airspeed: Number(event.target.value) }))}
-          />
-          <strong>{controls.airspeed} m/s</strong>
-        </label>
-        <label>
-          <span>Yaw</span>
-          <input
-            type="range"
-            min={-15}
-            max={15}
-            step={1}
-            value={controls.yawDeg}
-            onChange={(event) => setControls((prev) => ({ ...prev, yawDeg: Number(event.target.value) }))}
-          />
-          <strong>{controls.yawDeg.toFixed(0)}°</strong>
-        </label>
-        {controls.silhouetteMode === "airfoil" ? (
+      <div className="wind-tunnel__control-panel">
+        <div className="wind-tunnel__controls wind-tunnel__controls--primary">
           <label>
-            <span>Airfoil AoA</span>
+            <span>Airspeed</span>
             <input
               type="range"
-              min={-12}
-              max={16}
-              step={1}
-              value={controls.airfoilAngleDeg}
-              onChange={(event) => setControls((prev) => ({ ...prev, airfoilAngleDeg: Number(event.target.value) }))}
+              min={20}
+              max={140}
+              step={5}
+              value={controls.airspeed}
+              onChange={(event) => setControls((prev) => ({ ...prev, airspeed: Number(event.target.value) }))}
             />
-            <strong>{controls.airfoilAngleDeg.toFixed(0)}°</strong>
+            <strong>{controls.airspeed} m/s</strong>
           </label>
-        ) : null}
-        <label>
-          <span>Wind rake</span>
-          <input
-            type="range"
-            min={8}
-            max={88}
-            step={1}
-            value={Math.round(controls.windSourceY * 100)}
-            onChange={(event) => setControls((prev) => ({ ...prev, windSourceY: Number(event.target.value) / 100 }))}
-          />
-          <strong>{Math.round(controls.windSourceY * 100)}%</strong>
-        </label>
-        <label>
-          <span>Particles</span>
-          <input
-            type="range"
-            min={0}
-            max={1200}
-            step={20}
-            value={controls.particles}
-            onChange={(event) => setControls((prev) => ({ ...prev, particles: Number(event.target.value) }))}
-          />
-          <strong>{controls.particles}</strong>
-        </label>
-        {controls.silhouetteMode !== "airfoil" ? (
+          <label>
+            <span>Yaw</span>
+            <input
+              type="range"
+              min={-15}
+              max={15}
+              step={1}
+              value={controls.yawDeg}
+              onChange={(event) => setControls((prev) => ({ ...prev, yawDeg: Number(event.target.value) }))}
+            />
+            <strong>{controls.yawDeg.toFixed(0)}°</strong>
+          </label>
+          {controls.silhouetteMode === "airfoil" ? (
+            <label>
+              <span>Airfoil AoA</span>
+              <input
+                type="range"
+                min={-12}
+                max={16}
+                step={1}
+                value={controls.airfoilAngleDeg}
+                onChange={(event) => setControls((prev) => ({ ...prev, airfoilAngleDeg: Number(event.target.value) }))}
+              />
+              <strong>{controls.airfoilAngleDeg.toFixed(0)}°</strong>
+            </label>
+          ) : null}
+          <label>
+            <span>Wind rake</span>
+            <input
+              type="range"
+              min={8}
+              max={88}
+              step={1}
+              value={Math.round(controls.windSourceY * 100)}
+              onChange={(event) => setControls((prev) => ({ ...prev, windSourceY: Number(event.target.value) / 100 }))}
+            />
+            <strong>{Math.round(controls.windSourceY * 100)}%</strong>
+          </label>
+          {controls.silhouetteMode !== "airfoil" ? (
+            <label className="wind-tunnel__toggle">
+              <input
+                type="checkbox"
+                checked={controls.drsOpen}
+                onChange={(event) => setControls((prev) => ({ ...prev, drsOpen: event.target.checked }))}
+              />
+              <span>DRS</span>
+            </label>
+          ) : null}
+        </div>
+
+        <div className="wind-tunnel__controls wind-tunnel__controls--secondary">
           <label className="wind-tunnel__toggle">
             <input
               type="checkbox"
-              checked={controls.drsOpen}
-              onChange={(event) => setControls((prev) => ({ ...prev, drsOpen: event.target.checked }))}
+              checked={controls.groundMode === "rolling"}
+              onChange={(event) => setControls((prev) => ({ ...prev, groundMode: event.target.checked ? "rolling" : "fixed" }))}
             />
-            <span>DRS open</span>
+            <span>Rolling road</span>
           </label>
-        ) : null}
-        <label className="wind-tunnel__toggle">
-          <input
-            type="checkbox"
-            checked={controls.groundMode === "rolling"}
-            onChange={(event) => setControls((prev) => ({ ...prev, groundMode: event.target.checked ? "rolling" : "fixed" }))}
-          />
-          <span>Rolling road</span>
-        </label>
-        <label className="wind-tunnel__toggle">
-          <input
-            type="checkbox"
-            checked={controls.wheelMode === "rotating"}
-            onChange={(event) => setControls((prev) => ({ ...prev, wheelMode: event.target.checked ? "rotating" : "stationary" }))}
-          />
-          <span>Wheels rotating</span>
-        </label>
-        <label className="wind-tunnel__toggle">
-          <input
-            type="checkbox"
-            checked={controls.showStreamlines}
-            onChange={(event) => setControls((prev) => ({ ...prev, showStreamlines: event.target.checked }))}
-          />
-          <span>Streaklines</span>
-        </label>
-        <label className="wind-tunnel__toggle">
-          <input
-            type="checkbox"
-            checked={controls.showCp}
-            onChange={(event) => setControls((prev) => ({ ...prev, showCp: event.target.checked }))}
-          />
-          <span>Pressure (live)</span>
-        </label>
+          <label className="wind-tunnel__toggle">
+            <input
+              type="checkbox"
+              checked={controls.wheelMode === "rotating"}
+              onChange={(event) => setControls((prev) => ({ ...prev, wheelMode: event.target.checked ? "rotating" : "stationary" }))}
+            />
+            <span>Wheels</span>
+          </label>
+          <div className="wind-tunnel__flow-view">
+            <span>Flow view</span>
+            <div className="wind-tunnel__flow-buttons" role="tablist" aria-label="Flow view">
+              {(["ribbon", "technical", "diagnostic", "smoke"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  role="tab"
+                  aria-selected={controls.overlayMode === mode}
+                  className={`wind-tunnel__flow-button${controls.overlayMode === mode ? " wind-tunnel__flow-button--active" : ""}`}
+                  onClick={() => setControls((prev) => ({ ...prev, overlayMode: mode }))}
+                >
+                  {FLOW_VIEW_META[mode].label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <label className="wind-tunnel__toggle">
+            <input
+              type="checkbox"
+              checked={controls.probeEnabled}
+              onChange={(event) => {
+                const enabled = event.target.checked;
+                if (!enabled) {
+                  hoverRef.current = { active: false, nx: 0, ny: 0 };
+                  setHoverData(null);
+                }
+                setControls((prev) => ({ ...prev, probeEnabled: enabled }));
+              }}
+            />
+            <span>Probe</span>
+          </label>
+        </div>
       </div>
     </div>
   );
@@ -1175,6 +1841,129 @@ function mapBuiltProfile(built: BuiltSilhouette, source: SilhouetteMode): WindPr
     details: remappedDetails,
     source,
   };
+}
+
+function buildFlowComponentZones(profile: WindProfileData): FlowComponentZone[] {
+  const bounds = profileBounds(profile.polygon);
+  const length = Math.max(0.01, bounds.maxX - bounds.minX);
+  const height = Math.max(0.01, bounds.maxY - bounds.minY);
+  const zones: FlowComponentZone[] = [];
+
+  const rearWing = profile.details?.find((detail) => detail.kind === "rearWing");
+  if (rearWing?.points.length) {
+    const wingBounds = profileBounds(rearWing.points);
+    zones.push({
+      kind: "rearWing",
+      x: clampUnit(wingBounds.maxX),
+      y: clampUnit((wingBounds.minY + wingBounds.maxY) * 0.5),
+      radiusX: Math.max(0.018, (wingBounds.maxX - wingBounds.minX) * 0.40),
+      radiusY: Math.max(0.025, (wingBounds.maxY - wingBounds.minY) * 0.58),
+      strength: 1.0,
+    });
+  } else {
+    zones.push({
+      kind: "rearWing",
+      x: clampUnit(bounds.maxX),
+      y: clampUnit(bounds.minY + height * 0.30),
+      radiusX: length * 0.035,
+      radiusY: height * 0.15,
+      strength: 0.88,
+    });
+  }
+
+  const floor = profile.details?.find((detail) => detail.kind === "floor");
+  const floorExit = floor?.points.reduce<[number, number] | null>((best, point) => (
+    !best || point[0] > best[0] ? point : best
+  ), null);
+  const lowerRear = profile.polygon
+    .filter(([x]) => x > bounds.minX + length * 0.68)
+    .reduce<[number, number] | null>((best, point) => (
+      !best || point[1] > best[1] ? point : best
+    ), null);
+  const diffuserX = floorExit ? Math.max(floorExit[0], bounds.maxX - length * 0.075) : bounds.maxX - length * 0.045;
+  const diffuserY = floorExit && lowerRear
+    ? floorExit[1] * 0.72 + lowerRear[1] * 0.28
+    : (floorExit?.[1] ?? lowerRear?.[1] ?? bounds.maxY - height * 0.10);
+  zones.push({
+    kind: "diffuser",
+    x: clampUnit(diffuserX),
+    y: clampUnit(diffuserY),
+    radiusX: length * 0.045,
+    radiusY: height * 0.115,
+    strength: 0.88,
+  });
+
+  return zones;
+}
+
+function normalizeDebugZones(input: unknown): FlowComponentZone[] {
+  if (!Array.isArray(input)) return [];
+  return input.flatMap((item): FlowComponentZone[] => {
+    if (!item || typeof item !== "object") return [];
+    const source = item as Partial<Record<keyof FlowComponentZone, unknown>>;
+    const kind = source.kind === "rearWing" || source.kind === "diffuser" ? source.kind : null;
+    const x = Number(source.x);
+    const y = Number(source.y);
+    const radiusX = Number(source.radiusX);
+    const radiusY = Number(source.radiusY);
+    const strength = Number(source.strength);
+    if (!kind || !Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(radiusX) || !Number.isFinite(radiusY)) {
+      return [];
+    }
+    return [{
+      kind,
+      x: clampUnit(x),
+      y: clampUnit(y),
+      radiusX: Math.max(0.001, Math.abs(radiusX)),
+      radiusY: Math.max(0.001, Math.abs(radiusY)),
+      strength: Number.isFinite(strength) ? Math.max(0.1, Math.min(1.8, strength)) : 1,
+    }];
+  });
+}
+
+function profileBounds(points: Array<[number, number]>) {
+  return points.reduce((bounds, [x, y]) => ({
+    minX: Math.min(bounds.minX, x),
+    maxX: Math.max(bounds.maxX, x),
+    minY: Math.min(bounds.minY, y),
+    maxY: Math.max(bounds.maxY, y),
+  }), { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
+}
+
+function clampUnit(value: number) {
+  return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
+}
+
+function remapProfileDetails(details: unknown, aspect: number): WindProfileData["details"] {
+  if (!Array.isArray(details)) return [];
+  return details
+    .filter((detail): detail is NonNullable<WindProfileData["details"]>[number] => (
+      detail
+      && typeof detail === "object"
+      && ["halo", "frontWing", "floor", "rearWing", "stripe"].includes((detail as { kind?: string }).kind ?? "")
+      && Array.isArray((detail as { points?: unknown }).points)
+    ))
+    .map((detail) => ({
+      kind: detail.kind,
+      points: remapDetailPoints(detail.points, aspect),
+    }));
+}
+
+function remapWheelArches(arches: unknown, aspect: number): WheelArch[] {
+  if (!Array.isArray(arches)) return [];
+  const fit = computeFit(aspect);
+  return arches
+    .filter((arch): arch is WheelArch => (
+      arch
+      && typeof arch === "object"
+      && typeof (arch as WheelArch).cx === "number"
+      && typeof (arch as WheelArch).cy === "number"
+      && typeof (arch as WheelArch).r === "number"
+    ))
+    .map((arch) => {
+      const [cx, cy] = remapDetailPoints([[arch.cx, arch.cy]], aspect)[0];
+      return { cx, cy, r: arch.r * fit.fracH };
+    });
 }
 
 function computeAspect(polygon: Array<[number, number]>): number {
@@ -1225,9 +2014,10 @@ function computeFit(aspect: number) {
   const fracW = fitW / STAGE_WIDTH;
   const fracH = fitH / STAGE_HEIGHT;
   const xMin = (1 - fracW) * 0.5;
-  // Sit the silhouette so its floor (y=1 in source) ends a hair above the
-  // rolling-road band at y ≈ 0.92 of the canvas.
-  const yFloor = 0.90;
+  // Align the solver silhouette to the visible side-on model layer. The GLB
+  // camera frames the car above the rolling-road strip, so the 2D field should
+  // follow that model-backed profile instead of a lower road-hugging drawing.
+  const yFloor = 0.65;
   const yMin = yFloor - fracH;
   return { fracW, fracH, xMin, yMin };
 }
@@ -1235,18 +2025,28 @@ function computeFit(aspect: number) {
 /**
  * Rasterize the silhouette polygon onto the solver grid as a Uint8Array mask.
  */
-function buildMask(polygon: Array<[number, number]>, nx: number, ny: number): Uint8Array {
+function buildMask(polygon: Array<[number, number]>, wheelArches: WheelArch[], nx: number, ny: number): Uint8Array {
   const mask = new Uint8Array(nx * ny);
   const xs = polygon.map((p) => p[0] * nx);
   const ys = polygon.map((p) => p[1] * ny);
   for (let y = 0; y < ny; y += 1) {
     for (let x = 0; x < nx; x += 1) {
-      if (pointInPolygon(x + 0.5, y + 0.5, xs, ys)) {
+      if (pointInPolygon(x + 0.5, y + 0.5, xs, ys) || pointInWheelMask(x + 0.5, y + 0.5, wheelArches, nx, ny)) {
         mask[y * nx + x] = 1;
       }
     }
   }
   return mask;
+}
+
+function pointInWheelMask(px: number, py: number, wheelArches: WheelArch[], nx: number, ny: number) {
+  for (const arch of wheelArches) {
+    const dx = px - arch.cx * nx;
+    const dy = py - arch.cy * ny;
+    const r = arch.r * ny;
+    if (Math.hypot(dx, dy) <= r) return true;
+  }
+  return false;
 }
 
 function pointInPolygon(px: number, py: number, xs: number[], ys: number[]) {
@@ -1262,8 +2062,43 @@ function pointInPolygon(px: number, py: number, xs: number[], ys: number[]) {
   return inside;
 }
 
-function spawnParticleY(center: number) {
-  const spread = 0.16;
+function pointInNormalizedPolygon(px: number, py: number, polygon: Array<[number, number]>) {
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const [xi, yi] = polygon[i];
+    const [xj, yj] = polygon[j];
+    const intersect = ((yi > py) !== (yj > py)) && (px < ((xj - xi) * (py - yi)) / (yj - yi + 1e-9) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function distanceToNormalizedPolygon(px: number, py: number, polygon: Array<[number, number]>) {
+  if (polygon.length === 0) return Infinity;
+  let best = Infinity;
+  for (let i = 0; i < polygon.length; i += 1) {
+    const [ax, ay] = polygon[i];
+    const [bx, by] = polygon[(i + 1) % polygon.length];
+    const d = distanceToDisplaySegment(px, py, ax, ay, bx, by);
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+function distanceToDisplaySegment(px: number, py: number, ax: number, ay: number, bx: number, by: number) {
+  const scaleX = STAGE_WIDTH / STAGE_HEIGHT;
+  const apx = (px - ax) * scaleX;
+  const apy = py - ay;
+  const abx = (bx - ax) * scaleX;
+  const aby = by - ay;
+  const ab2 = abx * abx + aby * aby || 1;
+  const t = Math.max(0, Math.min(1, (apx * abx + apy * aby) / ab2));
+  const dx = apx - abx * t;
+  const dy = apy - aby * t;
+  return Math.hypot(dx, dy);
+}
+
+function spawnParticleY(center: number, spread = 0.16) {
   return Math.max(0.02, Math.min(0.98, center + (Math.random() - 0.5) * spread));
 }
 

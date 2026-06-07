@@ -1,0 +1,32 @@
+{
+  "drsOff": {
+    "state": "settled",
+    "drag": 1.322,
+    "lift": 0.067
+  },
+  "drsOn": {
+    "state": "settled",
+    "drag": 1.052,
+    "lift": 0.067
+  },
+  "rollingOn": {
+    "state": "settled",
+    "drag": 1.322,
+    "lift": 0.067
+  },
+  "fixedRoad": {
+    "state": "settled",
+    "drag": 1.277,
+    "lift": 0.046
+  },
+  "wheelsOn": {
+    "state": "settled",
+    "drag": 1.322,
+    "lift": 0.067
+  },
+  "wheelsOff": {
+    "state": "settled",
+    "drag": 1.292,
+    "lift": 0.077
+  }
+}

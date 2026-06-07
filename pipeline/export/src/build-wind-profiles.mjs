@@ -113,9 +113,9 @@ function computeRanges(points) {
     return arr[idx];
   }
   return {
-    x: { min: percentile(xs, 0.005), max: percentile(xs, 0.995) },
-    y: { min: percentile(ys, 0.005), max: percentile(ys, 0.995) },
-    z: { min: percentile(zs, 0.005), max: percentile(zs, 0.995) },
+    x: { min: percentile(xs, 0.01), max: percentile(xs, 0.99) },
+    y: { min: percentile(ys, 0.01), max: percentile(ys, 0.99) },
+    z: { min: percentile(zs, 0.01), max: percentile(zs, 0.99) },
   };
 }
 
@@ -282,14 +282,15 @@ function buildOccupancyGrid(side2d, ranges, axes) {
     const gy = Math.max(0, Math.min(GRID_NY - 1, Math.floor(offsetY + (1 - ny) * usableH)));
     counts[gy * GRID_NX + gx] += 1;
   }
-  // Compute the median count over occupied cells. Cells with at least
-  // (median * 0.6) hits are real body; isolated noise scatters at < median.
+  // Compute the median count over occupied cells. Cells with at least a
+  // stronger robust-density threshold are real body; isolated geometry
+  // scatter from suspension, decal strips, and loose vertices is suppressed.
   const occupied = [];
   for (const c of counts) if (c > 0) occupied.push(c);
   occupied.sort((a, b) => a - b);
   if (!occupied.length) return new Uint8Array(GRID_NX * GRID_NY);
   const median = occupied[Math.floor(occupied.length * 0.5)];
-  const threshold = Math.max(2, Math.floor(median * 0.6));
+  const threshold = Math.max(3, Math.floor(median * 0.8));
   const grid = new Uint8Array(GRID_NX * GRID_NY);
   for (let i = 0; i < counts.length; i += 1) {
     if (counts[i] >= threshold) grid[i] = 1;
@@ -309,7 +310,63 @@ function buildOccupancyGrid(side2d, ranges, axes) {
       if (neighbors >= 4) dilated[y * GRID_NX + x] = 1;
     }
   }
-  return dilated;
+  return keepLargestComponent(closeSmallGaps(dilated));
+}
+
+function closeSmallGaps(grid) {
+  const closed = new Uint8Array(grid);
+  for (let y = 1; y < GRID_NY - 1; y += 1) {
+    for (let x = 1; x < GRID_NX - 1; x += 1) {
+      const c = y * GRID_NX + x;
+      if (grid[c]) continue;
+      const horizontal = grid[y * GRID_NX + x - 1] && grid[y * GRID_NX + x + 1];
+      const vertical = grid[(y - 1) * GRID_NX + x] && grid[(y + 1) * GRID_NX + x];
+      const diagonalA = grid[(y - 1) * GRID_NX + x - 1] && grid[(y + 1) * GRID_NX + x + 1];
+      const diagonalB = grid[(y - 1) * GRID_NX + x + 1] && grid[(y + 1) * GRID_NX + x - 1];
+      if (horizontal || vertical || diagonalA || diagonalB) closed[c] = 1;
+    }
+  }
+  return closed;
+}
+
+function keepLargestComponent(grid) {
+  const seen = new Uint8Array(grid.length);
+  let best = [];
+  const queue = [];
+  const neighbors = [
+    [-1, -1], [0, -1], [1, -1],
+    [-1, 0], [1, 0],
+    [-1, 1], [0, 1], [1, 1],
+  ];
+  for (let y = 0; y < GRID_NY; y += 1) {
+    for (let x = 0; x < GRID_NX; x += 1) {
+      const start = y * GRID_NX + x;
+      if (!grid[start] || seen[start]) continue;
+      const cells = [];
+      queue.length = 0;
+      queue.push([x, y]);
+      seen[start] = 1;
+      while (queue.length) {
+        const [cx, cy] = queue.shift();
+        cells.push(cy * GRID_NX + cx);
+        for (const [dx, dy] of neighbors) {
+          const nx = cx + dx;
+          const ny = cy + dy;
+          if (nx < 0 || nx >= GRID_NX || ny < 0 || ny >= GRID_NY) continue;
+          const ni = ny * GRID_NX + nx;
+          if (!grid[ni] || seen[ni]) continue;
+          seen[ni] = 1;
+          queue.push([nx, ny]);
+        }
+      }
+      if (cells.length > best.length) best = cells;
+    }
+  }
+
+  if (best.length < 16) return grid;
+  const filtered = new Uint8Array(grid.length);
+  for (const cell of best) filtered[cell] = 1;
+  return filtered;
 }
 
 function traceContour(grid) {
@@ -355,16 +412,35 @@ function traceContour(grid) {
       }
     }
   }
+  const smoothTops = smoothEnvelope(tops, xStart, xEnd);
+  const smoothBottoms = smoothEnvelope(bottoms, xStart, xEnd);
   // Build the polygon: top envelope left to right, bottom envelope right to
   // left.
   const polygon = [];
   for (let x = xStart; x <= xEnd; x += 1) {
-    if (tops[x] !== -1) polygon.push([x, tops[x]]);
+    if (smoothTops[x] !== -1) polygon.push([x, smoothTops[x]]);
   }
   for (let x = xEnd; x >= xStart; x -= 1) {
-    if (bottoms[x] !== -1 && bottoms[x] !== tops[x]) polygon.push([x, bottoms[x]]);
+    if (smoothBottoms[x] !== -1 && smoothBottoms[x] !== smoothTops[x]) polygon.push([x, smoothBottoms[x]]);
   }
   return polygon;
+}
+
+function smoothEnvelope(values, xStart, xEnd) {
+  const out = [...values];
+  const radius = 3;
+  for (let x = xStart; x <= xEnd; x += 1) {
+    if (values[x] === -1) continue;
+    const samples = [];
+    for (let dx = -radius; dx <= radius; dx += 1) {
+      const xx = x + dx;
+      if (xx < xStart || xx > xEnd || values[xx] === -1) continue;
+      samples.push(values[xx]);
+    }
+    samples.sort((a, b) => a - b);
+    out[x] = samples[Math.floor(samples.length / 2)] ?? values[x];
+  }
+  return out;
 }
 
 function simplifyPolygon(polygon, tolerance = 1.4) {
@@ -491,6 +567,26 @@ function normalizePolygonToCanvas(polygon) {
   return { polygon: points, aspect };
 }
 
+async function writeReviewSnapshot(profile) {
+  const reviewDir = path.join(root, "pipeline", "export", "wind-profile-snapshots");
+  await mkdir(reviewDir, { recursive: true });
+  const w = 768;
+  const h = 288;
+  const points = profile.polygon
+    .map(([x, y]) => `${(x * w).toFixed(1)},${(y * h).toFixed(1)}`)
+    .join(" ");
+  const wheels = (profile.wheelArches || [])
+    .map(({ cx, cy, r }) => `<circle cx="${(cx * w).toFixed(1)}" cy="${(cy * h).toFixed(1)}" r="${(r * h).toFixed(1)}" fill="none" stroke="#ff7a1a" stroke-width="2" stroke-dasharray="5 4" />`)
+    .join("");
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}">
+  <rect width="${w}" height="${h}" fill="#0b0f18" />
+  <polygon points="${points}" fill="rgba(247,250,255,0.88)" stroke="#ff7a1a" stroke-width="2" />
+  ${wheels}
+  <text x="14" y="24" fill="#d7deea" font-family="monospace" font-size="14">${profile.constructor} · ${profile.pointCount} pts · ${profile.axesNote}</text>
+</svg>`;
+  await writeFile(path.join(reviewDir, `${profile.constructorSlug}.svg`), svg, "utf-8");
+}
+
 async function processModel(entry, glbPath, outDir) {
   process.stdout.write(`Processing ${entry.constructor} (${entry.constructorSlug}) ...\n`);
   let points;
@@ -524,10 +620,14 @@ async function processModel(entry, glbPath, outDir) {
     process.stdout.write(`  skip: contour too small (${rawContour.length})\n`);
     return false;
   }
-  const simplified = simplifyPolygon(rawContour, 2.0);
+  const simplified = simplifyPolygon(rawContour, 2.8);
   const smoothed = smoothPolygon(simplified, 2);
-  const { polygon, aspect: polyAspect } = normalizePolygonToCanvas(smoothed);
-  const wheelArches = detectWheelsFromPolygon(polygon);
+  const polished = simplifyPolygon(smoothed, 1.0);
+  const { polygon, aspect: polyAspect } = normalizePolygonToCanvas(polished);
+  let wheelArches = detectWheelsFromPolygon(polygon);
+  if (wheelArches.length < 2) {
+    wheelArches = fallbackWheelArches();
+  }
   const payload = {
     constructor: entry.constructor,
     constructorSlug: entry.constructorSlug,
@@ -543,8 +643,16 @@ async function processModel(entry, glbPath, outDir) {
   };
   const outPath = path.join(outDir, `${entry.constructorSlug}.json`);
   await writeFile(outPath, `${JSON.stringify(payload, null, 2)}\n`, "utf-8");
+  await writeReviewSnapshot(payload);
   process.stdout.write(`  ok: ${polygon.length} pts, aspect=${polyAspect.toFixed(2)} (${points.length} samples)\n`);
   return true;
+}
+
+function fallbackWheelArches() {
+  return [
+    { cx: 0.22, cy: 0.86, r: 0.052 },
+    { cx: 0.78, cy: 0.86, r: 0.052 },
+  ];
 }
 
 async function main() {

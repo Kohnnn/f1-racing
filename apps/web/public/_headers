@@ -4,6 +4,12 @@
 /data/packs/*
   Cache-Control: public, max-age=300
 
+/data/silhouettes/*
+  Cache-Control: public, max-age=300
+
+/_next/static/*
+  Cache-Control: public, max-age=31536000, immutable
+
 /models/*
   Cache-Control: public, max-age=86400
 

@@ -22,3 +22,5 @@ apps/web/.netlify/
 deploy/oci/command
 # FastF1 local cache (regenerated on demand)
 tmp_fastf1_cache/
+# Playwright CLI session logs (throwaway)
+.playwright-cli/

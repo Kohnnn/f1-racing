@@ -1,6 +1,7 @@
 "use client";
 
 import { createElement, useEffect, useRef, useState } from "react";
+import { ensureModelViewerLoaded } from "@/lib/model-viewer-loader";
 
 interface LearnModelEmbedProps {
   modelSrc: string;
@@ -32,7 +33,7 @@ export function LearnModelEmbed({
 
   useEffect(() => {
     let cancelled = false;
-    import("@google/model-viewer")
+    ensureModelViewerLoaded()
       .then(() => {
         if (!cancelled) setStatus("loading");
       })
@@ -123,8 +124,8 @@ export function LearnModelEmbed({
             ) : null}
             {status === "error" ? (
               <p className="learn-model-embed__error-hint">
-                The 3D asset failed to load. Try refreshing or visit the full
-                modelview.
+                The 3D viewer or asset failed to load. This page remains usable
+                without the embedded model.
               </p>
             ) : null}
           </div>
