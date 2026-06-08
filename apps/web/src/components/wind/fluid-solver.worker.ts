@@ -525,15 +525,26 @@ function applyWakeDeficit(x: number, y: number, uu: number, vv: number, pressure
     const deficit = cross * decay * zoneStrength * (zone.kind === "rearWing" ? 0.36 : 0.17);
     if (deficit <= 0.0008) continue;
 
-    const shear = Math.sin(frameIndex * 0.12 + t * 6.2 + zone.y * 0.037) * cross * decay;
+    // Von-Karman-style alternating vortex street: the transverse velocity
+    // oscillates in time and along the wake, and flips sign across the wake
+    // centerline so vortices shed alternately top/bottom. Shedding frequency
+    // scales with the inlet speed (Strouhal-like) and the street grows just
+    // downstream of the body before decaying into the far wake.
+    const sideSign = y < center ? 1 : -1;
+    const sheddingPhase = frameIndex * (0.06 + inletMag * 0.05) + t * 9.0 + zone.y * 0.05;
+    const streetGrowth = Math.sin(Math.min(Math.PI, t * Math.PI * 1.18)); // 0 at body, peak mid-wake, fades far
+    const shear = Math.sin(sheddingPhase) * sideSign * cross * decay * streetGrowth;
     const convergence = clamp((center - y) / Math.max(1, baseRadius), -1, 1) * cross * decay;
     nextU *= 1 - deficit;
+    // Pull a little streamwise momentum out at the vortex cores for a livelier
+    // wobble in the streaklines.
+    nextU -= Math.abs(shear) * inletMag * 0.05 * zone.strength;
     if (zone.kind === "rearWing") {
       nextV += convergence * inletMag * (drsOpen ? 0.030 : 0.155) * zone.strength;
-      nextV += shear * inletMag * (drsOpen ? 0.010 : 0.040) * zone.strength;
+      nextV += shear * inletMag * (drsOpen ? 0.045 : 0.105) * zone.strength;
     } else {
       nextV -= cross * decay * inletMag * (groundMode === "rolling" ? 0.072 : 0.022) * zone.strength;
-      nextV += shear * inletMag * (groundMode === "rolling" ? 0.020 : 0.008) * zone.strength;
+      nextV += shear * inletMag * (groundMode === "rolling" ? 0.060 : 0.030) * zone.strength;
     }
     nextPressure -= deficit * inletMag * (zone.kind === "rearWing" ? 0.55 : 0.38);
     wakeEnvelope[idx(x, y)] = Math.max(wakeEnvelope[idx(x, y)], cross * decay * zoneStrength);

@@ -61,15 +61,24 @@ report. Each pass touches one or more of these surfaces:
 ### Long-tail / research
 
 - **Light theme** — deferred until the dark product shell is stable across all pages.
-- **Williams / Racing Bulls / Haas / Kick Sauber GLBs** — blocked on source asset drop; deferred at user request.
-- **Tier 3 baked OpenFOAM Cp surface fields** projected onto the GLB.
-- **Live SignalR ingestion** from the Formula 1 timing feed behind an explicit OCI-only flag.
-- **Telemetry stream / debug route** that consumes the same replay/live frame state as the workspace.
-- **2026 practice (FP1/2/3) packs** — currently skipped to keep the OpenF1 request count down.
-- **Driver photo grid on Session Summary** (fix crop first).
-- **Scroll-spy for Modelview sections.**
+- **Williams / Racing Bulls / Haas / Kick Sauber GLBs** — BLOCKED on source asset drop (no GLB available); deferred at user request. Not actionable without the model files.
+- **Tier 3 baked OpenFOAM Cp surface fields** projected onto the GLB — BLOCKED on offline OpenFOAM run + export pipeline; research-tier.
+- **Live SignalR ingestion** from the Formula 1 timing feed behind an explicit OCI-only flag — BLOCKED on a live-backed session and F1 feed access; cannot validate offline.
+- **Telemetry stream / debug route** — feasible; candidate for a future pass (consume the same replay/live frame state in a debug surface).
+- **2026 practice (FP1/2/3) packs** — feasible but gated on OpenF1 request budget; deferred by choice.
+- **Driver photo grid on Session Summary** — driver portraits already ship in `driver-card` with WebP-portrait → SVG-avatar fallback (no crop issue observed). Considered resolved.
+- **Scroll-spy for Modelview sections** — feasible; candidate for a future UI pass.
 - **Session-key disambiguation for legacy 2026 `japan-grand-prix` slug** — already removed; keep an eye on stale links.
-- **Higher-resolution exploded views (1792×1024)** — current generation uses 1024×1024 to stay under 9Router's stream-friendly window; revisit when the gateway exposes longer timeouts.
+- **Higher-resolution exploded views (1792×1024)** — BLOCKED on 9Router stream-window timeout; revisit when the gateway exposes longer timeouts.
+
+## Shipped in this pass (2026-06-08)
+
+- **Track A** — closed QA v5 loose ends: FIA SVG silhouette now deploys (was an untracked-git 404), GLB hull profiles regenerated to clean column envelopes for all 7 cars, rolling-road drag effect made legible (-11%), convergence badge verified, model-viewer loader hardened against chunk skew.
+- **Track B** — lit up the dormant telemetry surfaces: new `/compare` index (76 sessions / 76 driver pairs) and `/stints` index (81 sessions), built from a manifest scan so no dead links; Compare + Stints added to primary nav; Replay Library turned into the discovery hub. Architecture Priority-1 surfaces are now reachable.
+- **Track C** — wind tunnel depth: standalone Vectors overlay toggle, boundary-layer Separation markers, stable surface Cp tint (persistent eased range), Low/Medium/High quality presets.
+- **C5 + field realism** — rigid-body rotating-wheel surface velocity (rotating wheels move drag ~-7.8%), edge-aware geometry-field smoothing pass for seam-free streamlines, and a von-Kármán-style alternating vortex street in the body wake.
+- **Airflow UX (roadmap UX-08)** — keyboard shortcuts (Space pause, ↑↓ airspeed, ←→ yaw, R reset), Pause/Resume + Reset buttons, on-panel shortcut hint, and a Paused overlay.
+- **Long-tail triage** — annotated remaining items as BLOCKED (external assets/feeds) vs feasible-future; confirmed driver photo grid already resolved.
 
 ## Operational notes
 

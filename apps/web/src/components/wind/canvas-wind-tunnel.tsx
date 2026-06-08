@@ -254,6 +254,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
   }>({ changedAt: 0, lastDrag: null, lastLift: null, stableSamples: 0, state: "warming" });
   const fluidFrameRef = useRef<FluidFrameState>(createEmptyFluidFrame());
   const hoverRef = useRef<{ active: boolean; nx: number; ny: number }>({ active: false, nx: 0, ny: 0 });
+  const pausedRef = useRef(false);
   // Persistent, slowly-adapting Cp range so the surface pressure tint does not
   // flash/jump while the solver warms up. Each frame eases the live min/max
   // toward the running envelope instead of rescaling from scratch.
@@ -274,6 +275,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
   } | null>(null);
   const [profile, setProfile] = useState<WindProfileData | null>(null);
   const [profileMissing, setProfileMissing] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [modelViewerReady, setModelViewerReady] = useState(false);
   const hasCuratedSvg = Boolean(constructorSlug && CURATED_SVG_SILHOUETTES.has(constructorSlug));
   const solverSignature = useMemo(() => JSON.stringify([
@@ -301,6 +303,56 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
   useEffect(() => {
     controlsRef.current = controls;
   }, [controls]);
+
+  useEffect(() => {
+    pausedRef.current = paused;
+  }, [paused]);
+
+  // Keyboard shortcuts for the wind tunnel (focus-scoped to the panel root).
+  // Space toggles pause; arrows nudge airspeed / yaw; R resets controls.
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const node = rootRef.current;
+    if (!node) return;
+    function onKey(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      // Don't hijack typing in form fields other than our range sliders.
+      if (target && target.tagName === "INPUT" && (target as HTMLInputElement).type !== "range") return;
+      switch (event.key) {
+        case " ":
+        case "Spacebar":
+          event.preventDefault();
+          setPaused((prev) => !prev);
+          break;
+        case "ArrowUp":
+          event.preventDefault();
+          setControls((prev) => ({ ...prev, airspeed: Math.min(140, prev.airspeed + 5) }));
+          break;
+        case "ArrowDown":
+          event.preventDefault();
+          setControls((prev) => ({ ...prev, airspeed: Math.max(20, prev.airspeed - 5) }));
+          break;
+        case "ArrowRight":
+          event.preventDefault();
+          setControls((prev) => ({ ...prev, yawDeg: Math.min(15, prev.yawDeg + 1) }));
+          break;
+        case "ArrowLeft":
+          event.preventDefault();
+          setControls((prev) => ({ ...prev, yawDeg: Math.max(-15, prev.yawDeg - 1) }));
+          break;
+        case "r":
+        case "R":
+          event.preventDefault();
+          setPaused(false);
+          setControls(() => buildDefaultControls(constructorSlug));
+          break;
+        default:
+          break;
+      }
+    }
+    node.addEventListener("keydown", onKey);
+    return () => node.removeEventListener("keydown", onKey);
+  }, [constructorSlug]);
 
   useEffect(() => {
     setControls((prev) => ({
@@ -534,6 +586,10 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
     let stop = false;
     const tick = () => {
       if (stop || !worker) return;
+      if (pausedRef.current) {
+        window.setTimeout(tick, 80);
+        return;
+      }
       const latestControls = controlsRef.current;
       worker.postMessage({
         type: "tick",
@@ -1638,7 +1694,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
   const activeFlowView = FLOW_VIEW_META[controls.overlayMode];
 
   return (
-    <div className="wind-tunnel" data-constructor={constructorSlug ?? "default"}>
+    <div className="wind-tunnel" data-constructor={constructorSlug ?? "default"} ref={rootRef} tabIndex={0}>
       <div className="wind-tunnel__header">
         <p className="eyebrow">Wind tunnel · geometry field</p>
         <h3>Airflow simulation around {modelTitle}</h3>
@@ -1646,6 +1702,24 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
           {SOLVER_NX} × {SOLVER_NY} silhouette-derived distance field running in a Web Worker.
           Ribbon, Technical, and Smoke views sample the same live u/v field while Cd, Cl, and Cy remain educational estimates.
         </p>
+        <div className="wind-tunnel__header-actions">
+          <button
+            type="button"
+            className="wind-tunnel__action-button"
+            aria-pressed={paused}
+            onClick={() => setPaused((prev) => !prev)}
+          >
+            {paused ? "Resume" : "Pause"}
+          </button>
+          <button
+            type="button"
+            className="wind-tunnel__action-button"
+            onClick={() => { setPaused(false); setControls(() => buildDefaultControls(constructorSlug)); }}
+          >
+            Reset
+          </button>
+          <span className="wind-tunnel__shortcut-hint">Space pause · ↑↓ airspeed · ←→ yaw · R reset</span>
+        </div>
       </div>
 
       <div className="wind-tunnel__stage">
@@ -1703,6 +1777,12 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
         {profile && !fluidFrameRef.current.ready ? (
           <div className="wind-tunnel__overlay wind-tunnel__overlay--soft">
             <p>Solver warming up...</p>
+          </div>
+        ) : null}
+        {paused ? (
+          <div className="wind-tunnel__overlay wind-tunnel__overlay--soft">
+            <p>Paused</p>
+            <p className="wind-tunnel__overlay-sub">Press Space or Resume to continue the solver.</p>
           </div>
         ) : null}
         <div className="wind-tunnel__stage-hint">

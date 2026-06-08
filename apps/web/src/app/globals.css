@@ -6171,3 +6171,49 @@ code {
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
+
+/* Wind tunnel header actions: pause/reset + shortcut hint (Track C UX) */
+.wind-tunnel__header-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.wind-tunnel__action-button {
+  padding: 6px 14px;
+  border: 1px solid rgba(167, 189, 219, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(231, 237, 247, 0.86);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease;
+}
+
+.wind-tunnel__action-button:hover {
+  border-color: rgba(255, 122, 26, 0.42);
+  background: rgba(255, 122, 26, 0.12);
+}
+
+.wind-tunnel__action-button[aria-pressed="true"] {
+  background: rgba(255, 122, 26, 0.2);
+  border-color: rgba(255, 122, 26, 0.46);
+  color: #fff2e8;
+}
+
+.wind-tunnel__shortcut-hint {
+  color: var(--ink-soft);
+  font-size: 0.74rem;
+  letter-spacing: 0.02em;
+}
+
+.wind-tunnel:focus-visible {
+  outline: 2px solid rgba(255, 122, 26, 0.5);
+  outline-offset: 3px;
+}
