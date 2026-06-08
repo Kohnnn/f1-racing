@@ -105,6 +105,8 @@ export default async function HomePage() {
           <div className="hero-actions">
             <a className="button button--secondary" href="/live">Open live feed</a>
             <a className="button" href="/replay">Browse replay library</a>
+            <a className="button button--secondary" href="/compare">Compare laps</a>
+            <a className="button button--secondary" href="/stints">Stint story</a>
             <a className="button button--secondary" href="/cars/current-spec">Open modelview</a>
             <a className="button button--ghost" href="/learn">Open learn</a>
           </div>
@@ -118,6 +120,10 @@ export default async function HomePage() {
           <div>
             <span>Replay library</span>
             <strong>{manifest.latest.season} season sessions ready to browse</strong>
+          </div>
+          <div>
+            <span>Telemetry surfaces</span>
+            <strong>Compare laps and stint stories per session</strong>
           </div>
           <div>
             <span>Secondary routes</span>
