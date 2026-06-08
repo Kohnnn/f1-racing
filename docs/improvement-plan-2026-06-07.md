@@ -143,6 +143,19 @@ User decisions (2026-06-07):
   quality switches, canvas animates, zero console errors) + prod deploy + prod
   smoke + OCI health.
 
+### Track C follow-up (2026-06-08)
+- [x] C5 real wheel-boundary rotation — replaced the ring-swirl with a
+  rigid-body rotating-surface velocity field `v = k·(dy, −dx)` where
+  `k = surfaceSpeed / r`, tied to wheel geometry and the rolling-road ground
+  speed. Crown is retarded, contact patch is dragged downstream, and rotating
+  wheels now move raw drag `-7.80%` vs stationary (tighter wake = less drag).
+- [x] Geometry-field smoothing — added an edge-aware `smoothField` pass (2
+  Jacobi-style iterations over free cells, skipping body-adjacent cells) so the
+  stamped inlet/body/ground/wake/wheel zones blend into continuous streamlines
+  instead of showing seams. No-penetration boundary preserved.
+- [x] Build clean + local smoke (wheel delta -7.80%, canvas animates, zero
+  console errors) + prod deploy + prod smoke parity + OCI health.
+
 ---
 
 ## Verification gates (per increment)

@@ -56,6 +56,12 @@ const wakeEnvelope = new Float32Array(N);
 const groundChannel = new Float32Array(N);
 const columnTop = new Int16Array(NX);
 const columnBottom = new Int16Array(NX);
+// Scratch buffers for the post-construction smoothing pass. The geometry field
+// is stamped zone-by-zone, which can leave visible seams; a few Jacobi-style
+// smoothing iterations blend those boundaries into continuous streamlines
+// without turning this into a full pressure-projection solver.
+const uScratch = new Float32Array(N);
+const vScratch = new Float32Array(N);
 
 let mask: Uint8Array<ArrayBufferLike> = new Uint8Array(N);
 let wheels: WheelCell[] = [];
@@ -339,11 +345,51 @@ function buildVelocityField(inlet: { u: Float32Array; v: Float32Array }) {
   }
 
   enforceNoPenetration();
+  smoothField(2);
   for (let i = 0; i < N; i += 1) {
     if (mask[i]) {
       speed[i] = 0;
     } else {
       speed[i] = Math.hypot(u[i], v[i]);
+    }
+  }
+}
+
+/**
+ * Edge-aware smoothing of the constructed velocity field. Each pass replaces a
+ * free cell's velocity with a weighted blend of itself and its non-masked
+ * neighbours, so the seams between the inlet / body / ground / wake / wheel
+ * zones dissolve into continuous streamlines. Masked cells and their immediate
+ * boundary are skipped so the no-penetration condition is preserved.
+ */
+function smoothField(passes: number) {
+  if (!bodyBounds.hasMask) return;
+  const minX = Math.max(1, bodyBounds.minX - BODY_INFLUENCE_RADIUS);
+  const maxX = Math.min(NX - 2, bodyBounds.maxX + Math.floor(BODY_INFLUENCE_RADIUS * 1.6));
+  const minY = Math.max(1, bodyBounds.minY - BODY_INFLUENCE_RADIUS);
+  const maxY = Math.min(NY - 2, bodyBounds.maxY + BODY_INFLUENCE_RADIUS);
+  const center = 0.5;
+  const side = (1 - center) / 4;
+  for (let pass = 0; pass < passes; pass += 1) {
+    uScratch.set(u);
+    vScratch.set(v);
+    for (let y = minY; y <= maxY; y += 1) {
+      for (let x = minX; x <= maxX; x += 1) {
+        const c = idx(x, y);
+        if (mask[c]) continue;
+        // Don't smooth cells touching the body; keep the boundary crisp.
+        if (mask[c - 1] || mask[c + 1] || mask[c - NX] || mask[c + NX]) continue;
+        const uN = uScratch[c - NX];
+        const uS = uScratch[c + NX];
+        const uW = uScratch[c - 1];
+        const uE = uScratch[c + 1];
+        const vN = vScratch[c - NX];
+        const vS = vScratch[c + NX];
+        const vW = vScratch[c - 1];
+        const vE = vScratch[c + 1];
+        u[c] = uScratch[c] * center + (uN + uS + uW + uE) * side;
+        v[c] = vScratch[c] * center + (vN + vS + vW + vE) * side;
+      }
     }
   }
 }
@@ -508,14 +554,27 @@ function applyWheelEffects(x: number, y: number, uu: number, vv: number, pressur
 
     const outer = wheel.r * (rotating ? 1.92 : 1.42);
     if (d <= outer && d >= Math.max(1, wheel.r * 0.70)) {
-      const ring = Math.exp(-Math.pow((d - wheel.r * 1.08) / Math.max(1, wheel.r * 0.38), 2));
-      const curlScale = rotating ? 1 : 0.08;
-      const strength = inletMag * 0.125 * ring * curlScale;
-      if (strength > 0.0001) {
-        uu += (-dy / d) * strength;
-        vv += (dx / d) * strength;
-        pressure -= strength * 0.12;
-      }
+      // Rotating-surface boundary drag tied to the wheel geometry. A wheel
+      // rolling with the road has its contact patch moving downstream (+x) at
+      // the ground speed and its crown moving upstream (-x). Modelling that as
+      // a rigid-body surface velocity field v = k * (dy, -dx) with
+      // k = surfaceSpeed / r gives the realistic asymmetric wake: flow over the
+      // crown is retarded/separates while the lower flow is dragged forward.
+      const proximity = Math.exp(-Math.pow((d - wheel.r * 1.04) / Math.max(1, wheel.r * 0.42), 2));
+      // Surface speed scales with the rolling road; a stationary wheel still
+      // sheds a weak ring but with no net surface motion (no-slip).
+      const surfaceSpeed = (groundMode === "rolling" ? inletMag : inletMag * 0.55)
+        * (rotating ? 1 : 0.12);
+      const k = surfaceSpeed / Math.max(1, wheel.r);
+      const surfaceU = k * dy;
+      const surfaceV = -k * dx;
+      // Blend cell velocity toward the moving surface within the band.
+      const blend = proximity * (rotating ? 0.42 : 0.16);
+      uu += (surfaceU - uu) * blend;
+      vv += (surfaceV - vv) * blend;
+      // Crown (top, dy < 0) sees a low-pressure suction when spinning.
+      const crown = Math.max(0, -dy / Math.max(1, wheel.r));
+      pressure -= proximity * crown * surfaceSpeed * 0.10;
     }
 
     const wakeOrigin = wheel.cx + wheel.r * 0.58;
