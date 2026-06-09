@@ -159,6 +159,115 @@ function StintDegCurve({ stints }: { stints: StintPack["drivers"][number]["stint
   );
 }
 
+/**
+ * Corner speed profile. Bins the selected driver's speed by position along the
+ * track (using GPS-projected coordinates), then marks local minima as corners
+ * with their minimum speed. Honest alternative to named-corner attribution when
+ * the pack lacks corner coordinates.
+ */
+export function ReplayCornerSpeeds({
+  replay,
+  selectedDrivers,
+  focusId,
+}: {
+  replay: ReplayPack;
+  selectedDrivers: string[];
+  focusId: string | null;
+}) {
+  const code = selectedDrivers[0] ?? focusId ?? null;
+  const path = replay.trackPath;
+  const frames = replay.frames ?? [];
+
+  const empty = !code || !path || path.length < 16 || frames.length < 8;
+
+  let profile: number[] = [];
+  let minima: Array<{ ratio: number; speed: number }> = [];
+  if (!empty) {
+    const BINS = 150;
+    const sum = new Array(BINS).fill(0);
+    const cnt = new Array(BINS).fill(0);
+    const project = (x: number, y: number) => {
+      let best = Infinity;
+      let bi = 0;
+      for (let i = 0; i < path!.length; i += 1) {
+        const dx = path![i][0] - x;
+        const dy = path![i][1] - y;
+        const d = dx * dx + dy * dy;
+        if (d < best) { best = d; bi = i; }
+      }
+      return bi / (path!.length - 1);
+    };
+    for (const frame of frames) {
+      const d = frame.drivers[code as string];
+      if (!d || d.x === null || d.y === null || d.speed === null) continue;
+      const bin = Math.max(0, Math.min(BINS - 1, Math.floor(project(d.x, d.y) * BINS)));
+      sum[bin] += d.speed;
+      cnt[bin] += 1;
+    }
+    profile = sum.map((s, i) => (cnt[i] > 0 ? s / cnt[i] : NaN));
+    // Forward-fill empty bins.
+    let last = 0;
+    for (let i = 0; i < BINS; i += 1) {
+      if (Number.isNaN(profile[i])) profile[i] = last;
+      else last = profile[i];
+    }
+    // Local minima: a bin lower than its neighbours over a small window.
+    const win = 4;
+    for (let i = win; i < BINS - win; i += 1) {
+      let isMin = true;
+      for (let k = 1; k <= win; k += 1) {
+        if (profile[i] > profile[i - k] || profile[i] > profile[i + k]) { isMin = false; break; }
+      }
+      if (isMin && (minima.length === 0 || i - minima[minima.length - 1].ratio * BINS > win)) {
+        minima.push({ ratio: i / BINS, speed: profile[i] });
+      }
+    }
+  }
+
+  const W = 720;
+  const H = 200;
+  const maxSpeed = profile.length ? Math.max(...profile, 1) : 1;
+  const xFor = (r: number) => 8 + r * (W - 16);
+  const yFor = (s: number) => 8 + (1 - s / maxSpeed) * (H - 28);
+
+  return (
+    <section className="replay-insight-panel replay-insight-panel--embedded">
+      <div className="section-header">
+        <div>
+          <p className="eyebrow">Corner speeds</p>
+          <h2>Speed profile around the lap</h2>
+        </div>
+      </div>
+      {empty ? (
+        <p className="replay-empty-copy">Select a driver to chart their speed profile and corner minimums.</p>
+      ) : (
+        <>
+          <p className="replay-insight-panel__lead">
+            {code}&apos;s average speed at each point on the track. Dips are corners; the markers flag the minimum speed at each.
+          </p>
+          <svg viewBox={`0 0 ${W} ${H}`} className="replay-corner-speeds" role="img" aria-label="Speed profile around the lap">
+            <polyline
+              points={profile.map((s, i) => `${xFor(i / profile.length).toFixed(1)},${yFor(s).toFixed(1)}`).join(" ")}
+              fill="none"
+              stroke="#38bdf8"
+              strokeWidth={1.8}
+            />
+            {minima.map((m, i) => (
+              <g key={i}>
+                <circle cx={xFor(m.ratio)} cy={yFor(m.speed)} r={3} fill="#ff7a1a" />
+                <text x={xFor(m.ratio)} y={yFor(m.speed) + 14} textAnchor="middle" fontSize="8" fill="rgba(231,237,247,0.7)">
+                  {Math.round(m.speed)}
+                </text>
+              </g>
+            ))}
+          </svg>
+          <p className="replay-corner-speeds__caption">{minima.length} corners detected · km/h shown at each apex</p>
+        </>
+      )}
+    </section>
+  );
+}
+
 interface ReplayStrategyPanelProps {
   strategy: StrategyPack | null;
   stintPack: StintPack | null;

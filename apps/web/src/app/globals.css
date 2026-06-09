@@ -6321,3 +6321,19 @@ code {
   border: 1px solid var(--line);
   border-radius: 8px;
 }
+
+/* Replay corner speed profile (P4.5) */
+.replay-corner-speeds {
+  width: 100%;
+  height: auto;
+  background: rgba(7, 11, 19, 0.6);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  margin-top: 8px;
+}
+
+.replay-corner-speeds__caption {
+  color: var(--ink-soft);
+  font-size: 0.74rem;
+  margin-top: 8px;
+}
