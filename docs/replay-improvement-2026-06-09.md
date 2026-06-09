@@ -42,9 +42,13 @@ OCI health: https://f1-api.129.150.58.64.sslip.io/health
 - Marquee rollout 2026-06-09: 2025 Monaco (9.89 MB), 2025 Belgian/Spa
   (10.08 MB), 2025 Italian/Monza (9.74 MB), 2026 Australian (10.71 MB). All
   20/20 GPS at mid-race, verified rendering telemetry features in production.
-- **Remaining:** all other catalogued sessions still use synthetic-coordinate
+- Full rollout 2026-06-09: batch-rebuilt all remaining race sessions. **32 / 34
+  race packs now use real GPS** (~333 MB total). The 2 exceptions
+  (2026 Bahrain, 2026 Saudi Arabian) have no OpenF1 `/location` data published
+  yet (0 drivers returned), so they correctly fall back to the synthetic path.
+- **Remaining:** qualifying/sprint sessions still use synthetic-coordinate
   packs. Telemetry features work there but are spatially approximate until
-  rebuilt with GPS. Rebuild is rate-limited OpenF1 calls per session.
+  rebuilt with GPS.
 
 ## Phase 4 — Telemetry leverage
 
