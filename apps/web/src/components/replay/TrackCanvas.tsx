@@ -226,17 +226,16 @@ export function TrackCanvas({
   ): number {
     const lapOffset = Math.max(0, (driver.lap ?? frame.lap ?? 1) - 1) * geom.totalLength;
 
-    if (!projectMarkersToTrack || driver.x === null || driver.y === null) {
-      if (driver.x !== null && driver.y !== null) {
-        return lapOffset + geom.project({ x: driver.x, y: driver.y }).distance;
-      }
-      return computeIntervalDistance(driver, frame, geom, lapOffset);
+    // Place every car with valid coordinates by projecting its position onto
+    // the track. Previously only the leader used real coordinates and all
+    // other cars (position > 1) were placed via a constant-speed interval
+    // estimate, which drifted them off the real position (badly in corners).
+    // The interval estimator now only serves as a fallback when coordinates
+    // are missing entirely.
+    if (driver.x !== null && driver.y !== null) {
+      return lapOffset + geom.project({ x: driver.x, y: driver.y }).distance;
     }
-
-    if (driver.position > 1) {
-      return computeIntervalDistance(driver, frame, geom, lapOffset);
-    }
-    return lapOffset + geom.project({ x: driver.x, y: driver.y }).distance;
+    return computeIntervalDistance(driver, frame, geom, lapOffset);
   }
 
   function computeIntervalDistance(
@@ -313,9 +312,17 @@ export function TrackCanvas({
         const nextDriver = nextFrame.drivers[driver.driverCode];
         if (nextDriver) {
           let candidateB = computeTargetDistance(nextDriver, nextFrame, geometry);
-          // Lap rollover: if next is far behind current, unwrap.
+          // Lap rollover: if next is far behind current, unwrap forward.
           if (candidateB - distA < -geometry.totalLength * 0.4) {
             candidateB += geometry.totalLength;
+          }
+          // Reverse desync: the timing lap counter (lapOffset) and the
+          // projected within-lap distance can tick at slightly different
+          // times across the start/finish line, which can push candidateB a
+          // whole lap *ahead* of distA. Pull it back so a single inter-frame
+          // step never spans most of a lap.
+          if (candidateB - distA > geometry.totalLength * 0.6) {
+            candidateB -= geometry.totalLength;
           }
           distB = candidateB;
         }
@@ -343,6 +350,13 @@ export function TrackCanvas({
       let nextDisplay = existing.displayDistance;
       if (distA - nextDisplay < -geometry.totalLength * 0.4) {
         nextDisplay -= geometry.totalLength;
+      }
+      // Positive desync guard: if the new target sits a whole lap ahead of the
+      // currently displayed distance (lapOffset ticked while the projected
+      // distance is still near zero), realign the display by a lap so the
+      // residual smoother doesn't fast-forward the marker across the circuit.
+      if (distA - nextDisplay > geometry.totalLength * 0.6) {
+        nextDisplay += geometry.totalLength;
       }
 
       driverTargetsRef.current.set(driver.driverCode, {
@@ -460,7 +474,14 @@ export function TrackCanvas({
         const interpolatedDistance = target.distA + (target.distB - target.distA) * eased;
         // Apply a tiny residual smoother so micro-jitter is eaten without losing
         // sample-step responsiveness.
-        const delta = interpolatedDistance - target.displayDistance;
+        let delta = interpolatedDistance - target.displayDistance;
+        // Safety clamp: even if a lap-counter / projection desync slips past
+        // the unwrap guards, never let a single frame advance the marker more
+        // than a quarter lap. A genuine large gap then resolves smoothly over
+        // a few frames instead of teleporting across the circuit.
+        const maxStep = geometry.totalLength * 0.25;
+        if (delta > maxStep) delta = maxStep;
+        else if (delta < -maxStep) delta = -maxStep;
         target.displayDistance = target.displayDistance + delta * RESIDUAL_EASE;
 
         const trackPoint = geometry.pointAtDistance(target.displayDistance);
