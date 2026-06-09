@@ -363,11 +363,16 @@ export function ReplayLapWaterfall({ laps, drivers }: ReplayLapWaterfallProps) {
 interface ReplayTrackInfoPanelProps {
   replay: ReplayPack;
   trackId: string;
+  /** Number of DRS zones derived from real DRS telemetry, when available. */
+  derivedDrsZoneCount?: number | null;
 }
 
-export function ReplayTrackInfoPanel({ replay, trackId }: ReplayTrackInfoPanelProps) {
+export function ReplayTrackInfoPanel({ replay, trackId, derivedDrsZoneCount = null }: ReplayTrackInfoPanelProps) {
   const trackLength = replay.trackPath?.length ?? 0;
-  const drsZoneCount = replay.trackPath && trackLength > 20 ? 3 : 0;
+  const drsDerived = typeof derivedDrsZoneCount === "number" && derivedDrsZoneCount > 0;
+  const drsZoneCount = drsDerived
+    ? derivedDrsZoneCount
+    : (replay.trackPath && trackLength > 20 ? 3 : 0);
   const totalLaps = replay.totalLaps ?? Math.max(...replay.laps.map((lap) => lap.lapNumber), 0);
   const circuitArt = getCircuitArt(trackId);
   const circuitName = circuitArt.circuit.displayName !== "Unknown circuit"
@@ -392,7 +397,9 @@ export function ReplayTrackInfoPanel({ replay, trackId }: ReplayTrackInfoPanelPr
         </figure>
       ) : null}
       <p className="replay-insight-panel__lead">
-        Track read built from the dense reference polyline. Corner labels and marshal sectors land here when an explicit `track.json` pack is exported. DRS zone bands are illustrative until session-specific zones are wired in.
+        Track read built from the dense reference polyline. Corner labels and marshal sectors land here when an explicit `track.json` pack is exported. {drsDerived
+          ? "DRS zone bands are derived from real DRS-activation telemetry in this pack."
+          : "DRS zone bands are illustrative until session-specific telemetry is available."}
       </p>
       <div className="metric-grid">
         <div className="metric-chip">
@@ -404,7 +411,7 @@ export function ReplayTrackInfoPanel({ replay, trackId }: ReplayTrackInfoPanelPr
           <strong>{totalLaps || "-"}</strong>
         </div>
         <div className="metric-chip">
-          <span>DRS zones (illustrative)</span>
+          <span>DRS zones{drsDerived ? "" : " (illustrative)"}</span>
           <strong>{drsZoneCount}</strong>
         </div>
         <div className="metric-chip">

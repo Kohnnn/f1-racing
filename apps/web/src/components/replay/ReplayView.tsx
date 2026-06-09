@@ -718,6 +718,69 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
     return out;
   }, [heatmapChannel, selectedDrivers, focusId, replay.frames]);
 
+  // Derive real DRS activation zones from the GPS-positioned frames. OpenF1 DRS
+  // codes 10/12/14 mean "DRS open"; we project those samples onto the track and
+  // histogram by track ratio, then merge dense bins into contiguous zones. Falls
+  // back to the pack's published zones when GPS/DRS data is insufficient.
+  const derivedDrsZones = useMemo(() => {
+    const path = replay.trackPath;
+    if (!path || path.length < 16 || !replay.frames?.length) return null;
+    const BINS = 100;
+    const hits = new Array(BINS).fill(0);
+    const totalByBin = new Array(BINS).fill(0);
+    const project = (x: number, y: number) => {
+      let best = Infinity;
+      let bestI = 0;
+      for (let i = 0; i < path.length; i += 1) {
+        const dx = path[i][0] - x;
+        const dy = path[i][1] - y;
+        const d = dx * dx + dy * dy;
+        if (d < best) { best = d; bestI = i; }
+      }
+      return bestI / (path.length - 1);
+    };
+    let drsSamples = 0;
+    const step = Math.max(1, Math.floor(replay.frames.length / 200));
+    for (let f = 0; f < replay.frames.length; f += step) {
+      for (const d of Object.values(replay.frames[f].drivers)) {
+        if (!d || d.x === null || d.y === null || d.drs === null) continue;
+        const ratio = project(d.x, d.y);
+        const bin = Math.max(0, Math.min(BINS - 1, Math.floor(ratio * BINS)));
+        totalByBin[bin] += 1;
+        if (d.drs >= 10) { hits[bin] += 1; drsSamples += 1; }
+      }
+    }
+    if (drsSamples < 20) return null;
+    // A bin is a DRS zone if DRS was open in a non-trivial share of its samples.
+    // The threshold is deliberately low: in races DRS only opens when within ~1s
+    // of the car ahead, so most passes through a real zone have DRS closed — but
+    // DRS is physically impossible outside zones, so any consistent activation
+    // marks the zone. Require both a fraction and a minimum absolute hit count.
+    const active = hits.map((h, i) => {
+      const frac = totalByBin[i] > 0 ? h / totalByBin[i] : 0;
+      return frac > 0.06 && h >= 3;
+    });
+    // Bridge single-bin gaps so a zone isn't split by one quiet bin.
+    for (let i = 1; i < BINS - 1; i += 1) {
+      if (!active[i] && active[i - 1] && active[i + 1]) active[i] = true;
+    }
+    const zones: Array<{ from: number; to: number; fromRatio: number; toRatio: number }> = [];
+    let start = -1;
+    for (let i = 0; i < BINS; i += 1) {
+      if (active[i] && start === -1) start = i;
+      if ((!active[i] || i === BINS - 1) && start !== -1) {
+        const end = active[i] ? i : i - 1;
+        if (end - start >= 1) {
+          zones.push({ from: 0, to: 0, fromRatio: start / BINS, toRatio: (end + 1) / BINS });
+        }
+        start = -1;
+      }
+    }
+    return zones.length ? zones : null;
+  }, [replay.trackPath, replay.frames]);
+
+  const effectiveDrsZones = derivedDrsZones ?? replay.trackMetadata?.drsZones ?? [];
+
   // Pulse window: only show pulses whose age is under ~3.5s of the replay clock.
   const activePitPulses = useMemo<PitPulse[]>(() => {
     if (!pitPulses.length) return [];
@@ -1357,7 +1420,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
               showCorners={showEvents}
               showMarshalSectors={showMarshalSectors}
               corners={replay.trackMetadata?.corners ?? []}
-              drsZones={replay.trackMetadata?.drsZones ?? []}
+              drsZones={effectiveDrsZones}
               marshalSectors={replay.trackMetadata?.marshalSectors ?? []}
               activeMarshalFlagBySector={activeMarshalFlagBySector}
               pitPulses={activePitPulses}
@@ -1683,7 +1746,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
         ) : null}
 
         {analysisTab === "track" ? (
-          <ReplayTrackInfoPanel replay={replay} trackId={replay.trackId} />
+          <ReplayTrackInfoPanel replay={replay} trackId={replay.trackId} derivedDrsZoneCount={derivedDrsZones?.length ?? null} />
         ) : null}
 
         {analysisTab === "waterfall" ? (
