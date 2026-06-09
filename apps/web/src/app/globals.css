@@ -6262,3 +6262,39 @@ code {
   color: var(--ink-soft);
   font-size: 0.74rem;
 }
+
+/* Replay battle map / gap-to-leader graph (P4.3) */
+.replay-battle-graph {
+  width: 100%;
+  height: auto;
+  background: rgba(7, 11, 19, 0.6);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  margin-top: 8px;
+}
+
+.replay-battle-tags {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.replay-battle-tags__label {
+  color: var(--ink-soft);
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+}
+
+.replay-battle-tag {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(255, 122, 26, 0.14);
+  border: 1px solid rgba(255, 122, 26, 0.32);
+  color: #fff2e8;
+  font-size: 0.74rem;
+  font-weight: 700;
+}

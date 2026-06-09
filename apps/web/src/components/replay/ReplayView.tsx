@@ -6,14 +6,14 @@ import type { ComparePack, DriverSummary, LapRecord, ReplayPack, SessionManifest
 import { getFocusPoint } from "@/components/model-viewer/focus-points";
 import { Leaderboard, type ReplayLeaderboardRow } from "./Leaderboard";
 import { PlaybackControls } from "./PlaybackControls";
-import { ReplayComparePanel, ReplayLapWaterfall, ReplayStintPanel, ReplayStrategyPanel, ReplayTrackInfoPanel } from "./replay-insights";
+import { ReplayComparePanel, ReplayLapWaterfall, ReplayStintPanel, ReplayStrategyPanel, ReplayTrackInfoPanel, ReplayBattleGraph } from "./replay-insights";
 import { ReplayTelemetryStrip } from "./replay-telemetry-strip";
 import { TrackCanvas, type PitPulse } from "./TrackCanvas";
 import { buildTrackGeometry } from "./track-geometry";
 
 const UI_SYNC_INTERVAL_MS = 180;
 
-type AnalysisTab = "telemetry" | "compare" | "stints" | "strategy" | "track" | "racecontrol" | "waterfall";
+type AnalysisTab = "telemetry" | "compare" | "stints" | "strategy" | "track" | "racecontrol" | "waterfall" | "battle";
 
 interface ReplayViewProps {
   replay: ReplayPack;
@@ -1622,6 +1622,13 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
             >
               Lap times
             </button>
+            <button
+              type="button"
+              className={`replay-support-panel__tab${analysisTab === "battle" ? " replay-support-panel__tab--active" : ""}`}
+              onClick={() => setAnalysisTab("battle")}
+            >
+              Battle map
+            </button>
             {totalRaceControlMessages > 0 ? (
               <button
                 type="button"
@@ -1681,6 +1688,10 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
 
         {analysisTab === "waterfall" ? (
           <ReplayLapWaterfall laps={replay.laps} drivers={replay.drivers} />
+        ) : null}
+
+        {analysisTab === "battle" ? (
+          <ReplayBattleGraph replay={replay} selectedDrivers={selectedDrivers} />
         ) : null}
 
         {analysisTab === "racecontrol" ? (

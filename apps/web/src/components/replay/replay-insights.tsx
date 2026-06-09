@@ -436,3 +436,138 @@ export function ReplayTrackInfoPanel({ replay, trackId }: ReplayTrackInfoPanelPr
     </section>
   );
 }
+
+/**
+ * Gap-to-leader / battle graph. Plots each driver's interval (seconds behind
+ * the leader) over the race using the per-frame `interval` field, and flags
+ * sustained close gaps (< 1.0s) as battles. Highlights the selected drivers.
+ */
+export function ReplayBattleGraph({
+  replay,
+  selectedDrivers,
+}: {
+  replay: ReplayPack;
+  selectedDrivers: string[];
+}) {
+  const frames = replay.frames ?? [];
+  if (frames.length < 4) {
+    return (
+      <section className="replay-insight-panel replay-insight-panel--embedded">
+        <div className="section-header">
+          <div>
+            <p className="eyebrow">Battle map</p>
+            <h2>Gap to leader</h2>
+          </div>
+        </div>
+        <p className="replay-empty-copy">Not enough frames loaded to chart gaps yet.</p>
+      </section>
+    );
+  }
+
+  const colorByCode = new Map(replay.drivers.map((d) => [d.driverCode, d.teamColor || "#9ca3af"]));
+  // Build per-driver interval traces (downsample to ~120 columns for the SVG).
+  const step = Math.max(1, Math.floor(frames.length / 120));
+  const cols: number[] = [];
+  for (let i = 0; i < frames.length; i += step) cols.push(i);
+
+  const traces = new Map<string, Array<{ x: number; gap: number | null }>>();
+  let maxGap = 1;
+  for (let c = 0; c < cols.length; c += 1) {
+    const frame = frames[cols[c]];
+    for (const d of Object.values(frame.drivers)) {
+      if (!d) continue;
+      const gap = typeof d.interval === "number" ? d.interval : null;
+      if (gap !== null && gap > maxGap && gap < 120) maxGap = gap;
+      if (!traces.has(d.driverCode)) traces.set(d.driverCode, []);
+      traces.get(d.driverCode)!.push({ x: c / (cols.length - 1), gap });
+    }
+  }
+
+  // Which drivers to draw: selected ones, else the top ~8 by final position.
+  const finalFrame = frames[frames.length - 1];
+  const order = Object.values(finalFrame.drivers)
+    .filter(Boolean)
+    .sort((a, b) => a.position - b.position)
+    .map((d) => d.driverCode);
+  const focusCodes = selectedDrivers.length ? selectedDrivers : order.slice(0, 8);
+
+  // Detect battles: pairs adjacent in order whose gap difference stays < 1.0s.
+  const battles: string[] = [];
+  for (let i = 1; i < order.length; i += 1) {
+    const ahead = order[i - 1];
+    const behind = order[i];
+    let close = 0;
+    let total = 0;
+    for (let c = 0; c < cols.length; c += 1) {
+      const fr = frames[cols[c]];
+      const a = fr.drivers[ahead];
+      const bd = fr.drivers[behind];
+      if (!a || !bd || a.interval === null || bd.interval === null) continue;
+      total += 1;
+      if (Math.abs((bd.interval ?? 0) - (a.interval ?? 0)) < 1.0) close += 1;
+    }
+    if (total > 8 && close / total > 0.4) battles.push(`${ahead} vs ${behind}`);
+  }
+
+  const W = 720;
+  const H = 260;
+  const padL = 36;
+  const padB = 22;
+  const plotW = W - padL - 8;
+  const plotH = H - padB - 8;
+  const yFor = (gap: number) => 8 + (gap / maxGap) * plotH;
+  const xFor = (xr: number) => padL + xr * plotW;
+
+  return (
+    <section className="replay-insight-panel replay-insight-panel--embedded">
+      <div className="section-header">
+        <div>
+          <p className="eyebrow">Battle map</p>
+          <h2>Gap to leader</h2>
+        </div>
+      </div>
+      <p className="replay-insight-panel__lead">
+        Each line is a driver&apos;s gap to the leader across the race. Lower is closer to the front; converging lines are on-track fights.
+      </p>
+      <svg viewBox={`0 0 ${W} ${H}`} className="replay-battle-graph" role="img" aria-label="Gap to leader over time">
+        <line x1={padL} y1={8} x2={padL} y2={8 + plotH} stroke="rgba(255,255,255,0.18)" />
+        <line x1={padL} y1={8 + plotH} x2={W - 8} y2={8 + plotH} stroke="rgba(255,255,255,0.18)" />
+        {[0, 0.25, 0.5, 0.75, 1].map((g) => (
+          <text key={g} x={padL - 6} y={yFor(g * maxGap) + 3} textAnchor="end" fontSize="9" fill="rgba(231,237,247,0.55)">
+            {Math.round(g * maxGap)}s
+          </text>
+        ))}
+        {order.map((code) => {
+          const trace = traces.get(code);
+          if (!trace) return null;
+          const focused = focusCodes.includes(code);
+          const points = trace
+            .filter((p) => p.gap !== null)
+            .map((p) => `${xFor(p.x).toFixed(1)},${yFor(Math.min(maxGap, p.gap as number)).toFixed(1)}`)
+            .join(" ");
+          if (!points) return null;
+          return (
+            <polyline
+              key={code}
+              points={points}
+              fill="none"
+              stroke={colorByCode.get(code) || "#9ca3af"}
+              strokeWidth={focused ? 2.2 : 0.8}
+              strokeOpacity={focused ? 0.95 : 0.28}
+            />
+          );
+        })}
+      </svg>
+      {battles.length ? (
+        <div className="replay-battle-tags">
+          <span className="replay-battle-tags__label">Sustained battles</span>
+          {battles.slice(0, 8).map((b) => (
+            <span key={b} className="replay-battle-tag">{b}</span>
+          ))}
+        </div>
+      ) : (
+        <p className="replay-empty-copy">No sustained sub-second battles detected in the loaded range.</p>
+      )}
+    </section>
+  );
+}
