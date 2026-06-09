@@ -103,12 +103,59 @@ export function ReplayStintPanel({ stintPack, legacyHref, embedded = false }: { 
               <p className="replay-stint-card__copy">
                 Laps {latestStint.lapStart}-{latestStint.lapEnd} · tyre age at start {latestStint.tyreAgeAtStart} · {latestStint.trendPerLap.toFixed(3)} s/lap
               </p>
+              <StintDegCurve stints={driver.stints} />
             </article>
           );
         })}
       </div>
       {legacyHref ? <a className="inline-link" href={legacyHref}>Open full stint page</a> : null}
     </section>
+  );
+}
+
+const COMPOUND_COLOR: Record<string, string> = {
+  SOFT: "#ef4444",
+  MEDIUM: "#facc15",
+  HARD: "#e5e7eb",
+  INTERMEDIATE: "#22c55e",
+  INTER: "#22c55e",
+  WET: "#3b82f6",
+};
+
+/**
+ * Per-stint tyre degradation curves. Plots each stint's lap times against tyre
+ * life on a shared time axis so the fade slope (trendPerLap) is visible. Outlier
+ * laps (pit in/out, SC) are clipped to keep the deg trend readable.
+ */
+function StintDegCurve({ stints }: { stints: StintPack["drivers"][number]["stints"] }) {
+  const series = stints
+    .map((s) => ({ compound: s.compound, lapTimes: s.lapTimes.filter((t) => t > 0) }))
+    .filter((s) => s.lapTimes.length >= 3);
+  if (!series.length) return null;
+
+  // Shared y-range from the robust middle of all laps (clip slow in/out laps).
+  const all = series.flatMap((s) => s.lapTimes).sort((a, b) => a - b);
+  const lo = all[Math.floor(all.length * 0.05)];
+  const hi = all[Math.floor(all.length * 0.9)];
+  const range = Math.max(0.4, hi - lo);
+  const maxLen = Math.max(...series.map((s) => s.lapTimes.length));
+
+  const W = 240;
+  const H = 64;
+  const yFor = (t: number) => 6 + (1 - (Math.max(lo, Math.min(hi, t)) - lo) / range) * (H - 12);
+  const xFor = (i: number) => 2 + (i / Math.max(1, maxLen - 1)) * (W - 4);
+
+  return (
+    <div className="replay-deg-curve">
+      <span className="replay-deg-curve__label">Tyre deg · lap time vs tyre life</span>
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Tyre degradation curve">
+        {series.map((s, si) => {
+          const color = COMPOUND_COLOR[(s.compound || "").toUpperCase()] ?? "#9ca3af";
+          const pts = s.lapTimes.map((t, i) => `${xFor(i).toFixed(1)},${yFor(t).toFixed(1)}`).join(" ");
+          return <polyline key={si} points={pts} fill="none" stroke={color} strokeWidth={1.6} strokeOpacity={0.9} />;
+        })}
+      </svg>
+    </div>
   );
 }
 

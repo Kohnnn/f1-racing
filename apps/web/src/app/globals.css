@@ -6298,3 +6298,26 @@ code {
   font-size: 0.74rem;
   font-weight: 700;
 }
+
+/* Replay tyre degradation curve (P4.6) */
+.replay-deg-curve {
+  margin-top: 10px;
+}
+
+.replay-deg-curve__label {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.replay-deg-curve svg {
+  width: 100%;
+  height: auto;
+  background: rgba(7, 11, 19, 0.55);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
