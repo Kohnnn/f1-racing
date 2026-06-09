@@ -11,6 +11,7 @@ import {
   drawPitPulses,
   drawSafetyCar,
   drawTrack,
+  drawTelemetryHeatmap,
   type CornerMarker,
   type DriverMarker,
   type DrsZoneMarker,
@@ -74,6 +75,9 @@ interface TrackCanvasProps {
   /** Optional extended hover metadata, keyed by driver code. */
   hoverMetaByCode?: Map<string, DriverHoverMeta>;
   hoverFields?: DriverHoverFields;
+  /** Racing-line telemetry heatmap: channel + per-sample (x,y,value 0..1). */
+  heatmapChannel?: "off" | "speed" | "throttle" | "brake";
+  heatmapSamples?: Array<{ x: number; y: number; value: number }>;
   onDriverClick?: (driverCode: string | null, append: boolean) => void;
 }
 
@@ -129,6 +133,8 @@ export function TrackCanvas({
   height = 610,
   hoverMetaByCode,
   hoverFields,
+  heatmapChannel = "off",
+  heatmapSamples,
   onDriverClick,
 }: TrackCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -155,6 +161,8 @@ export function TrackCanvas({
   const renderedMarkersRef = useRef<DriverMarker[]>([]);
   const currentFrameRef = useRef<ReplayFrame | null>(currentFrame);
   const nextFrameRef = useRef<ReplayFrame | null>(nextFrame);
+  const heatmapChannelRef = useRef(heatmapChannel);
+  const heatmapRatioSamplesRef = useRef<Array<{ ratio: number; value: number }>>([]);
 
   // User transform state (drag pan, ctrl-wheel zoom, shift-drag rotate).
   const transformRef = useRef<{ tx: number; ty: number; scale: number; rot: number }>({ tx: 0, ty: 0, scale: 1, rot: 0 });
@@ -261,6 +269,21 @@ export function TrackCanvas({
 
     return lapOffset + leaderDistance - intervalDistance;
   }
+
+  // Project the racing-line heatmap samples (x,y,value) onto track ratios once
+  // per data change, so the render loop only does cheap segment colouring.
+  useEffect(() => {
+    heatmapChannelRef.current = heatmapChannel;
+    if (!geometry || heatmapChannel === "off" || !heatmapSamples?.length) {
+      heatmapRatioSamplesRef.current = [];
+      return;
+    }
+    const total = geometry.totalLength || 1;
+    heatmapRatioSamplesRef.current = heatmapSamples.map((s) => ({
+      ratio: Math.max(0, Math.min(1, geometry.project({ x: s.x, y: s.y }).distance / total)),
+      value: s.value,
+    }));
+  }, [geometry, heatmapChannel, heatmapSamples]);
 
   // Snap distA/distB whenever currentFrame or nextFrame changes.
   useEffect(() => {
@@ -432,6 +455,15 @@ export function TrackCanvas({
         drsZonesRef.current,
         trackTotalLengthRef.current || geometry.totalLength,
       );
+
+      if (heatmapChannelRef.current !== "off" && heatmapRatioSamplesRef.current.length) {
+        drawTelemetryHeatmap(
+          ctx,
+          geometry,
+          heatmapRatioSamplesRef.current,
+          heatmapChannelRef.current as "speed" | "throttle" | "brake",
+        );
+      }
 
       if (showCornersRef.current && cornersRef.current.length) {
         drawCorners(ctx, geometry, cornersRef.current, trackTotalLengthRef.current || geometry.totalLength);

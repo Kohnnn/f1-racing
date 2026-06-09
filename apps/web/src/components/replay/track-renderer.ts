@@ -115,6 +115,86 @@ export function drawTrack(ctx: CanvasRenderingContext2D, geometry: TrackGeometry
   drawStartFinishLine(ctx, geometry);
 }
 
+export type HeatmapChannel = "speed" | "throttle" | "brake";
+
+/**
+ * Colour the racing line by a per-distance telemetry sample for one driver.
+ * `samples` is an array of { ratio (0..1 along the lap), value (0..1 normalised) }
+ * already aggregated by the caller from the GPS-projected frames. Segments are
+ * drawn with a channel-specific colour ramp so users can read where a driver is
+ * flat-out, braking, or hard on throttle around the lap.
+ */
+export function drawTelemetryHeatmap(
+  ctx: CanvasRenderingContext2D,
+  geometry: TrackGeometry,
+  samples: Array<{ ratio: number; value: number }>,
+  channel: HeatmapChannel,
+) {
+  if (!samples.length || geometry.densePoints.length < 8) return;
+  const total = geometry.densePoints.length;
+
+  // Build a lookup from track index -> value by binning samples to the nearest
+  // dense-point index, then forward-filling gaps so the line stays continuous.
+  const valueByIndex = new Array<number | null>(total).fill(null);
+  for (const s of samples) {
+    const idx = Math.max(0, Math.min(total - 1, Math.round(s.ratio * (total - 1))));
+    const prev = valueByIndex[idx];
+    valueByIndex[idx] = prev === null ? s.value : (prev + s.value) * 0.5;
+  }
+  let lastVal = 0;
+  for (let i = 0; i < total; i += 1) {
+    if (valueByIndex[i] === null) valueByIndex[i] = lastVal;
+    else lastVal = valueByIndex[i] as number;
+  }
+
+  ctx.save();
+  ctx.lineWidth = 5;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  for (let i = 0; i < total - 1; i += 1) {
+    const a = geometry.toScreen(geometry.densePoints[i]);
+    const b = geometry.toScreen(geometry.densePoints[i + 1]);
+    ctx.strokeStyle = heatColor(channel, valueByIndex[i] as number);
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function heatColor(channel: HeatmapChannel, value: number): string {
+  const v = Math.max(0, Math.min(1, value));
+  if (channel === "brake") {
+    // grey -> red as brake increases
+    const r = Math.round(90 + v * 165);
+    const g = Math.round(96 - v * 70);
+    const b = Math.round(108 - v * 80);
+    return `rgba(${r}, ${g}, ${b}, 0.92)`;
+  }
+  if (channel === "throttle") {
+    // grey -> green as throttle increases
+    const r = Math.round(96 - v * 60);
+    const g = Math.round(96 + v * 150);
+    const b = Math.round(108 - v * 50);
+    return `rgba(${r}, ${g}, ${b}, 0.92)`;
+  }
+  // speed: blue (slow) -> cyan -> yellow -> red (fast)
+  const stops = [
+    [56, 120, 255],
+    [56, 220, 220],
+    [240, 220, 70],
+    [255, 90, 60],
+  ];
+  const seg = v * (stops.length - 1);
+  const i = Math.min(stops.length - 2, Math.floor(seg));
+  const f = seg - i;
+  const r = Math.round(stops[i][0] + (stops[i + 1][0] - stops[i][0]) * f);
+  const g = Math.round(stops[i][1] + (stops[i + 1][1] - stops[i][1]) * f);
+  const b = Math.round(stops[i][2] + (stops[i + 1][2] - stops[i][2]) * f);
+  return `rgba(${r}, ${g}, ${b}, 0.92)`;
+}
+
 /**
  * Draws DRS activation zones on top of the asphalt. When `drsZones` is provided
  * with cumulative-distance ranges (or normalised ratios) we draw exact arc

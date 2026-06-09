@@ -6217,3 +6217,48 @@ code {
   outline: 2px solid rgba(255, 122, 26, 0.5);
   outline-offset: 3px;
 }
+
+/* Replay racing-line telemetry heatmap control (P4.1) */
+.replay-heatmap-control {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 8px 0 4px;
+}
+
+.replay-heatmap-control__label {
+  color: var(--ink-soft);
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+}
+
+.replay-heatmap-button {
+  padding: 4px 11px;
+  border: 1px solid rgba(167, 189, 219, 0.16);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(231, 237, 247, 0.78);
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
+}
+
+.replay-heatmap-button:hover {
+  border-color: rgba(255, 122, 26, 0.4);
+}
+
+.replay-heatmap-button--active {
+  background: rgba(255, 122, 26, 0.18);
+  border-color: rgba(255, 122, 26, 0.45);
+  color: #fff2e8;
+}
+
+.replay-heatmap-control__hint {
+  color: var(--ink-soft);
+  font-size: 0.74rem;
+}

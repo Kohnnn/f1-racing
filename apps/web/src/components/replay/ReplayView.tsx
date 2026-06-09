@@ -297,6 +297,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
   const [showDriverLabels, setShowDriverLabels] = useState(false);
   const [showDrsZones, setShowDrsZones] = useState(true);
   const [showEvents, setShowEvents] = useState(true);
+  const [heatmapChannel, setHeatmapChannel] = useState<"off" | "speed" | "throttle" | "brake">("off");
   const animationRef = useRef<number | null>(null);
   const lastTimeRef = useRef<number>(0);
   const playheadTimeRef = useRef(initialTime);
@@ -692,6 +693,30 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
     }
     return pulses;
   }, [driverInfoByCode, replay.frames]);
+
+  // Aggregate the primary selected driver's frames into racing-line heatmap
+  // samples (x, y, normalised value) for the chosen telemetry channel. Uses the
+  // GPS-projected coordinates already in each frame; only runs when a channel
+  // is active and a driver is selected.
+  const heatmapSamples = useMemo(() => {
+    if (heatmapChannel === "off") return [];
+    const code = selectedDrivers[0] ?? focusId;
+    if (!code || !replay.frames?.length) return [];
+    const out: Array<{ x: number; y: number; value: number }> = [];
+    for (const frame of replay.frames) {
+      const d = frame.drivers[code];
+      if (!d || d.x === null || d.y === null) continue;
+      let raw: number | null = null;
+      if (heatmapChannel === "speed") raw = d.speed;
+      else if (heatmapChannel === "throttle") raw = d.throttle;
+      else if (heatmapChannel === "brake") raw = d.brake;
+      if (raw === null || !Number.isFinite(raw)) continue;
+      // Normalise: speed by ~360km/h ceiling, throttle/brake are already 0..100.
+      const value = heatmapChannel === "speed" ? Math.min(1, raw / 340) : Math.min(1, raw / 100);
+      out.push({ x: d.x, y: d.y, value });
+    }
+    return out;
+  }, [heatmapChannel, selectedDrivers, focusId, replay.frames]);
 
   // Pulse window: only show pulses whose age is under ~3.5s of the replay clock.
   const activePitPulses = useMemo<PitPulse[]>(() => {
@@ -1292,6 +1317,29 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
             <span className="replay-track-chip">Selected {selectedDrivers.length || 0}</span>
             {replayFocus ? <span className="replay-track-chip">Focus {replayFocus.title}</span> : null}
           </div>
+
+          <div className="replay-heatmap-control" role="group" aria-label="Racing-line telemetry heatmap">
+            <span className="replay-heatmap-control__label">Racing line</span>
+            {([
+              ["off", "Off"],
+              ["speed", "Speed"],
+              ["throttle", "Throttle"],
+              ["brake", "Brake"],
+            ] as const).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                className={`replay-heatmap-button${heatmapChannel === key ? " replay-heatmap-button--active" : ""}`}
+                aria-pressed={heatmapChannel === key}
+                onClick={() => setHeatmapChannel(key)}
+              >
+                {label}
+              </button>
+            ))}
+            {heatmapChannel !== "off" && !selectedDrivers.length && !focusId ? (
+              <span className="replay-heatmap-control__hint">Select a driver to colour their lap</span>
+            ) : null}
+          </div>
           <div className="replay-track-panel__canvas">
             {fastestLapToast ? (
               <div key={fastestLapToast.key} className="fastest-lap-banner">
@@ -1320,6 +1368,8 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
               estimatedLapDuration={estimatedLapDuration}
               hoverMetaByCode={hoverMetaByCode}
               hoverFields={hoverFields}
+              heatmapChannel={heatmapChannel}
+              heatmapSamples={heatmapSamples}
               onDriverClick={handleDriverSelect}
             />
 
