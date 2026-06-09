@@ -7,6 +7,7 @@ import {
   fetchDrivers,
   fetchLaps,
   fetchPosition,
+  fetchLocation,
   fetchRaceControl,
   fetchSessions,
   fetchStints,
@@ -1050,6 +1051,112 @@ function interpolatePosition(trackPath, ratio) {
   ];
 }
 
+/**
+ * Fit a similarity transform (translate + uniform scale) that maps the OpenF1
+ * GPS cloud onto the canonical `trackPath` coordinate frame. OpenF1 location is
+ * in metres around an arbitrary origin; the canonical centerline is rotated to
+ * broadcast orientation and centered. We align by centroid and by the spread
+ * (RMS radius) of each cloud. Rotation is resolved separately by testing a few
+ * candidate angles and picking the one whose projected points hug the track
+ * centerline most tightly.
+ */
+function fitGpsTransform(gpsPoints, trackPath) {
+  if (!gpsPoints.length || !trackPath || trackPath.length < 8) return null;
+
+  const gpsCentroid = meanPoint(gpsPoints.map((p) => [p.x, p.y]));
+  const trackCentroid = meanPoint(trackPath);
+  const gpsSpread = rmsRadius(gpsPoints.map((p) => [p.x, p.y]), gpsCentroid) || 1;
+  const trackSpread = rmsRadius(trackPath, trackCentroid) || 1;
+  const scale = trackSpread / gpsSpread;
+
+  // Sample a subset of GPS points for the rotation search (cheap).
+  const sample = [];
+  const step = Math.max(1, Math.floor(gpsPoints.length / 600));
+  for (let i = 0; i < gpsPoints.length; i += step) sample.push(gpsPoints[i]);
+
+  let bestAngle = 0;
+  let bestError = Infinity;
+  for (let deg = 0; deg < 360; deg += 5) {
+    const rad = (deg * Math.PI) / 180;
+    const cos = Math.cos(rad);
+    const sin = Math.sin(rad);
+    let error = 0;
+    for (const p of sample) {
+      const dx = (p.x - gpsCentroid[0]) * scale;
+      const dy = (p.y - gpsCentroid[1]) * scale;
+      const tx = trackCentroid[0] + dx * cos - dy * sin;
+      const ty = trackCentroid[1] + dx * sin + dy * cos;
+      error += nearestTrackDistanceSq(trackPath, tx, ty);
+    }
+    if (error < bestError) {
+      bestError = error;
+      bestAngle = rad;
+    }
+  }
+
+  const cos = Math.cos(bestAngle);
+  const sin = Math.sin(bestAngle);
+  return { gpsCentroid, trackCentroid, scale, cos, sin };
+}
+
+function applyGpsTransform(transform, x, y) {
+  const dx = (x - transform.gpsCentroid[0]) * transform.scale;
+  const dy = (y - transform.gpsCentroid[1]) * transform.scale;
+  return [
+    transform.trackCentroid[0] + dx * transform.cos - dy * transform.sin,
+    transform.trackCentroid[1] + dx * transform.sin + dy * transform.cos,
+  ];
+}
+
+function meanPoint(points) {
+  let sx = 0;
+  let sy = 0;
+  for (const p of points) {
+    sx += p[0];
+    sy += p[1];
+  }
+  return [sx / points.length, sy / points.length];
+}
+
+function rmsRadius(points, centroid) {
+  let sum = 0;
+  for (const p of points) {
+    const dx = p[0] - centroid[0];
+    const dy = p[1] - centroid[1];
+    sum += dx * dx + dy * dy;
+  }
+  return Math.sqrt(sum / points.length);
+}
+
+function nearestTrackDistanceSq(trackPath, x, y) {
+  let best = Infinity;
+  // Coarse stride keeps the rotation search affordable; the final projection
+  // for real frames uses the full-resolution nearest search.
+  const stride = Math.max(1, Math.floor(trackPath.length / 200));
+  for (let i = 0; i < trackPath.length; i += stride) {
+    const dx = trackPath[i][0] - x;
+    const dy = trackPath[i][1] - y;
+    const d = dx * dx + dy * dy;
+    if (d < best) best = d;
+  }
+  return best;
+}
+
+function projectToTrackPath(trackPath, x, y) {
+  let bestIndex = 0;
+  let best = Infinity;
+  for (let i = 0; i < trackPath.length; i += 1) {
+    const dx = trackPath[i][0] - x;
+    const dy = trackPath[i][1] - y;
+    const d = dx * dx + dy * dy;
+    if (d < best) {
+      best = d;
+      bestIndex = i;
+    }
+  }
+  return { x: trackPath[bestIndex][0], y: trackPath[bestIndex][1], index: bestIndex };
+}
+
 function determineSafetyCarPhase(raceControlMessages, t) {
   if (!raceControlMessages || raceControlMessages.length === 0) return "none";
 
@@ -1092,6 +1199,25 @@ async function buildReplayPack(sessionKey, drivers, ref) {
   }
 
   process.stdout.write(`Fetched position data for ${allPositionData.length} drivers.\n`);
+
+  process.stdout.write(`Fetching GPS location data...\n`);
+  const allLocationData = [];
+  for (const driver of drivers) {
+    try {
+      const locations = await fetchLocation({ sessionKey, driverNumber: driver.driverNumber });
+      if (locations && locations.length > 0) {
+        allLocationData.push({
+          driverCode: driver.driverCode,
+          driverNumber: driver.driverNumber,
+          locations,
+        });
+      }
+      await sleep(200);
+    } catch (err) {
+      process.stderr.write(`Warning: Failed to fetch location for driver ${driver.driverNumber}: ${err.message}\n`);
+    }
+  }
+  process.stdout.write(`Fetched GPS location for ${allLocationData.length} drivers.\n`);
 
   process.stdout.write(`Fetching car telemetry data...\n`);
   const carDataByDriver = new Map();
@@ -1167,6 +1293,36 @@ async function buildReplayPack(sessionKey, drivers, ref) {
     positionByDriverTime.set(data.driverCode, sorted);
   }
 
+  // Build GPS location timelines per driver and fit a single GPS->canonical
+  // transform from the combined cloud of all drivers (more stable than fitting
+  // per driver). Each frame then projects the real GPS sample onto trackPath to
+  // get a true on-track coordinate. Falls back to the synthetic lap-progress
+  // path when GPS is unavailable for a driver/frame.
+  const locationByDriverTime = new Map();
+  const combinedGpsCloud = [];
+  for (const data of allLocationData) {
+    const sorted = data.locations
+      .map((loc) => ({
+        t: isoToMs(loc.date) - sessionStartTime,
+        x: Number(loc.x),
+        y: Number(loc.y),
+      }))
+      .filter((loc) => loc.t >= 0 && Number.isFinite(loc.x) && Number.isFinite(loc.y) && (loc.x !== 0 || loc.y !== 0))
+      .sort((left, right) => left.t - right.t);
+    if (sorted.length) {
+      locationByDriverTime.set(data.driverCode, sorted);
+      for (let i = 0; i < sorted.length; i += Math.max(1, Math.floor(sorted.length / 400))) {
+        combinedGpsCloud.push(sorted[i]);
+      }
+    }
+  }
+  const gpsTransform = combinedGpsCloud.length >= 50
+    ? fitGpsTransform(combinedGpsCloud, trackPath)
+    : null;
+  process.stdout.write(gpsTransform
+    ? `GPS transform fitted from ${combinedGpsCloud.length} samples across ${locationByDriverTime.size} drivers.\n`
+    : `No GPS transform (insufficient location data); using synthetic path.\n`);
+
   const sessionEndCandidates = [isoToMs(ref.endDate) - sessionStartTime];
   for (const lapTimeline of lapTimelines.values()) {
     if (lapTimeline.length) {
@@ -1216,10 +1372,39 @@ async function buildReplayPack(sessionKey, drivers, ref) {
       const tyreState = getTyreState(stintTimelines.get(driver.driverNumber), lapState.lapNumber, lapState.compound);
       const startSpacing = Math.max(0, fallbackPosition - 1) * 0.006;
       const trackRatio = (lapState.lapProgress - startSpacing + 1) % 1;
-      const [baseX, baseY] = interpolatePosition(trackPath, trackRatio);
+      const [synthX, synthY] = interpolatePosition(trackPath, trackRatio);
+
+      // Prefer real GPS: find the nearest location sample in time, transform it
+      // into the canonical frame, and project onto the centerline. Keep the raw
+      // (untransformed) GPS sample for downstream processing.
+      let x = synthX;
+      let y = synthY;
+      let rawX = null;
+      let rawY = null;
+      let positionSource = "synthetic";
+      if (gpsTransform) {
+        const locHistory = locationByDriverTime.get(driver.driverCode);
+        if (locHistory && locHistory.length) {
+          const locIndex = findLatestIndex(locHistory, t, (entry) => entry.t);
+          const loc = locIndex >= 0 ? locHistory[locIndex] : null;
+          // Only trust the sample if it is reasonably fresh (within ~5s of the
+          // frame) so stale GPS doesn't pin a stopped car on track.
+          if (loc && Math.abs(loc.t - t) <= 5000) {
+            rawX = loc.x;
+            rawY = loc.y;
+            const [cx, cy] = applyGpsTransform(gpsTransform, loc.x, loc.y);
+            const projected = projectToTrackPath(trackPath, cx, cy);
+            x = projected.x;
+            y = projected.y;
+            positionSource = "gps";
+          }
+        }
+      }
       const laneOffset = ((driver.driverNumber % 5) - 2) * 1.8;
-      const x = baseX + laneOffset;
-      const y = baseY - laneOffset;
+      if (positionSource === "synthetic") {
+        x = synthX + laneOffset;
+        y = synthY - laneOffset;
+      }
 
       const frameDriver = {
         driverCode: driver.driverCode,
@@ -1228,6 +1413,9 @@ async function buildReplayPack(sessionKey, drivers, ref) {
         position: racePosition,
         x,
         y,
+        rawX,
+        rawY,
+        positionSource,
         speed: telemetry?.speed ?? null,
         throttle: telemetry?.throttle ?? null,
         brake: telemetry?.brake ?? null,
@@ -1339,7 +1527,7 @@ async function main() {
     session: ref.sessionName,
     trackId: ref.trackId,
     source: "openf1",
-    note: "Replay timing derived from OpenF1 lap, stint, weather, race control, and car telemetry data. Track coordinates remain synthetic until a GPS-backed builder is used.",
+    note: "Replay timing derived from OpenF1 lap, stint, weather, race control, and car telemetry data. Car coordinates use OpenF1 GPS location projected onto the canonical track when available, with a synthetic lap-progress fallback per driver/frame.",
     weatherSummary,
     drivers: drivers.map((d) => ({
       driverCode: d.driverCode,

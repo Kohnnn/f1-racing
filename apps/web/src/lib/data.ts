@@ -500,6 +500,11 @@ export interface ReplayFrameDriver {
   interval: number | null;
   tyreCompound: string | null;
   tyreAge: number | null;
+  /** Raw OpenF1 GPS coordinates (untransformed), present when GPS is available. */
+  rawX?: number | null;
+  rawY?: number | null;
+  /** "gps" when coordinates come from projected GPS, "synthetic" for the lap-progress fallback. */
+  positionSource?: "gps" | "synthetic";
 }
 
 export interface ReplayWeatherSample {

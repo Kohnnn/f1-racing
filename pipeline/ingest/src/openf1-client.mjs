@@ -127,3 +127,15 @@ export async function fetchPosition({ sessionKey, driverNumber }) {
     driver_number: driverNumber,
   });
 }
+
+/**
+ * GPS-style track location samples (x, y, z, date) for a driver. This is the
+ * real positional telemetry — distinct from `position`, which only returns the
+ * race rank. Used to project true car coordinates onto the canonical track.
+ */
+export async function fetchLocation({ sessionKey, driverNumber }) {
+  return openF1Fetch("location", {
+    session_key: sessionKey,
+    driver_number: driverNumber,
+  });
+}
