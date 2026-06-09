@@ -46,9 +46,13 @@ OCI health: https://f1-api.129.150.58.64.sslip.io/health
   race packs now use real GPS** (~333 MB total). The 2 exceptions
   (2026 Bahrain, 2026 Saudi Arabian) have no OpenF1 `/location` data published
   yet (0 drivers returned), so they correctly fall back to the synthetic path.
-- **Remaining:** qualifying/sprint sessions still use synthetic-coordinate
-  packs. Telemetry features work there but are spatially approximate until
-  rebuilt with GPS.
+- Qualifying/sprint rollout 2026-06-09: batch-rebuilt all 47 non-race sessions
+  (excluding demo-weekend). **45 / 47 now use real GPS**; the 2 exceptions are
+  2026 Bahrain/Saudi qualifying (no upstream location data, consistent with
+  their races). The full user-facing replay catalogue now uses real GPS
+  wherever OpenF1 publishes it.
+- **Remaining:** the 4 2026 Bahrain/Saudi sessions will gain GPS automatically
+  once OpenF1 publishes their `/location` data — just re-run those.
 
 ## Phase 4 — Telemetry leverage
 
