@@ -1382,6 +1382,7 @@ async function buildReplayPack(sessionKey, drivers, ref) {
       let rawX = null;
       let rawY = null;
       let positionSource = "synthetic";
+      let gpsTrackRatio = null;
       if (gpsTransform) {
         const locHistory = locationByDriverTime.get(driver.driverCode);
         if (locHistory && locHistory.length) {
@@ -1397,6 +1398,7 @@ async function buildReplayPack(sessionKey, drivers, ref) {
             x = projected.x;
             y = projected.y;
             positionSource = "gps";
+            gpsTrackRatio = trackPath.length > 1 ? projected.index / (trackPath.length - 1) : null;
           }
         }
       }
@@ -1433,6 +1435,12 @@ async function buildReplayPack(sessionKey, drivers, ref) {
         driverCode: driver.driverCode,
         racePosition,
         raceProgress: Math.max(0, lapState.lapNumber - 1) + lapState.raceProgressRatio,
+        // GPS-based race progress: completed laps + within-lap track ratio from
+        // the projected GPS position. Spatially accurate (cars sit where they
+        // actually are), unlike the lap-progress time ratio. Null when no GPS.
+        gpsRaceProgress: gpsTrackRatio !== null
+          ? Math.max(0, lapState.lapNumber - 1) + gpsTrackRatio
+          : null,
         lapDurationS: lapState.lapDurationS,
         trackRatio,
       });
@@ -1447,12 +1455,22 @@ async function buildReplayPack(sessionKey, drivers, ref) {
 
     const leader = driverStates[0] ?? null;
     const referenceLapTime = leader?.lapDurationS || 95;
+    // Prefer GPS-based race progress (spatially accurate) for the time gap; fall
+    // back to the lap-progress time ratio when either car lacks a GPS sample.
+    const leaderProgress = leader
+      ? (leader.gpsRaceProgress ?? leader.raceProgress)
+      : 0;
     driverStates.forEach((state, index) => {
       const frameDriver = frameDrivers[state.driverCode];
       frameDriver.position = index + 1;
-      frameDriver.interval = index === 0 || !leader
-        ? 0
-        : Number(Math.max(0, (leader.raceProgress - state.raceProgress) * referenceLapTime).toFixed(3));
+      if (index === 0 || !leader) {
+        frameDriver.interval = 0;
+        return;
+      }
+      const useGps = leader.gpsRaceProgress !== null && state.gpsRaceProgress !== null;
+      const leaderP = useGps ? leader.gpsRaceProgress : leaderProgress;
+      const stateP = useGps ? state.gpsRaceProgress : state.raceProgress;
+      frameDriver.interval = Number(Math.max(0, (leaderP - stateP) * referenceLapTime).toFixed(3));
     });
 
     const scPhase = determineSafetyCarState(raceControlTimeline, t);

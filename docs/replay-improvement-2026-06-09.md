@@ -76,3 +76,20 @@ OCI health: https://f1-api.129.150.58.64.sslip.io/health
 - Real `interval` from GPS track distance (currently lap-progress time ratio).
 - Sector dominance once session sector times are wired into replay packs (the
   named-corner `trackPosition` coords are empty in current packs).
+
+## Real intervals (2026-06-09)
+
+- `interval` now derives from GPS-based race progress (completed laps +
+  projected within-lap track ratio) x the leader's reference lap time, instead
+  of the lap-progress time ratio. Spatially accurate gaps that match where cars
+  actually are on track; sharpens the battle map and leaderboard. Falls back to
+  the time-ratio when either car lacks a GPS sample on a frame.
+- Rebuilt all 76 GPS-backed packs (race + qualifying + sprint) with the new
+  interval logic. The 4 GPS-less 2026 Bahrain/Saudi sessions keep the
+  time-ratio fallback.
+
+## Remaining
+- Sector dominance: blocked on session sector times being wired into replay
+  packs (named-corner `trackPosition` coords are empty in current packs).
+- 2026 Bahrain/Saudi: gain real GPS + intervals once OpenF1 publishes their
+  `/location` data.
