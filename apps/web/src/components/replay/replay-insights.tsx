@@ -781,15 +781,27 @@ export function ReplaySectorDominance({
     : null;
 
   // Per-driver best total (sum of their own best sectors) for a ranking.
-  const driverTotals: Array<{ code: string; total: number; sectors: number[] }> = [];
+  const driverTotals: Array<{ code: string; total: number; sectors: number[]; actualBest: number | null }> = [];
   const allCodes = new Set<string>([...best[0].keys(), ...best[1].keys(), ...best[2].keys()]);
+  const actualBestByCode = new Map<string, number>();
+  for (const lap of laps) {
+    if (typeof lap.lapTime !== "number" || !(lap.lapTime > 0)) continue;
+    const cur = actualBestByCode.get(lap.driverCode);
+    if (cur === undefined || lap.lapTime < cur) actualBestByCode.set(lap.driverCode, lap.lapTime);
+  }
   for (const code of allCodes) {
     const raw = best.map((m) => m.get(code) ?? null);
     if (raw.some((s) => s === null)) continue;
     const sectors = raw as number[];
-    driverTotals.push({ code, total: sectors.reduce((a, b) => a + b, 0), sectors });
+    driverTotals.push({
+      code,
+      total: sectors.reduce((a, b) => a + b, 0),
+      sectors,
+      actualBest: actualBestByCode.get(code) ?? null,
+    });
   }
   driverTotals.sort((a, b) => a.total - b.total);
+  const fastestTotal = driverTotals.length ? driverTotals[0].total : null;
   const focus = selectedDrivers.length ? new Set(selectedDrivers) : null;
 
   return (
@@ -826,24 +838,47 @@ export function ReplaySectorDominance({
             </div>
           </div>
           <div className="replay-sector-table">
-            {driverTotals.slice(0, 10).map((row) => (
-              <div
-                className={`replay-sector-row${focus && focus.has(row.code) ? " replay-sector-row--focus" : ""}`}
-                key={row.code}
-              >
-                <span className="replay-sector-row__code" style={{ borderColor: colorByCode.get(row.code) }}>{row.code}</span>
-                {row.sectors.map((s, i) => {
-                  const isPurple = purple[i] && purple[i]!.code === row.code;
-                  return (
-                    <span key={i} className={`replay-sector-row__sector${isPurple ? " replay-sector-row__sector--purple" : ""}`}>
-                      {(s as number).toFixed(3)}
-                    </span>
-                  );
-                })}
-                <span className="replay-sector-row__total">{formatLapTime(row.total)}</span>
-              </div>
-            ))}
+            <div className="replay-sector-row replay-sector-row--head" aria-hidden="true">
+              <span className="replay-sector-row__code">DRV</span>
+              <span className="replay-sector-row__sector">S1</span>
+              <span className="replay-sector-row__sector">S2</span>
+              <span className="replay-sector-row__sector">S3</span>
+              <span className="replay-sector-row__total">THEORY</span>
+              <span className="replay-sector-row__gap">GAP</span>
+              <span className="replay-sector-row__gap">VS ACTUAL</span>
+            </div>
+            {driverTotals.slice(0, 10).map((row) => {
+              const gap = fastestTotal !== null ? row.total - fastestTotal : null;
+              const leftOnTable = row.actualBest !== null ? row.actualBest - row.total : null;
+              return (
+                <div
+                  className={`replay-sector-row${focus && focus.has(row.code) ? " replay-sector-row--focus" : ""}`}
+                  key={row.code}
+                >
+                  <span className="replay-sector-row__code" style={{ borderColor: colorByCode.get(row.code) }}>{row.code}</span>
+                  {row.sectors.map((s, i) => {
+                    const isPurple = purple[i] && purple[i]!.code === row.code;
+                    return (
+                      <span key={i} className={`replay-sector-row__sector${isPurple ? " replay-sector-row__sector--purple" : ""}`}>
+                        {(s as number).toFixed(3)}
+                      </span>
+                    );
+                  })}
+                  <span className="replay-sector-row__total">{formatLapTime(row.total)}</span>
+                  <span className="replay-sector-row__gap">
+                    {gap === null ? "-" : gap < 0.0005 ? "—" : `+${gap.toFixed(3)}`}
+                  </span>
+                  <span className="replay-sector-row__gap replay-sector-row__gap--muted">
+                    {leftOnTable === null ? "-" : `+${Math.max(0, leftOnTable).toFixed(3)}`}
+                  </span>
+                </div>
+              );
+            })}
           </div>
+          <p className="replay-sector-footnote">
+            THEORY sums each driver&apos;s own best sectors. GAP is to the fastest theoretical lap. VS ACTUAL is the
+            time the driver left on the table against their best real lap.
+          </p>
         </>
       )}
     </section>

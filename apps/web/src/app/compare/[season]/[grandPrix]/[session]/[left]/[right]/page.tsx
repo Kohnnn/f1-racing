@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { formatDeltaMs, formatLapTime } from "@f1-racing/telemetry-utils";
 import { CompareSummary } from "@/components/telemetry/compare-summary";
 import { TelemetryTraces } from "@/components/telemetry/telemetry-traces";
-import { getComparePack, getLapRecords, getSeasonIndex, getSessionManifest } from "@/lib/data";
+import { getComparePack, getLapRecords, getSeasonIndex, getSessionManifest, getSessionSummary } from "@/lib/data";
 
 export const dynamic = "force-static";
 export const dynamicParams = false;
@@ -46,6 +46,21 @@ export async function generateStaticParams() {
   }
 
   return params;
+}
+
+export async function generateMetadata({ params }: ComparePageProps) {
+  const { season, grandPrix, session, left, right } = await params;
+  try {
+    const summary = await getSessionSummary(season, grandPrix, session);
+    return {
+      title: `${left} vs ${right} · ${summary.grandPrix} ${summary.session} compare`,
+      description: `Lap compare for ${left} vs ${right} at the ${summary.grandPrix} ${summary.session} with telemetry traces and section deltas.`,
+    };
+  } catch {
+    return {
+      title: `${left} vs ${right} · lap compare`,
+    };
+  }
 }
 
 export default async function ComparePage({ params }: ComparePageProps) {

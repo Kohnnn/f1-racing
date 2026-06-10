@@ -32,6 +32,21 @@ export async function generateStaticParams() {
   return params;
 }
 
+export async function generateMetadata({ params }: StintsPageProps) {
+  const { season, grandPrix, session } = await params;
+  try {
+    const summary = await getSessionSummary(season, grandPrix, session);
+    return {
+      title: `${summary.grandPrix} · ${summary.session} stint story`,
+      description: `Tyre windows and stint trends for the ${summary.grandPrix} ${summary.session}.`,
+    };
+  } catch {
+    return {
+      title: `${grandPrix} · ${session} stint story`,
+    };
+  }
+}
+
 export default async function StintsPage({ params }: StintsPageProps) {
   const { season, grandPrix, session } = await params;
 

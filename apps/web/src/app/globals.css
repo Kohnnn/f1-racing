@@ -6392,13 +6392,37 @@ code {
 
 .replay-sector-row {
   display: grid;
-  grid-template-columns: 52px 1fr 1fr 1fr 76px;
+  grid-template-columns: 52px 1fr 1fr 1fr 76px 64px 70px;
   gap: 8px;
   align-items: center;
   padding: 6px 8px;
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.03);
   border: 1px solid var(--line);
+}
+
+.replay-sector-row--head {
+  background: transparent;
+  border-color: transparent;
+  padding-top: 0;
+  padding-bottom: 0;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+}
+
+.replay-sector-row--head .replay-sector-row__code {
+  border-left-color: transparent;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.replay-sector-row--head .replay-sector-row__sector,
+.replay-sector-row--head .replay-sector-row__total,
+.replay-sector-row--head .replay-sector-row__gap {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--ink-soft);
 }
 
 .replay-sector-row--focus {
@@ -6429,4 +6453,32 @@ code {
   font-size: 0.85rem;
   font-weight: 700;
   text-align: right;
+}
+
+.replay-sector-row__gap {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8rem;
+  text-align: right;
+  color: var(--ink);
+}
+
+.replay-sector-row__gap--muted {
+  color: var(--ink-soft);
+}
+
+.replay-sector-footnote {
+  margin: 8px 2px 0;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+
+@media (max-width: 720px) {
+  .replay-sector-row {
+    grid-template-columns: 44px 1fr 1fr 1fr 64px;
+  }
+
+  .replay-sector-row__gap {
+    display: none;
+  }
 }

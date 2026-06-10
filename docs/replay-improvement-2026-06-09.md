@@ -107,6 +107,20 @@ OCI health: https://f1-api.129.150.58.64.sslip.io/health
   Belgium 2025 sprint (ideal 1:45.249) - all 4 cells + 10 rows, zero console
   errors. OCI health OK.
 
+## Polish pass (2026-06-10, second deploy)
+
+- QA sweep over 13 prod routes: zero console errors, zero failed requests on
+  every live surface; all 10 replay analysis tabs click-tested clean. Only
+  finding: compare/stints detail pages shipped the generic `F1 Racing` title.
+- Compare + stints detail pages gained `generateMetadata` (e.g. "PIA vs RUS ·
+  Bahrain Grand Prix Race compare", "Bahrain Grand Prix · Race stint story").
+- Sectors tab upgraded: column header row, GAP column (delta to the fastest
+  theoretical lap) and VS ACTUAL column (time each driver left on the table vs
+  their best real lap), plus an explanatory footnote. Gap columns hide on
+  narrow viewports to preserve the sector grid.
+- Prod smoke: header `DRV|S1|S2|S3|THEORY|GAP|VS ACTUAL`, leader row `PIA -
+  +0.000`, both new titles live, zero console errors. OCI health OK.
+
 ## Remaining
 - 2026 Bahrain/Saudi: gain real GPS + intervals + sectors once OpenF1
   publishes their `/location` and `/laps` data.
