@@ -88,8 +88,27 @@ OCI health: https://f1-api.129.150.58.64.sslip.io/health
   interval logic. The 4 GPS-less 2026 Bahrain/Saudi sessions keep the
   time-ratio fallback.
 
+## Sector dominance (2026-06-10)
+
+- `ReplayLap` gained optional `sector1/2/3` (OpenF1 `duration_sector_1/2/3`),
+  threaded through the builder (`buildReplayLaps`) and the split `.laps.json`.
+- New `ReplaySectorDominance` component + "Sectors" tab in the analysis panel:
+  purple-sector cells (best S1/S2/S3 + combined ideal lap) and a ranked driver
+  grid of best sectors with purple highlighting.
+- Backfill: rebuilding all packs through the full builder was unnecessarily
+  slow, so `pipeline/export/src/backfill-sector-times.mjs` patches sector
+  times into existing `replay.json` + `replay.laps.json` in place from one
+  `/laps` fetch per session (cached across the data/ and public/ mirrors).
+  Result: 154 / 164 pack copies carry sector data. The 10 without are the
+  4 GPS-less 2026 Bahrain/Saudi sessions (no laps at all) and 2025 Azerbaijan
+  qualifying (empty pack), mirrored across both roots.
+- Prod smoke 2026-06-10: Monaco race (4 purple cells, 10 rows, ideal 1:13.214),
+  Bahrain 2025 race (ideal 1:34.933), Japan 2026 race (ideal 1:32.159),
+  Belgium 2025 sprint (ideal 1:45.249) - all 4 cells + 10 rows, zero console
+  errors. OCI health OK.
+
 ## Remaining
-- Sector dominance: blocked on session sector times being wired into replay
-  packs (named-corner `trackPosition` coords are empty in current packs).
-- 2026 Bahrain/Saudi: gain real GPS + intervals once OpenF1 publishes their
-  `/location` data.
+- 2026 Bahrain/Saudi: gain real GPS + intervals + sectors once OpenF1
+  publishes their `/location` and `/laps` data.
+- 2025 Azerbaijan qualifying pack is empty (no laps upstream at build time);
+  re-run the builder if OpenF1 backfills it.

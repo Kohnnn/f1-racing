@@ -6,14 +6,14 @@ import type { ComparePack, DriverSummary, LapRecord, ReplayPack, SessionManifest
 import { getFocusPoint } from "@/components/model-viewer/focus-points";
 import { Leaderboard, type ReplayLeaderboardRow } from "./Leaderboard";
 import { PlaybackControls } from "./PlaybackControls";
-import { ReplayComparePanel, ReplayLapWaterfall, ReplayStintPanel, ReplayStrategyPanel, ReplayTrackInfoPanel, ReplayBattleGraph, ReplayCornerSpeeds } from "./replay-insights";
+import { ReplayComparePanel, ReplayLapWaterfall, ReplayStintPanel, ReplayStrategyPanel, ReplayTrackInfoPanel, ReplayBattleGraph, ReplayCornerSpeeds, ReplaySectorDominance } from "./replay-insights";
 import { ReplayTelemetryStrip } from "./replay-telemetry-strip";
 import { TrackCanvas, type PitPulse } from "./TrackCanvas";
 import { buildTrackGeometry } from "./track-geometry";
 
 const UI_SYNC_INTERVAL_MS = 180;
 
-type AnalysisTab = "telemetry" | "compare" | "stints" | "strategy" | "track" | "racecontrol" | "waterfall" | "battle" | "corners";
+type AnalysisTab = "telemetry" | "compare" | "stints" | "strategy" | "track" | "racecontrol" | "waterfall" | "battle" | "corners" | "sectors";
 
 interface ReplayViewProps {
   replay: ReplayPack;
@@ -1699,6 +1699,13 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
             >
               Corner speeds
             </button>
+            <button
+              type="button"
+              className={`replay-support-panel__tab${analysisTab === "sectors" ? " replay-support-panel__tab--active" : ""}`}
+              onClick={() => setAnalysisTab("sectors")}
+            >
+              Sectors
+            </button>
             {totalRaceControlMessages > 0 ? (
               <button
                 type="button"
@@ -1766,6 +1773,10 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
 
         {analysisTab === "corners" ? (
           <ReplayCornerSpeeds replay={replay} selectedDrivers={selectedDrivers} focusId={focusId} />
+        ) : null}
+
+        {analysisTab === "sectors" ? (
+          <ReplaySectorDominance replay={replay} selectedDrivers={selectedDrivers} />
         ) : null}
 
         {analysisTab === "racecontrol" ? (

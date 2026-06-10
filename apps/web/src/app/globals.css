@@ -6337,3 +6337,96 @@ code {
   font-size: 0.74rem;
   margin-top: 8px;
 }
+
+/* Replay sector dominance (purple sectors + ideal lap) */
+.replay-sector-purple {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  margin: 8px 0 14px;
+}
+
+.replay-sector-purple__cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: rgba(124, 58, 237, 0.10);
+  border: 1px solid rgba(168, 85, 247, 0.3);
+}
+
+.replay-sector-purple__cell--ideal {
+  background: rgba(255, 122, 26, 0.10);
+  border-color: rgba(255, 122, 26, 0.32);
+}
+
+.replay-sector-purple__label {
+  color: var(--ink-soft);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+}
+
+.replay-sector-purple__cell strong {
+  font-size: 1.05rem;
+}
+
+.replay-sector-purple__time {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+  color: var(--ink);
+}
+
+.replay-sector-purple__team {
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+}
+
+.replay-sector-table {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.replay-sector-row {
+  display: grid;
+  grid-template-columns: 52px 1fr 1fr 1fr 76px;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line);
+}
+
+.replay-sector-row--focus {
+  border-color: rgba(255, 122, 26, 0.45);
+  background: rgba(255, 122, 26, 0.08);
+}
+
+.replay-sector-row__code {
+  font-weight: 800;
+  font-size: 0.82rem;
+  padding: 2px 6px;
+  border-left: 3px solid var(--line);
+}
+
+.replay-sector-row__sector {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+}
+
+.replay-sector-row__sector--purple {
+  color: #c084fc;
+  font-weight: 700;
+}
+
+.replay-sector-row__total {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-align: right;
+}

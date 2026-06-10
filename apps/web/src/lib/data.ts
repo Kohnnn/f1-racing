@@ -554,6 +554,10 @@ export interface ReplayLap {
   lapNumber: number;
   lapTime: number | null;
   compound: string | null;
+  sector1?: number | null;
+  sector2?: number | null;
+  sector3?: number | null;
+  stintNumber?: number | null;
 }
 
 export interface ReplayPack {

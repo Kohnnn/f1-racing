@@ -734,3 +734,118 @@ export function ReplayBattleGraph({
     </section>
   );
 }
+
+/**
+ * Sector dominance. From the replay pack laps (which now carry per-sector
+ * times), compute each driver's best S1/S2/S3, find the session-fastest
+ * ("purple") per sector, and assemble the theoretical ideal lap. Shows who owns
+ * each sector and the top few drivers by best sector across the lap.
+ */
+export function ReplaySectorDominance({
+  replay,
+  selectedDrivers,
+}: {
+  replay: ReplayPack;
+  selectedDrivers: string[];
+}) {
+  const laps = replay.laps ?? [];
+  const hasSectors = laps.some(
+    (l) => typeof l.sector1 === "number" || typeof l.sector2 === "number" || typeof l.sector3 === "number",
+  );
+
+  const colorByCode = new Map(replay.drivers.map((d) => [d.driverCode, d.teamColor || "#9ca3af"]));
+  const teamByCode = new Map(replay.drivers.map((d) => [d.driverCode, d.team]));
+
+  // best[sector] -> Map(code -> best seconds)
+  const best: Array<Map<string, number>> = [new Map(), new Map(), new Map()];
+  if (hasSectors) {
+    for (const lap of laps) {
+      const secs = [lap.sector1, lap.sector2, lap.sector3];
+      for (let s = 0; s < 3; s += 1) {
+        const v = secs[s];
+        if (typeof v !== "number" || !(v > 0)) continue;
+        const cur = best[s].get(lap.driverCode);
+        if (cur === undefined || v < cur) best[s].set(lap.driverCode, v);
+      }
+    }
+  }
+
+  const purple = best.map((m) => {
+    let code: string | null = null;
+    let val = Infinity;
+    for (const [c, v] of m.entries()) if (v < val) { val = v; code = c; }
+    return code ? { code, val } : null;
+  });
+  const idealLap = purple.every(Boolean)
+    ? purple.reduce((sum, p) => sum + (p as { val: number }).val, 0)
+    : null;
+
+  // Per-driver best total (sum of their own best sectors) for a ranking.
+  const driverTotals: Array<{ code: string; total: number; sectors: number[] }> = [];
+  const allCodes = new Set<string>([...best[0].keys(), ...best[1].keys(), ...best[2].keys()]);
+  for (const code of allCodes) {
+    const raw = best.map((m) => m.get(code) ?? null);
+    if (raw.some((s) => s === null)) continue;
+    const sectors = raw as number[];
+    driverTotals.push({ code, total: sectors.reduce((a, b) => a + b, 0), sectors });
+  }
+  driverTotals.sort((a, b) => a.total - b.total);
+  const focus = selectedDrivers.length ? new Set(selectedDrivers) : null;
+
+  return (
+    <section className="replay-insight-panel replay-insight-panel--embedded">
+      <div className="section-header">
+        <div>
+          <p className="eyebrow">Sector dominance</p>
+          <h2>Who owns each sector</h2>
+        </div>
+      </div>
+      {!hasSectors ? (
+        <p className="replay-empty-copy">This pack does not carry per-sector times. Rebuild with sector data to enable this view.</p>
+      ) : (
+        <>
+          <div className="replay-sector-purple">
+            {purple.map((p, i) => (
+              <div className="replay-sector-purple__cell" key={i}>
+                <span className="replay-sector-purple__label">Sector {i + 1}</span>
+                {p ? (
+                  <>
+                    <strong style={{ color: colorByCode.get(p.code) || "#c084fc" }}>{p.code}</strong>
+                    <span className="replay-sector-purple__time">{p.val.toFixed(3)}s</span>
+                    <span className="replay-sector-purple__team">{teamByCode.get(p.code)}</span>
+                  </>
+                ) : (
+                  <strong>-</strong>
+                )}
+              </div>
+            ))}
+            <div className="replay-sector-purple__cell replay-sector-purple__cell--ideal">
+              <span className="replay-sector-purple__label">Ideal lap</span>
+              <strong>{idealLap ? formatLapTime(idealLap) : "-"}</strong>
+              <span className="replay-sector-purple__team">purple sectors combined</span>
+            </div>
+          </div>
+          <div className="replay-sector-table">
+            {driverTotals.slice(0, 10).map((row) => (
+              <div
+                className={`replay-sector-row${focus && focus.has(row.code) ? " replay-sector-row--focus" : ""}`}
+                key={row.code}
+              >
+                <span className="replay-sector-row__code" style={{ borderColor: colorByCode.get(row.code) }}>{row.code}</span>
+                {row.sectors.map((s, i) => {
+                  const isPurple = purple[i] && purple[i]!.code === row.code;
+                  return (
+                    <span key={i} className={`replay-sector-row__sector${isPurple ? " replay-sector-row__sector--purple" : ""}`}>
+                      {(s as number).toFixed(3)}
+                    </span>
+                  );
+                })}
+                <span className="replay-sector-row__total">{formatLapTime(row.total)}</span>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}

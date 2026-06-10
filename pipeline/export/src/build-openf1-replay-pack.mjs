@@ -161,6 +161,9 @@ function buildReplayLaps(lapsRaw, drivers) {
       lapNumber: Number(lap.lap_number),
       lapTime: Number(lap.lap_duration),
       compound: lap.compound ?? null,
+      sector1: Number.isFinite(lap.duration_sector_1) ? Number(lap.duration_sector_1) : null,
+      sector2: Number.isFinite(lap.duration_sector_2) ? Number(lap.duration_sector_2) : null,
+      sector3: Number.isFinite(lap.duration_sector_3) ? Number(lap.duration_sector_3) : null,
     }))
     .sort((left, right) => {
       if (left.lapNumber !== right.lapNumber) {
