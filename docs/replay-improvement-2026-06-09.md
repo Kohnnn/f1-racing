@@ -179,6 +179,30 @@ readout probes per iteration) until the SVG silhouette simulation behaved:
   reset restores baseline. Zero console errors throughout.
 - Prod smoke after deploy: same numbers on production; OCI health OK.
 
+## 3D scene reinforcement (2026-06-10, fifth deploy)
+- **DRS zone strips.** New `DrsZoneStrips` component renders glowing green
+  centreline strips on the 3D track ribbon, mirroring the 2D resolution rules
+  (absolute `from`/`to` distances against `trackMetadata.length`, with
+  `fromRatio`/`toRatio` fallback). Wired through the new `drsZones` prop.
+- **Safety car.** `SafetyCarBody` (silver saloon primitives) plus a flashing
+  beacon mesh and an "SC" billboard, driven in `useFrame` from
+  `frame.safetyCar` - visible when phase != "none", beacon colour oscillates
+  with playhead time.
+- **Click-to-select cars.** Car groups carry an `onClick` (stopPropagation;
+  shift/ctrl/meta appends) calling the new `onDriverSelect` prop, plus a
+  pointer cursor on hover. Shares `handleDriverSelect` with the 2D canvas and
+  the standings list so selection stays in lockstep across views.
+- **Speed trail.** `SpeedTrail` component keeps a rolling 160-point ribbon for
+  the focused car, vertex-coloured by speed (HSL) and fading with age,
+  updated imperatively via `trailRef.push()`; clears on focus change.
+- Props `drsZones` and `onDriverSelect` threaded through `ReplayScene3DProps`
+  and wired at the `<ReplayScene3D>` call site in `ReplayView.tsx`.
+- Verified: `tsc --noEmit -p apps/web` clean, `next:build` clean. Local probe
+  (via `npx serve`, not python http.server - the latter hits
+  `ERR_NO_BUFFER_SPACE` on the heavy R3F chunk under Windows) and prod smoke
+  both confirm the 3D canvas mounts, car clicks fire, zero console errors.
+  OCI health OK.
+
 ## Remaining
 - 2026 Bahrain/Saudi: gain real GPS + intervals + sectors once OpenF1
   publishes their `/location` and `/laps` data.

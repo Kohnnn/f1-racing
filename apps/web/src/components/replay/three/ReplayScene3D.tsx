@@ -43,6 +43,8 @@ interface ReplayScene3DProps {
   playheadTimeRef: { current: number };
   estimatedLapDuration: number;
   selectedDrivers: string[];
+  drsZones?: Array<{ id?: string; from: number; to: number; fromRatio?: number; toRatio?: number }>;
+  onDriverSelect?: (driverCode: string | null, append: boolean) => void;
 }
 
 interface WorldMapping {
@@ -151,8 +153,61 @@ function TrackRibbon({ geometry, mapping }: { geometry: TrackGeometry; mapping: 
   );
 }
 
-/** Red/white kerb blocks plus billboard corner numbers. */
-function CornerMarkers({
+/**
+ * DRS activation zones rendered as glowing green strips along the centreline.
+ * Mirrors the 2D resolution rules: absolute distances against the published
+ * circuit length when available, explicit ratios otherwise.
+ */
+function DrsZoneStrips({
+  geometry,
+  mapping,
+  drsZones,
+  trackTotalLength,
+}: {
+  geometry: TrackGeometry;
+  mapping: WorldMapping;
+  drsZones: NonNullable<ReplayScene3DProps["drsZones"]>;
+  trackTotalLength: number;
+}) {
+  const strips = useMemo(() => {
+    const out: Array<Array<[number, number, number]>> = [];
+    for (const zone of drsZones) {
+      let startRatio: number | null = null;
+      let endRatio: number | null = null;
+      if (Number.isFinite(zone.from) && Number.isFinite(zone.to) && trackTotalLength > 0) {
+        startRatio = (((zone.from / trackTotalLength) % 1) + 1) % 1;
+        endRatio = (((zone.to / trackTotalLength) % 1) + 1) % 1;
+      } else if (typeof zone.fromRatio === "number" && typeof zone.toRatio === "number") {
+        startRatio = ((zone.fromRatio % 1) + 1) % 1;
+        endRatio = ((zone.toRatio % 1) + 1) % 1;
+      }
+      if (startRatio === null || endRatio === null) continue;
+      const spanRatio = endRatio >= startRatio ? endRatio - startRatio : 1 - startRatio + endRatio;
+      const spanDistance = spanRatio * geometry.totalLength;
+      const steps = Math.max(6, Math.ceil(spanDistance / 8));
+      const points: Array<[number, number, number]> = [];
+      for (let i = 0; i <= steps; i += 1) {
+        const distance = (startRatio * geometry.totalLength + (i / steps) * spanDistance) % geometry.totalLength;
+        const p = geometry.pointAtDistance(distance);
+        const [x, , z] = mapping.toWorld(p.x, p.y);
+        points.push([x, 0.12, z]);
+      }
+      out.push(points);
+    }
+    return out;
+  }, [drsZones, geometry, mapping, trackTotalLength]);
+
+  if (!strips.length) return null;
+  return (
+    <group>
+      {strips.map((points, index) => (
+        <Line key={index} points={points} color="#22c55e" lineWidth={3.5} transparent opacity={0.85} />
+      ))}
+    </group>
+  );
+}
+
+/** Red/white kerb blocks plus billboard corner numbers. */function CornerMarkers({
   geometry,
   mapping,
   corners,
@@ -311,6 +366,101 @@ function F1Car({ color, code }: { color: string; code: string }) {
 }
 
 /**
+ * Speed trail for the focused car: a rolling ribbon of recent positions,
+ * vertex-coloured by speed (blue slow -> red fast). Updated imperatively from
+ * the simulation loop via the handle to avoid React re-renders.
+ */
+const TRAIL_LENGTH = 160;
+
+interface TrailHandle {
+  push: (x: number, z: number, speed: number | null) => void;
+  clear: () => void;
+}
+
+function SpeedTrail({ handleRef }: { handleRef: { current: TrailHandle | null } }) {
+  const lineRef = useRef<THREE.Line | null>(null);
+  const geometryRef = useRef<THREE.BufferGeometry | null>(null);
+  const stateRef = useRef({ points: [] as Array<[number, number, number]>, count: 0 });
+
+  useEffect(() => {
+    const geo = new THREE.BufferGeometry();
+    const positions = new Float32Array(TRAIL_LENGTH * 3);
+    const colors = new Float32Array(TRAIL_LENGTH * 3);
+    geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+    geo.setDrawRange(0, 0);
+    geometryRef.current = geo;
+    const material = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.85 });
+    const line = new THREE.Line(geo, material);
+    line.frustumCulled = false;
+    lineRef.current = line;
+
+    const color = new THREE.Color();
+    handleRef.current = {
+      push(x, z, speed) {
+        const state = stateRef.current;
+        state.points.push([x, 0.25, z]);
+        if (state.points.length > TRAIL_LENGTH) state.points.shift();
+        const pos = geo.getAttribute("position") as THREE.BufferAttribute;
+        const col = geo.getAttribute("color") as THREE.BufferAttribute;
+        for (let i = 0; i < state.points.length; i += 1) {
+          pos.setXYZ(i, state.points[i][0], state.points[i][1], state.points[i][2]);
+        }
+        // colour latest point by speed; keep older colours as-is by shifting
+        const t = Math.max(0, Math.min(1, ((speed ?? 0) - 60) / 260));
+        color.setHSL((1 - t) * 0.62, 0.95, 0.55);
+        // recompute all colours fading with age for simplicity (160 pts cheap)
+        for (let i = 0; i < state.points.length; i += 1) {
+          const age = i / Math.max(1, state.points.length - 1);
+          col.setXYZ(i, color.r * age, color.g * age, color.b * age);
+        }
+        geo.setDrawRange(0, state.points.length);
+        pos.needsUpdate = true;
+        col.needsUpdate = true;
+      },
+      clear() {
+        stateRef.current.points.length = 0;
+        geo.setDrawRange(0, 0);
+      },
+    };
+    return () => {
+      handleRef.current = null;
+      geo.dispose();
+      material.dispose();
+    };
+  }, [handleRef]);
+
+  return lineRef.current ? <primitive object={lineRef.current} /> : null;
+}
+
+/** FIA safety car: silver low-poly saloon with a flashing roof beacon. */
+function SafetyCarBody() {
+  return (
+    <group>
+      <mesh position={[0, 0.55, 0]}>
+        <boxGeometry args={[4.6, 0.85, 1.9]} />
+        <meshStandardMaterial color="#c8ccd4" roughness={0.35} metalness={0.45} />
+      </mesh>
+      <mesh position={[0.2, 1.18, 0]}>
+        <boxGeometry args={[2.4, 0.55, 1.7]} />
+        <meshStandardMaterial color="#aeb3bc" roughness={0.4} metalness={0.4} />
+      </mesh>
+      {([
+        [1.55, 0.95],
+        [1.55, -0.95],
+        [-1.55, 0.95],
+        [-1.55, -0.95],
+      ] as Array<[number, number]>).map(([wx, wz], index) => (
+        <mesh key={index} position={[wx, 0.34, wz]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.34, 0.34, 0.3, 10]} />
+          <meshStandardMaterial color="#15181f" roughness={0.85} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+/**
  * Drives car transforms, telemetry effects, the focused-car label, and the
  * chase / tv cameras every frame without re-rendering React.
  */
@@ -324,6 +474,7 @@ function SimulationLayer({
   estimatedLapDuration,
   focusedCode,
   cameraMode,
+  onDriverSelect,
 }: {
   geometry: TrackGeometry;
   mapping: WorldMapping;
@@ -334,6 +485,7 @@ function SimulationLayer({
   estimatedLapDuration: number;
   focusedCode: string | null;
   cameraMode: CameraMode;
+  onDriverSelect?: (driverCode: string | null, append: boolean) => void;
 }) {
   const carRefs = useRef<Map<string, THREE.Group>>(new Map());
   const labelRef = useRef<THREE.Group>(null);
@@ -345,6 +497,9 @@ function SimulationLayer({
   const wheelSpinRef = useRef<Map<string, number>>(new Map());
   const lastPositionsRef = useRef<Map<string, number>>(new Map());
   const pulseRef = useRef<Map<string, number>>(new Map());
+  const safetyCarRef = useRef<THREE.Group>(null);
+  const safetyBeaconRef = useRef<THREE.Mesh>(null);
+  const trailRef = useRef<TrailHandle | null>(null);
   const { camera } = useThree();
 
   useEffect(() => {
@@ -357,6 +512,7 @@ function SimulationLayer({
 
   useEffect(() => {
     focusedRef.current = focusedCode;
+    trailRef.current?.clear();
   }, [focusedCode]);
 
   useEffect(() => {
@@ -449,6 +605,7 @@ function SimulationLayer({
       if (code === focusCode) {
         focusedWorld = group.position.clone();
         focusedHeading = state.heading;
+        trailRef.current?.push(wx, wz, state.speed);
         const label = labelRef.current;
         if (label) {
           label.visible = true;
@@ -469,6 +626,24 @@ function SimulationLayer({
       if (!states.has(code)) group.visible = false;
     }
     if (!focusedWorld && labelRef.current) labelRef.current.visible = false;
+
+    // Safety car marker + flashing beacon.
+    const sc = framesRef.current.current?.safetyCar;
+    const scGroup = safetyCarRef.current;
+    if (scGroup) {
+      if (sc && sc.phase !== "none" && sc.x !== null && sc.y !== null) {
+        const [sx, , sz] = mapping.toWorld(sc.x, sc.y);
+        scGroup.visible = true;
+        scGroup.position.set(sx, 0, sz);
+        const beacon = safetyBeaconRef.current;
+        if (beacon && beacon.material instanceof THREE.MeshBasicMaterial) {
+          const flash = (Math.sin(playheadTimeRef.current * 9) + 1) * 0.5;
+          beacon.material.color.setRGB(1, 0.45 + flash * 0.55, flash * 0.2);
+        }
+      } else {
+        scGroup.visible = false;
+      }
+    }
 
     // Camera rigs.
     const mode = cameraModeRef.current;
@@ -501,10 +676,32 @@ function SimulationLayer({
             if (node) carRefs.current.set(driver.driverCode, node);
             else carRefs.current.delete(driver.driverCode);
           }}
+          onClick={(event) => {
+            event.stopPropagation();
+            onDriverSelect?.(driver.driverCode, event.nativeEvent.shiftKey || event.nativeEvent.ctrlKey || event.nativeEvent.metaKey);
+          }}
+          onPointerOver={() => { document.body.style.cursor = "pointer"; }}
+          onPointerOut={() => { document.body.style.cursor = "auto"; }}
         >
           <F1Car color={driver.teamColor || "#9ca3af"} code={driver.driverCode} />
         </group>
       ))}
+      <group ref={safetyCarRef} visible={false}>
+        <SafetyCarBody />
+        <mesh
+          ref={safetyBeaconRef as never}
+          position={[0.2, 1.62, 0]}
+        >
+          <boxGeometry args={[0.92, 0.24, 0.52]} />
+          <meshBasicMaterial color="#ff9a00" />
+        </mesh>
+        <Billboard position={[0, 3.2, 0]}>
+          <Text fontSize={1.8} color="#ffd58a" anchorX="center" anchorY="bottom" outlineWidth={0.09} outlineColor="#0a0d13">
+            SC
+          </Text>
+        </Billboard>
+      </group>
+      <SpeedTrail handleRef={trailRef} />
       <group ref={labelRef} visible={false}>
         <Billboard>
           <Text
@@ -544,6 +741,8 @@ export default function ReplayScene3D({
   playheadTimeRef,
   estimatedLapDuration,
   selectedDrivers,
+  drsZones,
+  onDriverSelect,
 }: ReplayScene3DProps) {
   const [cameraMode, setCameraMode] = useState<CameraMode>("orbit");
 
@@ -602,6 +801,14 @@ export default function ReplayScene3D({
         </mesh>
         <gridHelper args={[mapping.radius * 3, 46, "#1c2330", "#141a25"]} position={[0, -0.02, 0]} />
         <TrackRibbon geometry={geometry} mapping={mapping} />
+        {drsZones?.length ? (
+          <DrsZoneStrips
+            geometry={geometry}
+            mapping={mapping}
+            drsZones={drsZones}
+            trackTotalLength={trackMetadata?.length || geometry.totalLength}
+          />
+        ) : null}
         {trackMetadata?.corners?.length ? (
           <CornerMarkers
             geometry={geometry}
@@ -620,6 +827,7 @@ export default function ReplayScene3D({
           estimatedLapDuration={estimatedLapDuration}
           focusedCode={focusedCode}
           cameraMode={cameraMode}
+          onDriverSelect={onDriverSelect}
         />
         {cameraMode === "orbit" ? (
           <OrbitControls

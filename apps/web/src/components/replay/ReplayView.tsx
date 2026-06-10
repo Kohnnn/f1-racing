@@ -1463,6 +1463,8 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
                 playheadTimeRef={playheadTimeRef}
                 estimatedLapDuration={estimatedLapDuration}
                 selectedDrivers={selectedDrivers}
+                drsZones={effectiveDrsZones}
+                onDriverSelect={handleDriverSelect}
               />
             ) : (
             <TrackCanvas
