@@ -24,6 +24,7 @@
     "cloudflare:whoami": "wrangler whoami",
     "ingest:openf1:2025": "node pipeline/ingest/src/ingest-openf1-2025-season.mjs",
     "build:openf1:session": "node pipeline/export/src/build-openf1-session-pack.mjs",
+    "build:silhouettes": "node pipeline/export/src/build-silhouette-from-svg.mjs",
     "build:openf1:replay": "node pipeline/export/src/build-openf1-replay-pack.mjs",
     "refresh:showcase:replay": "node pipeline/export/src/build-openf1-replay-pack.mjs --grandPrixSlug abu-dhabi-grand-prix --sessionSlug race && node pipeline/export/src/split-replay-packs.mjs",
     "build:fastf1:replay": "python pipeline/fastf1/build-fastf1-replay-pack.py",

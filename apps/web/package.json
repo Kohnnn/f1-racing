@@ -8,18 +8,22 @@
     "start": "next start"
   },
   "dependencies": {
-    "@google/model-viewer": "^4.1.0",
     "@f1-racing/schemas": "*",
     "@f1-racing/telemetry-utils": "*",
+    "@google/model-viewer": "^4.1.0",
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.6.1",
     "next": "^15.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "three": "^0.182.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.2",
     "@types/react-dom": "^19.0.2",
+    "@types/three": "^0.184.1",
     "typescript": "^5.7.2"
   }
 }

@@ -94,7 +94,7 @@ const TRAIL_LENGTH = 16;
 
 const INLET_MARKERS = [0.20, 0.30, 0.40, 0.52, 0.64, 0.76, 0.86];
 const STREAMLINE_SEEDS = [0.28, 0.36, 0.44, 0.52, 0.60, 0.68, 0.76, 0.84, 0.91];
-const CURATED_SVG_SILHOUETTES = new Set(["fia-2026"]);
+const CURATED_SVG_SILHOUETTES = new Set(["fia-2026", "mclaren"]);
 
 const FLOW_VIEW_META: Record<FlowView, { label: string; description: string; low: string; high: string }> = {
   ribbon: {
@@ -141,7 +141,7 @@ interface WindProfileData {
   polygon: Array<[number, number]>;
   wheelArches: WheelArch[];
   aspect: number;
-  details?: Array<{ kind: "halo" | "frontWing" | "floor" | "rearWing" | "stripe"; points: Array<[number, number]> }>;
+  details?: Array<{ kind: "halo" | "frontWing" | "floor" | "rearWing" | "stripe" | "sidepod" | "beamWing"; points: Array<[number, number]> }>;
   source: SilhouetteMode;
 }
 
@@ -1294,6 +1294,17 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
       ctx.closePath();
     }
 
+    function strokePolyline(points: Array<[number, number]>) {
+      if (!ctx || points.length < 2) return;
+      ctx.beginPath();
+      for (let i = 0; i < points.length; i += 1) {
+        const px = points[i][0] * STAGE_WIDTH;
+        const py = points[i][1] * STAGE_HEIGHT;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.stroke();
+    }
+
     function pressureAtSegment(nx: number, ny: number) {
       const frame = fluidFrameRef.current;
       if (!frame.ready || !frame.pressure) return 0;
@@ -1390,14 +1401,30 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
       if (!polygon.length) return;
       if (modelFile && modelViewerReady && controls.silhouetteMode !== "airfoil") return;
 
+      const bodyBounds = profileBounds(polygon);
+      const bodyTop = bodyBounds.minY * STAGE_HEIGHT;
+      const bodyBottom = bodyBounds.maxY * STAGE_HEIGHT;
+      const bodySpan = Math.max(1, bodyBottom - bodyTop);
+      const accent = hexToRgb(accentColor);
+
+      // Two-tone livery: place an accent-tinted gloss band keyed off the
+      // stripe detail's average y (fall back to 0.45 of the body bbox).
+      const stripeDetail = profile.details?.find((detail) => detail.kind === "stripe");
+      const stripeAvgY = stripeDetail && stripeDetail.points.length
+        ? stripeDetail.points.reduce((sum, [, y]) => sum + y, 0) / stripeDetail.points.length
+        : bodyBounds.minY + (bodyBounds.maxY - bodyBounds.minY) * 0.45;
+      const bandT = Math.max(0.08, Math.min(0.92, (stripeAvgY * STAGE_HEIGHT - bodyTop) / bodySpan));
+
       ctx.save();
       // Glossy paint with vertical gradient.
       ctx.shadowColor = "rgba(8, 12, 20, 0.55)";
       ctx.shadowBlur = 18;
       ctx.shadowOffsetY = 4;
-      const paint = ctx.createLinearGradient(0, 0, 0, STAGE_HEIGHT);
+      const paint = ctx.createLinearGradient(0, bodyTop, 0, bodyBottom);
       paint.addColorStop(0, "rgba(28, 36, 50, 0.95)");
-      paint.addColorStop(0.55, "rgba(15, 22, 36, 0.96)");
+      paint.addColorStop(Math.max(0, bandT - 0.14), "rgba(17, 24, 38, 0.96)");
+      paint.addColorStop(bandT, `rgba(${Math.round(14 + accent.r * 0.30)}, ${Math.round(18 + accent.g * 0.30)}, ${Math.round(28 + accent.b * 0.30)}, 0.96)`);
+      paint.addColorStop(Math.min(1, bandT + 0.16), "rgba(11, 16, 27, 0.97)");
       paint.addColorStop(1, "rgba(7, 11, 19, 0.98)");
       ctx.fillStyle = paint;
       silhouettePath(polygon);
@@ -1419,42 +1446,86 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
       ctx.stroke();
       ctx.restore();
 
-      // Team-colour accent stripe down the body.
+      // Cockpit shading: a slightly darker inset fill under the halo arc.
+      const haloDetail = profile.details?.find((detail) => detail.kind === "halo");
+      if (haloDetail && haloDetail.points.length >= 2) {
+        const drop = bodySpan * 0.16;
+        ctx.save();
+        silhouettePath(polygon);
+        ctx.clip();
+        ctx.beginPath();
+        const haloPts = haloDetail.points;
+        ctx.moveTo(haloPts[0][0] * STAGE_WIDTH, haloPts[0][1] * STAGE_HEIGHT);
+        for (let i = 1; i < haloPts.length; i += 1) {
+          ctx.lineTo(haloPts[i][0] * STAGE_WIDTH, haloPts[i][1] * STAGE_HEIGHT);
+        }
+        for (let i = haloPts.length - 1; i >= 0; i -= 1) {
+          ctx.lineTo(haloPts[i][0] * STAGE_WIDTH, haloPts[i][1] * STAGE_HEIGHT + drop);
+        }
+        ctx.closePath();
+        ctx.fillStyle = "rgba(2, 4, 9, 0.42)";
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // Detail polylines: stripe / halo / wings / sidepod / beam wing.
       if (profile.details) {
         for (const detail of profile.details) {
           if (detail.kind === "stripe") {
             ctx.strokeStyle = `${accentColor}cc`;
             ctx.lineWidth = 1.6;
-            ctx.beginPath();
-            for (let i = 0; i < detail.points.length; i += 1) {
-              const [x, y] = detail.points[i];
-              const px = x * STAGE_WIDTH;
-              const py = y * STAGE_HEIGHT;
-              if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-            }
-            ctx.stroke();
+            strokePolyline(detail.points);
           } else if (detail.kind === "halo") {
             ctx.strokeStyle = "rgba(220, 232, 255, 0.65)";
             ctx.lineWidth = 3;
-            ctx.beginPath();
-            for (let i = 0; i < detail.points.length; i += 1) {
-              const [x, y] = detail.points[i];
-              const px = x * STAGE_WIDTH;
-              const py = y * STAGE_HEIGHT;
-              if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-            }
-            ctx.stroke();
+            strokePolyline(detail.points);
           } else if (detail.kind === "rearWing") {
             ctx.strokeStyle = "rgba(220, 232, 255, 0.55)";
             ctx.lineWidth = 2.2;
-            ctx.beginPath();
-            for (let i = 0; i < detail.points.length; i += 1) {
-              const [x, y] = detail.points[i];
-              const px = x * STAGE_WIDTH;
-              const py = y * STAGE_HEIGHT;
-              if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+            strokePolyline(detail.points);
+          } else if (detail.kind === "frontWing") {
+            ctx.strokeStyle = "rgba(200, 220, 250, 0.45)";
+            ctx.lineWidth = 1.6;
+            strokePolyline(detail.points);
+          } else if (detail.kind === "sidepod") {
+            // Shaded inset stroke: a soft dark underline plus a thin light edge.
+            ctx.save();
+            ctx.lineCap = "round";
+            ctx.strokeStyle = "rgba(2, 5, 10, 0.55)";
+            ctx.lineWidth = 4;
+            strokePolyline(detail.points);
+            ctx.strokeStyle = "rgba(160, 195, 235, 0.30)";
+            ctx.lineWidth = 1.2;
+            strokePolyline(detail.points);
+            ctx.restore();
+          } else if (detail.kind === "beamWing") {
+            // Convention: last two points form the DRS flap (leading point
+            // first); the preceding points are the lower beam wing element.
+            const pts = detail.points;
+            ctx.strokeStyle = "rgba(220, 232, 255, 0.50)";
+            ctx.lineWidth = 2;
+            if (pts.length > 2) {
+              strokePolyline(pts.slice(0, pts.length - 2));
             }
-            ctx.stroke();
+            if (pts.length >= 2) {
+              const lead = pts[pts.length - 2];
+              let trail = pts[pts.length - 1];
+              if (controls.drsOpen) {
+                // Rotate the flap ~20deg open about its leading point.
+                const angle = (-20 * Math.PI) / 180;
+                const dx = (trail[0] - lead[0]) * STAGE_WIDTH;
+                const dy = (trail[1] - lead[1]) * STAGE_HEIGHT;
+                const cos = Math.cos(angle);
+                const sin = Math.sin(angle);
+                trail = [
+                  lead[0] + (dx * cos - dy * sin) / STAGE_WIDTH,
+                  lead[1] + (dx * sin + dy * cos) / STAGE_HEIGHT,
+                ];
+              }
+              ctx.strokeStyle = controls.drsOpen ? `${accentColor}cc` : "rgba(220, 232, 255, 0.50)";
+              ctx.lineWidth = 2;
+              strokePolyline([lead, trail]);
+            }
           }
         }
       }
@@ -1523,6 +1594,19 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
         ctx.beginPath();
         ctx.arc(cx, cy, r, 0, Math.PI * 2);
         ctx.fill();
+        // Brake glow: a subtle hot-disc gradient inside the arch. Intensity
+        // rises as airspeed drops (braking into a corner reads hotter).
+        const glow = Math.max(0, Math.min(1, 1 - controls.airspeed / 140));
+        if (glow > 0.05 && controls.wheelMode === "rotating") {
+          const glowGrad = ctx.createRadialGradient(cx, cy, r * 0.08, cx, cy, r * 0.55);
+          glowGrad.addColorStop(0, `rgba(255, 96, 28, ${0.34 * glow})`);
+          glowGrad.addColorStop(0.6, `rgba(214, 48, 18, ${0.16 * glow})`);
+          glowGrad.addColorStop(1, "rgba(120, 16, 8, 0)");
+          ctx.fillStyle = glowGrad;
+          ctx.beginPath();
+          ctx.arc(cx, cy, r * 0.55, 0, Math.PI * 2);
+          ctx.fill();
+        }
         ctx.strokeStyle = `${accentColor}88`;
         ctx.lineWidth = 1.2;
         ctx.stroke();
@@ -2129,6 +2213,18 @@ function profileBounds(points: Array<[number, number]>) {
   }), { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity });
 }
 
+function hexToRgb(hex: string) {
+  const value = hex.replace("#", "");
+  const expanded = value.length === 3
+    ? value.split("").map((c) => c + c).join("")
+    : value;
+  const num = Number.parseInt(expanded, 16);
+  if (!Number.isFinite(num) || expanded.length !== 6) {
+    return { r: 255, g: 122, b: 26 };
+  }
+  return { r: (num >> 16) & 255, g: (num >> 8) & 255, b: num & 255 };
+}
+
 function clampUnit(value: number) {
   return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0));
 }
@@ -2139,7 +2235,7 @@ function remapProfileDetails(details: unknown, aspect: number): WindProfileData[
     .filter((detail): detail is NonNullable<WindProfileData["details"]>[number] => (
       detail
       && typeof detail === "object"
-      && ["halo", "frontWing", "floor", "rearWing", "stripe"].includes((detail as { kind?: string }).kind ?? "")
+      && ["halo", "frontWing", "floor", "rearWing", "stripe", "sidepod", "beamWing"].includes((detail as { kind?: string }).kind ?? "")
       && Array.isArray((detail as { points?: unknown }).points)
     ))
     .map((detail) => ({

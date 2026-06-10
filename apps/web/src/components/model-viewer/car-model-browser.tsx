@@ -387,7 +387,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
 
   return (
     <section className="panel car-viewer-shell">
-      <div className="car-viewer-toolbar">
+      <div id="pick-a-car" className="car-viewer-toolbar modelview-anchor">
         <div className="control-row">
           {seasons.length > 1 ? (
           <label className="control-field">
@@ -511,7 +511,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
         </div>
       </div>
 
-      <div className="car-viewer-layout">
+      <div id="studio-stage" className="car-viewer-layout modelview-anchor">
         <div className="car-stage-panel">
           <div className="car-stage-panel__header">
             <div>
@@ -796,7 +796,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
         </aside>
       </div>
 
-      <div className="car-wind-tunnel-host">
+      <div id="wind-tunnel" className="car-wind-tunnel-host modelview-anchor">
         <CanvasWindTunnel
           modelTitle={selected.displayName}
           constructorSlug={selected.constructorSlug}

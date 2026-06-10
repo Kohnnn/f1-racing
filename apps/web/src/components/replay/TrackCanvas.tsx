@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReplayDriver, ReplayFrame } from "@/lib/data";
+import { LANE_SPACING, RESIDUAL_EASE, smoothstep } from "./interpolation";
 import { buildTrackGeometry, type TrackGeometry } from "./track-geometry";
 import {
   drawCorners,
@@ -98,16 +99,13 @@ interface DriverTarget {
   team?: string;
 }
 
-const LANE_SPACING = 2.4;
-const RESIDUAL_EASE = 0.35;
 const MIN_SCALE = 0.6;
 const MAX_SCALE = 5;
 const ROT_LIMIT = (Math.PI / 180) * 80;
 
-function ease(t: number) {
-  // smoothstep
-  return t * t * (3 - 2 * t);
-}
+// smoothstep + shared motion constants now live in ./interpolation so the
+// 2D canvas and the 3D scene stay in lockstep.
+const ease = smoothstep;
 
 export function TrackCanvas({
   trackPath,

@@ -1,6 +1,14 @@
 import { Suspense } from "react";
 import { CarModelBrowser } from "@/components/model-viewer/car-model-browser";
+import { ModelviewScrollSpy } from "@/components/model-viewer/modelview-scrollspy";
 import { getCarModelCatalog, getLatestManifest } from "@/lib/data";
+
+const SCROLLSPY_SECTIONS = [
+  { id: "pick-a-car", label: "Pick a car" },
+  { id: "studio-stage", label: "Studio" },
+  { id: "wind-tunnel", label: "Wind tunnel" },
+  { id: "use-modelview-well", label: "Next steps" },
+];
 
 export const metadata = {
   title: "Modelview",
@@ -24,11 +32,13 @@ export default async function CarModelPage() {
         </p>
       </section>
 
+      <ModelviewScrollSpy sections={SCROLLSPY_SECTIONS} />
+
       <Suspense fallback={<div className="panel">Loading model...</div>}>
         <CarModelBrowser catalog={catalog} latestReplayHref={latestReplayHref} />
       </Suspense>
 
-      <section className="panel landing-journey">
+      <section id="use-modelview-well" className="panel landing-journey modelview-anchor">
         <div className="section-header">
           <div>
             <p className="eyebrow">Use modelview well</p>

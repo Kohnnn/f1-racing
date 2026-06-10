@@ -4,14 +4,26 @@ import "./globals.css";
 import { SiteNav } from "@/components/shell/site-nav";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://playful-peony-77899c.netlify.app"),
   title: {
     default: "F1 Racing",
     template: "%s · F1 Racing",
   },
   description: "Formula 1 replay, modelview, and engineering learning built on static race packs.",
+  openGraph: {
+    siteName: "F1 Racing",
+    type: "website",
+    locale: "en_US",
+    url: "/",
+    title: "F1 Racing",
+    description: "Formula 1 replay, modelview, and engineering learning built on static race packs.",
+  },
+  twitter: {
+    card: "summary",
+  },
   robots: {
-    index: false,
-    follow: false,
+    index: true,
+    follow: true,
   },
   icons: {
     icon: "/favicon.svg",

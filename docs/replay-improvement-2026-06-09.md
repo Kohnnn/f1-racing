@@ -121,6 +121,40 @@ OCI health: https://f1-api.129.150.58.64.sslip.io/health
 - Prod smoke: header `DRV|S1|S2|S3|THEORY|GAP|VS ACTUAL`, leader row `PIA -
   +0.000`, both new titles live, zero console errors. OCI health OK.
 
+## Multi-agent feature pass (2026-06-10, third deploy)
+
+Parallel agents shipped the remaining feasible roadmap items in one pass:
+
+- **3D replay scene** (`components/replay/three/ReplayScene3D.tsx`): React
+  Three Fiber port of the track map behind a 2D/3D toggle in the replay
+  workspace. Shares the exact TrackCanvas motion model via the new
+  `components/replay/interpolation.ts` (projection targets, rollover unwrap,
+  smoothstep easing, residual smoother) so 2D and 3D stay in lockstep. Track
+  ribbon + kerbs + corner billboards, low-poly cars with spinning wheels,
+  DRS flap animation, brake glow, compound-coloured wheel rings,
+  position-change pulse, Orbit/Chase/TV camera rigs, yellow-flag atmosphere.
+  Loaded via `next/dynamic` (ssr:false) so the 2D-only path pays no cost.
+  New deps: three / @react-three/fiber / @react-three/drei (web workspace).
+- **Replay debug panel** (`replay-debug-panel.tsx`): backtick toggle or
+  `?debug=1`; fixed monospace overlay with clock, frame index/counts, chunk
+  progress, playback speed, next-frame dt, and the focused driver's raw frame
+  fields (positionSource, rawX/rawY, speed, gear, drs, interval).
+- **Modelview scroll-spy** (`modelview-scrollspy.tsx`): right-rail dot nav
+  (Pick a car / Studio / Wind tunnel / Next steps) with IntersectionObserver
+  highlighting, smooth scroll, aria-current; hidden under 1100px.
+- **SEO pass**: `sitemap.ts` (332 URLs: static + replay/sessions/stints/
+  compare/learn), `robots.ts`, metadataBase + OpenGraph/Twitter blocks in the
+  root layout, and robots meta flipped to `index, follow` (user-approved).
+- **Wind tunnel detail**: two-tone livery band keyed off the stripe detail,
+  cockpit shading under the halo, front-wing flap + sidepod undercut + beam
+  wing detail kinds, DRS flap that rotates open with the DRS control; new
+  `build-silhouette-from-svg.mjs` pipeline (assets/silhouettes/<slug>.svg →
+  data/silhouettes/<slug>.json) with a curated McLaren side profile.
+- Prod smoke: 3D toggle renders (Orbit/Chase/TV all clean during playback),
+  debug panel toggles, scroll-spy anchors resolve, sitemap/robots 200,
+  og:site_name present, McLaren tunnel renders, zero console errors across
+  every probe. OCI health OK.
+
 ## Remaining
 - 2026 Bahrain/Saudi: gain real GPS + intervals + sectors once OpenF1
   publishes their `/location` and `/laps` data.

@@ -1,15 +1,19 @@
 "use client";
 
 import { formatLapTime } from "@f1-racing/telemetry-utils";
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ComparePack, DriverSummary, LapRecord, ReplayPack, SessionManifest, SessionSummary, StintPack, StrategyPack } from "@/lib/data";
 import { getFocusPoint } from "@/components/model-viewer/focus-points";
 import { Leaderboard, type ReplayLeaderboardRow } from "./Leaderboard";
 import { PlaybackControls } from "./PlaybackControls";
+import { ReplayDebugPanel } from "./replay-debug-panel";
 import { ReplayComparePanel, ReplayLapWaterfall, ReplayStintPanel, ReplayStrategyPanel, ReplayTrackInfoPanel, ReplayBattleGraph, ReplayCornerSpeeds, ReplaySectorDominance } from "./replay-insights";
 import { ReplayTelemetryStrip } from "./replay-telemetry-strip";
 import { TrackCanvas, type PitPulse } from "./TrackCanvas";
 import { buildTrackGeometry } from "./track-geometry";
+
+const ReplayScene3D = dynamic(() => import("./three/ReplayScene3D"), { ssr: false });
 
 const UI_SYNC_INTERVAL_MS = 180;
 
@@ -323,6 +327,8 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
     drs: boolean;
   }>({ position: true, team: true, gap: true, lastLap: true, bestLap: false, tyre: true, speed: true, drs: true });
   const [showHoverFieldsMenu, setShowHoverFieldsMenu] = useState(false);
+  const [showDebug, setShowDebug] = useState(false);
+  const [trackViewMode, setTrackViewMode] = useState<"2d" | "3d">("2d");
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -330,6 +336,9 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
     }
     const params = new URLSearchParams(window.location.search);
     setFocusId(params.get("focus"));
+    if (window.location.search.includes("debug=1")) {
+      setShowDebug(true);
+    }
   }, []);
 
   const totalTime = replay.totalTime ?? (replay.frames.at(-1)?.t || 0);
@@ -1169,6 +1178,12 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
         return;
       }
 
+      if (event.code === "Backquote") {
+        event.preventDefault();
+        setShowDebug((value) => !value);
+        return;
+      }
+
       if (event.code === "Space") {
         event.preventDefault();
         setIsPlaying((playing) => !playing);
@@ -1240,6 +1255,20 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
 
   return (
     <div className="replay-view replay-view--workspace">
+      {showDebug ? (
+        <ReplayDebugPanel
+          currentTime={currentTime}
+          frameIndex={currentFrameIndex}
+          loadedFrames={replay.frames.length}
+          totalFrameCount={replay.frameCount ?? null}
+          playbackSpeed={playbackSpeed}
+          loadedEndTime={loadedEndTime}
+          chunkIndex={replay.frameChunkIndex ?? null}
+          frame={rawCurrentFrame}
+          nextFrameT={rawNextFrame?.t ?? null}
+          selectedDrivers={selectedDrivers}
+        />
+      ) : null}
       <section className="replay-session-banner">
         <div className="replay-session-banner__identity">
           <p className="eyebrow">Replay workspace</p>
@@ -1382,6 +1411,21 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
           </div>
 
           <div className="replay-heatmap-control" role="group" aria-label="Racing-line telemetry heatmap">
+            <span className="replay-heatmap-control__label">View</span>
+            {([
+              ["2d", "2D"],
+              ["3d", "3D"],
+            ] as const).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                className={`replay-heatmap-button${trackViewMode === key ? " replay-heatmap-button--active" : ""}`}
+                aria-pressed={trackViewMode === key}
+                onClick={() => setTrackViewMode(key)}
+              >
+                {label}
+              </button>
+            ))}
             <span className="replay-heatmap-control__label">Racing line</span>
             {([
               ["off", "Off"],
@@ -1409,6 +1453,18 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
                 ⚡ Fastest lap · {fastestLapToast.driver} · {formatLapTime(fastestLapToast.time)}
               </div>
             ) : null}
+            {trackViewMode === "3d" ? (
+              <ReplayScene3D
+                trackPath={replay.trackPath}
+                trackMetadata={replay.trackMetadata ?? null}
+                drivers={replay.drivers}
+                currentFrame={currentFrame}
+                nextFrame={nextFrame}
+                playheadTimeRef={playheadTimeRef}
+                estimatedLapDuration={estimatedLapDuration}
+                selectedDrivers={selectedDrivers}
+              />
+            ) : (
             <TrackCanvas
               trackPath={replay.trackPath}
               drivers={replay.drivers}
@@ -1435,6 +1491,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
               heatmapSamples={heatmapSamples}
               onDriverClick={handleDriverSelect}
             />
+            )}
 
             {(showMessageList && totalRaceControlMessages > 0) ? (
               <div className="replay-race-control replay-race-control--expanded">

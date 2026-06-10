@@ -32,8 +32,8 @@ export interface ProceduralSilhouetteOptions {
 export interface ProceduralSilhouette {
   polygon: Array<[number, number]>;
   wheelArches: Array<{ cx: number; cy: number; r: number }>;
-  /** Decorative auxiliary paths (front wing, floor edge, halo). */
-  details: Array<{ kind: "halo" | "frontWing" | "floor" | "rearWing" | "stripe"; points: Array<[number, number]> }>;
+  /** Decorative auxiliary paths (front wing, floor edge, halo, sidepod, beam wing). */
+  details: Array<{ kind: "halo" | "frontWing" | "floor" | "rearWing" | "stripe" | "sidepod" | "beamWing"; points: Array<[number, number]> }>;
   aspect: number;
 }
 
@@ -51,28 +51,50 @@ export function buildProceduralSilhouette(options: ProceduralSilhouetteOptions =
 
   // Top profile (front to back): the upper silhouette traced from the
   // front-wing tip rearwards, over the nose, halo, airbox, engine cover,
-  // and rear wing.
+  // and rear wing. Point density is roughly doubled compared with the
+  // original blocky outline so the renderer's midpoint-quadratic smoothing
+  // produces flowing curves instead of visible facets.
   const top: Array<[number, number]> = [
     [0.04, 0.78],                  // front-wing endplate top
+    [0.055, 0.81],                 // endplate-to-pylon blend
     [0.07, 0.84],                  // wing pylon
+    [0.085, noseHeight + 0.05],    // pylon-to-nose blend
     [0.10, noseHeight + 0.02],     // top of nose tip
+    [0.14, noseHeight - 0.01],     // nose taper
     [0.18, noseHeight - 0.04],     // nose plateau
+    [0.22, noseHeight - 0.06],     // nose mid
     [0.26, noseHeight - 0.08],     // nose-to-chassis transition
+    [0.285, noseHeight - 0.10],    // chassis blend
     [0.31, noseHeight - 0.12],     // monocoque front bulkhead
+    [0.335, 0.56],                 // cockpit ramp
     [0.36, 0.50],                  // bottom of cockpit opening (top of side intrusion structure)
+    [0.38, 0.46],                  // cockpit rim
     [0.40, 0.42],                  // halo front pillar base
+    [0.41, 0.37],                  // halo pillar mid
     [0.42, 0.32],                  // halo arc front
+    [0.44, 0.28],                  // halo arc rise
     [0.46, 0.26],                  // halo arc apex
+    [0.48, 0.27],                  // halo arc fall
     [0.50, 0.30],                  // halo arc rear
+    [0.52, 0.35],                  // halo-to-airbox saddle
     [0.54, 0.40],                  // airbox front
+    [0.56, 0.36],                  // airbox lip
     [0.58, 0.34],                  // airbox crest
+    [0.62, 0.355],                 // airbox-to-cover blend
     [0.66, 0.38],                  // engine cover apex
+    [0.71, 0.42],                  // engine cover slope
     [0.76, 0.46],                  // engine cover taper
+    [0.79, 0.49],                  // cover-to-deck blend
     [0.82, 0.52],                  // pre-rear-wing dip
+    [0.84, 0.53],                  // deck blend
     [0.86, 0.54],                  // rear deck
+    [0.87, rwHeight + 0.16],       // rear wing pillar base
     [0.88, rwHeight + 0.10],       // rear wing front pillar
+    [0.895, rwHeight + 0.04],      // pillar-to-plane blend
     [0.91, rwHeight],              // rear wing main plane top
+    [0.93, rwHeight + 0.02],       // main plane fall
     [0.95, rwHeight + 0.04],       // rear wing endplate top
+    [0.955, rwHeight + 0.07],      // endplate blend
     [0.96, rwHeight + 0.10],       // rear wing tip
   ];
 
@@ -80,18 +102,31 @@ export function buildProceduralSilhouette(options: ProceduralSilhouetteOptions =
   // diffuser -> front wing main plane -> wing endplate base.
   const bottom: Array<[number, number]> = [
     [0.96, rearWingUnderside],      // rear wing exit underside
+    [0.955, (rearWingUnderside + 0.74) * 0.5], // endplate trailing edge
     [0.95, 0.74],                  // rear floor exit
+    [0.925, 0.79],                 // diffuser kick
     [0.90, 0.84],                  // diffuser entry
+    [0.865, 0.86],                 // diffuser ramp
     [0.83, 0.88],                  // floor mid
+    [0.785, 0.89],                 // floor blend
     [0.74, 0.90],                  // floor edge under sidepod exit
+    [0.68, 0.905],                 // floor blend
     [0.62, 0.91],                  // floor under sidepod
+    [0.56, 0.91],                  // floor blend
     [0.50, 0.91],                  // floor under cockpit
+    [0.44, 0.91],                  // floor blend
     [0.38, 0.91],                  // floor under fuel cell
+    [0.33, 0.905],                 // floor blend
     [0.28, 0.90],                  // floor under nose
+    [0.24, 0.89],                  // splitter approach
     [0.20, 0.88],                  // splitter
+    [0.17, 0.87],                  // splitter blend
     [0.14, 0.86],                  // bargeboard area
+    [0.12, 0.85],                  // bargeboard blend
     [0.10, 0.84],                  // front wing main plane
+    [0.085, 0.84],                 // wing element blend
     [0.07, 0.84],                  // front wing endplate base
+    [0.055, 0.83],                 // endplate fall
     [0.04, 0.82],                  // wing tip base
   ];
 
@@ -117,6 +152,7 @@ export function buildProceduralSilhouette(options: ProceduralSilhouetteOptions =
       ],
     },
     {
+      // Front wing main plane.
       kind: "frontWing",
       points: [
         [0.02, 0.84],
@@ -125,11 +161,44 @@ export function buildProceduralSilhouette(options: ProceduralSilhouetteOptions =
       ],
     },
     {
+      // Front wing upper flap -- second stacked element, short parallel line.
+      kind: "frontWing",
+      points: [
+        [0.03, 0.805],
+        [0.095, 0.81],
+        [0.13, 0.83],
+      ],
+    },
+    {
       kind: "rearWing",
       points: [
         [0.86, options.drsOpen ? rwHeight + 0.08 : rwHeight + 0.12],
         [0.91, rwHeight],
         [0.96, options.drsOpen ? rwHeight + 0.02 : rwHeight + 0.06],
+      ],
+    },
+    {
+      // Lower beam wing plus the DRS flap. Convention: the last two points
+      // are the flap segment (leading point first); when drsOpen the
+      // renderer rotates the flap open about its leading point.
+      kind: "beamWing",
+      points: [
+        [0.875, rwHeight + 0.30],
+        [0.915, rwHeight + 0.26],
+        [0.955, rwHeight + 0.28],
+        [0.905, rwHeight - 0.015],
+        [0.955, rwHeight - 0.055],
+      ],
+    },
+    {
+      // Sidepod inlet undercut line.
+      kind: "sidepod",
+      points: [
+        [0.40, 0.60],
+        [0.45, 0.66],
+        [0.53, 0.70],
+        [0.62, 0.69],
+        [0.71, 0.63],
       ],
     },
     {

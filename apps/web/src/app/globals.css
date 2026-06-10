@@ -6482,3 +6482,220 @@ code {
     display: none;
   }
 }
+
+/* Modelview scroll-spy rail */
+.modelview-anchor {
+  scroll-margin-top: 88px;
+}
+
+.modelview-scrollspy {
+  position: fixed;
+  right: 18px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 40;
+}
+
+.modelview-scrollspy__list {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 10px 12px;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(8, 12, 20, 0.62);
+  backdrop-filter: blur(14px);
+}
+
+.modelview-scrollspy__link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-soft);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  transition: color 0.18s ease;
+}
+
+.modelview-scrollspy__dot {
+  width: 9px;
+  height: 9px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  background: transparent;
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.modelview-scrollspy__label {
+  opacity: 0;
+  transform: translateX(4px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.modelview-scrollspy:hover .modelview-scrollspy__label,
+.modelview-scrollspy__link:focus-visible .modelview-scrollspy__label,
+.modelview-scrollspy__link--active .modelview-scrollspy__label {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.modelview-scrollspy__link:hover,
+.modelview-scrollspy__link:focus-visible {
+  color: var(--ink);
+}
+
+.modelview-scrollspy__link--active {
+  color: var(--accent);
+}
+
+.modelview-scrollspy__link--active .modelview-scrollspy__dot {
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(255, 122, 26, 0.18);
+}
+
+@media (max-width: 1100px) {
+  .modelview-scrollspy {
+    display: none;
+  }
+}
+
+.replay-debug-panel {
+  position: fixed;
+  bottom: 16px;
+  left: 16px;
+  z-index: 70;
+  max-width: 340px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(8, 11, 17, 0.86);
+  color: var(--ink-soft);
+  font-family: "IBM Plex Mono", Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.5;
+  pointer-events: none;
+}
+
+.replay-debug-panel__title {
+  margin: 0 0 6px;
+  color: var(--accent);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.replay-debug-panel__grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 12px;
+  margin: 0;
+}
+
+.replay-debug-panel__grid--driver {
+  display: block;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+
+.replay-debug-panel__row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0 12px;
+}
+
+.replay-debug-panel dt {
+  margin: 0;
+  color: var(--ink-soft);
+  opacity: 0.7;
+}
+
+.replay-debug-panel dd {
+  margin: 0;
+  color: var(--ink);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.replay-debug-panel__empty {
+  margin: 6px 0 0;
+  opacity: 0.7;
+}
+
+/* Replay 3D view (R3F scene host) */
+.replay3d {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 360px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #0a0d13;
+}
+
+.replay3d canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+.replay3d__camera-bar {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(10, 13, 19, 0.78);
+  border: 1px solid rgba(125, 145, 180, 0.22);
+  backdrop-filter: blur(6px);
+}
+
+.replay3d__camera-button {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: #9fb2cc;
+  font: 600 12px/1.4 Aptos, sans-serif;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+.replay3d__camera-button:hover {
+  color: #e7edf7;
+}
+
+.replay3d__camera-button--active {
+  background: rgba(96, 138, 212, 0.22);
+  border-color: rgba(125, 165, 230, 0.45);
+  color: #e7edf7;
+}
+
+.replay3d__hint {
+  color: #6e7c93;
+  font: 500 11px/1.4 Aptos, sans-serif;
+  padding-right: 4px;
+  white-space: nowrap;
+}
+
+.replay3d__empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  min-height: 360px;
+  color: #7f8797;
+  font: 600 15px/1.4 Aptos, sans-serif;
+}

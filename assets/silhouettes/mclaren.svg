@@ -1,0 +1,100 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 400" fill="none">
+  <!--
+    Curated side profile: 2025 McLaren MCL39 (hand-authored art source).
+    Consumed by pipeline/export/src/build-silhouette-from-svg.mjs.
+    Conventions: x = forward (nose left? no - nose at LEFT, tail at RIGHT),
+    y down. Path id="body" must be closed. Detail paths are open polylines.
+    beamWing convention: the final two anchor points are the DRS flap
+    (leading point first); preceding points are the lower beam wing.
+  -->
+
+  <!-- Closed body outline: front wing tip -> nose -> cockpit/halo -> airbox
+       -> engine cover -> shark fin -> rear wing, then underside back to the
+       front wing. -->
+  <path id="body" stroke="#222" stroke-width="2" d="
+    M 30 310
+    C 45 300, 62 292, 85 285
+    C 140 270, 200 254, 260 240
+    C 295 232, 330 200, 360 175
+    C 372 165, 382 167, 390 165
+    C 410 140, 432 95, 455 65
+    C 470 52, 488 44, 505 42
+    C 524 44, 542 58, 560 80
+    C 575 95, 592 70, 610 62
+    C 628 58, 645 65, 660 75
+    C 720 105, 790 130, 850 150
+    C 870 155, 892 148, 905 140
+    C 912 145, 918 155, 920 160
+    C 928 130, 935 95, 945 70
+    C 962 60, 985 56, 1010 55
+    C 1035 56, 1058 57, 1075 60
+    C 1079 66, 1080 74, 1080 85
+    C 1079 100, 1077 116, 1075 130
+    C 1062 155, 1046 175, 1035 200
+    C 1037 230, 1039 262, 1040 290
+    C 1028 315, 1005 335, 980 345
+    C 870 358, 600 369, 300 372
+    C 278 370, 256 368, 240 365
+    C 205 360, 168 354, 140 350
+    C 122 352, 106 354, 90 355
+    C 72 354, 50 352, 35 350
+    C 31 340, 29 324, 30 310
+    Z" />
+
+  <!-- Halo arc. -->
+  <path id="halo" stroke="#9ab" stroke-width="2" d="
+    M 440 110
+    C 450 85, 458 65, 470 55
+    C 482 46, 494 42, 505 42
+    C 520 44, 534 50, 545 60
+    C 553 70, 560 82, 565 95" />
+
+  <!-- Front wing: main plane plus a second stacked flap element. -->
+  <path id="frontWing" stroke="#9ab" stroke-width="2" d="
+    M 25 350
+    C 48 350, 72 350, 95 352
+    C 118 355, 140 358, 160 362" />
+  <path id="frontWingFlap" stroke="#9ab" stroke-width="2" d="
+    M 30 330
+    C 54 330, 78 330, 100 332
+    C 118 335, 136 340, 150 345" />
+
+  <!-- Rear wing main plane. -->
+  <path id="rearWing" stroke="#9ab" stroke-width="2" d="
+    M 935 75
+    C 958 62, 984 56, 1010 55
+    C 1034 56, 1058 58, 1078 62" />
+
+  <!-- Lower beam wing, then the DRS flap as the final two anchors
+       (leading point first). -->
+  <path id="beamWing" stroke="#9ab" stroke-width="2" d="
+    M 940 210
+    L 990 200
+    L 1035 205
+    M 950 95
+    L 1030 75" />
+
+  <!-- Floor reference line. -->
+  <path id="floor" stroke="#456" stroke-width="2" d="
+    M 140 372
+    L 1000 368" />
+
+  <!-- Team accent stripe along the engine cover. -->
+  <path id="stripe" stroke="#ff8000" stroke-width="3" d="
+    M 200 270
+    C 280 230, 350 200, 420 180
+    C 495 158, 568 132, 640 120
+    C 715 128, 795 152, 860 175" />
+
+  <!-- Sidepod inlet undercut. -->
+  <path id="sidepod" stroke="#345" stroke-width="2" d="
+    M 430 230
+    C 452 246, 474 258, 500 265
+    C 530 274, 560 279, 590 280
+    C 622 279, 652 276, 680 270
+    C 708 262, 736 250, 760 235" />
+
+  <!-- Wheel arches. -->
+  <circle id="wheel-front" cx="250" cy="322" r="50" stroke="#222" stroke-width="2" />
+  <circle id="wheel-rear" cx="885" cy="322" r="50" stroke="#222" stroke-width="2" />
+</svg>
