@@ -703,7 +703,14 @@ function computeForces() {
   // convergence detector reads as noise.
   const groundDragFactor = groundMode === "rolling" ? 0.95 : 1.05;
   const wheelDragFactor = wheelMode === "rotating" ? 0.96 : 1.04;
+  // The pressure/wake terms are normalized by dynamic pressure (coefficient
+  // form), so re-scale the displayed force by q relative to the default
+  // 80 mph inlet. Without this, raising airspeed *lowered* the drag readout,
+  // which reads as broken physics in an educational tunnel.
+  const referenceQ = (80 / 60) * (80 / 60);
+  const forceScale = dynamicPressure / referenceQ;
   const drag = Math.max(0, pressureTerm * 0.55 + wakeTerm * 0.95 + blockageTerm)
+    * forceScale
     * (drsOpen ? 0.82 : 1)
     * groundDragFactor
     * wheelDragFactor;
@@ -713,7 +720,7 @@ function computeForces() {
     : 0;
   const groundLift = groundMode === "rolling" ? -0.055 : 0.020;
   const wheelLift = wheelMode === "rotating" ? -0.012 : 0.004;
-  return { drag, lift: normalizedLift * 0.32 + groundLift + wheelLift };
+  return { drag, lift: (normalizedLift * 0.32 + groundLift + wheelLift) * forceScale };
 }
 
 function columnTopAt(x: number) {

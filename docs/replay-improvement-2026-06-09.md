@@ -155,6 +155,30 @@ Parallel agents shipped the remaining feasible roadmap items in one pass:
   og:site_name present, McLaren tunnel renders, zero console errors across
   every probe. OCI health OK.
 
+## Wind tunnel SVG loop pass (2026-06-10, fourth deploy)
+
+Test-driven loop against the local static export (geometric QA + Playwright
+readout probes per iteration) until the SVG silhouette simulation behaved:
+
+- Geometric QA script validated the curated McLaren manifest: 100 evenly
+  resampled points, aspect 3.21, flat floor, sane wheelbase/arches, zero
+  self-intersections.
+- **Fix 1 - DRS had no solver effect in SVG mode.** The procedural builder
+  reshapes its outline when DRS opens, but curated SVG polygons were static;
+  only the cosmetic flap rotated. Added `applyDrsOpenToPolygon` (trims the
+  rear-wing crest of the body outline above the upper quartile for
+  x > 0.93 span) so the solver mask loses top-rear frontal area.
+  Measured: drag 1.157 -> 0.916 (-20.8%), on par with procedural (-21.3%).
+- **Fix 2 - raising airspeed lowered the drag readout.** `computeForces`
+  normalized pressure/wake terms by dynamic pressure (coefficient form) but
+  displayed the result as a force, so higher q deflated the number. Forces
+  now re-scale by q relative to the 80 mph reference: airspeed up now reads
+  drag 1.157 -> 2.109 (up, correct), and lift scales consistently.
+- Toggle matrix verified settled-state values: DRS -20.8%, rolling-road off
+  +12.4% drag, return-to-baseline exact (no hysteresis), yaw drives Cy,
+  reset restores baseline. Zero console errors throughout.
+- Prod smoke after deploy: same numbers on production; OCI health OK.
+
 ## Remaining
 - 2026 Bahrain/Saudi: gain real GPS + intervals + sectors once OpenF1
   publishes their `/location` and `/laps` data.

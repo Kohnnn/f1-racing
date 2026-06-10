@@ -484,8 +484,11 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
           if (cancelled) return;
           if (payload && Array.isArray(payload.polygon) && payload.polygon.length >= 16) {
             const aspect = typeof payload.aspect === "number" ? payload.aspect : computeAspect(payload.polygon);
+            const polygon = controls.drsOpen
+              ? applyDrsOpenToPolygon(payload.polygon as Array<[number, number]>)
+              : (payload.polygon as Array<[number, number]>);
             setProfile({
-              polygon: remapToTunnelFrame(payload.polygon, aspect),
+              polygon: remapToTunnelFrame(polygon, aspect),
               wheelArches: remapWheelArches(payload.wheelArches, aspect),
               aspect,
               details: remapProfileDetails(payload.details, aspect),
@@ -2259,6 +2262,35 @@ function remapWheelArches(arches: unknown, aspect: number): WheelArch[] {
       const [cx, cy] = remapDetailPoints([[arch.cx, arch.cy]], aspect)[0];
       return { cx, cy, r: arch.r * fit.fracH };
     });
+}
+
+/**
+ * DRS-open variant of a curated SVG silhouette: shave the rear-wing crest of
+ * the body outline so the solver mask loses frontal area at the top-rear,
+ * mirroring how the procedural builder trims rwHeight when DRS opens. Points
+ * in the rear-upper region (x > 0.93 of the span, top quarter) are pushed
+ * down by ~35% of their height above the upper-quartile line, tuned so the
+ * solver drag drop lands near the real-world ~10% DRS effect.
+ */
+function applyDrsOpenToPolygon(polygon: Array<[number, number]>): Array<[number, number]> {
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  for (const [x, y] of polygon) {
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  const spanX = maxX - minX || 1;
+  const spanY = maxY - minY || 1;
+  const upperQuartileY = minY + spanY * 0.25;
+  return polygon.map(([x, y]) => {
+    const tx = (x - minX) / spanX;
+    if (tx > 0.93 && y < upperQuartileY) {
+      const lift = upperQuartileY - y;
+      return [x, y + lift * 0.35];
+    }
+    return [x, y];
+  });
 }
 
 function computeAspect(polygon: Array<[number, number]>): number {
