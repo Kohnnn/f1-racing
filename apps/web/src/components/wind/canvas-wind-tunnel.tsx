@@ -94,7 +94,15 @@ const TRAIL_LENGTH = 16;
 
 const INLET_MARKERS = [0.20, 0.30, 0.40, 0.52, 0.64, 0.76, 0.86];
 const STREAMLINE_SEEDS = [0.28, 0.36, 0.44, 0.52, 0.60, 0.68, 0.76, 0.84, 0.91];
-const CURATED_SVG_SILHOUETTES = new Set(["fia-2026", "mclaren"]);
+const CURATED_SVG_SILHOUETTES = new Set([
+  "fia-2026",
+  "mclaren",
+  "red-bull",
+  "ferrari",
+  "mercedes",
+  "aston-martin",
+  "alpine",
+]);
 
 const FLOW_VIEW_META: Record<FlowView, { label: string; description: string; low: string; high: string }> = {
   ribbon: {
@@ -1939,7 +1947,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
               : mode === "airfoil"
                 ? "NACA-style wing section for validating angle-of-attack flow"
                 : mode === "svg"
-                  ? hasCuratedSvg ? "Hand-curated per-constructor SVG" : "No curated SVG silhouette is available for this constructor"
+                  ? hasCuratedSvg ? "Detailed per-constructor silhouette traced 1:1 from the car's 3D model" : "No silhouette is available for this constructor"
                   : "GLB-derived column-envelope hull"}
           >
             {mode === "procedural" ? "Procedural" : mode === "airfoil" ? "Airfoil" : mode === "svg" ? "SVG art" : "GLB hull"}
@@ -2283,9 +2291,14 @@ function applyDrsOpenToPolygon(polygon: Array<[number, number]>): Array<[number,
   const spanX = maxX - minX || 1;
   const spanY = maxY - minY || 1;
   const upperQuartileY = minY + spanY * 0.25;
+  const rearWingPoints = polygon
+    .map(([x, y]) => ({ x, y, tx: (x - minX) / spanX }))
+    .filter((point) => point.tx > 0.75 && point.y < upperQuartileY);
+  const rearWingMaxTx = rearWingPoints.reduce((max, point) => Math.max(max, point.tx), 0.93);
+  const rearWingStartTx = Math.max(0.75, rearWingMaxTx - 0.08);
   return polygon.map(([x, y]) => {
     const tx = (x - minX) / spanX;
-    if (tx > 0.93 && y < upperQuartileY) {
+    if (tx >= rearWingStartTx && y < upperQuartileY) {
       const lift = upperQuartileY - y;
       return [x, y + lift * 0.35];
     }

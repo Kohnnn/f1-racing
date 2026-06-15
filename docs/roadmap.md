@@ -84,6 +84,10 @@ report. Each pass touches one or more of these surfaces:
 
 - Frontend deploys via `npx netlify deploy --prod --no-build --dir
   apps/web/out --site d783914b-0638-46bc-ae4b-371b66cca51e`.
+- Latest production deploy `6a30266fabc4dac8b37dd5c8` shipped GLB-traced
+  SVG-art silhouettes for Red Bull, Ferrari, Mercedes, Aston Martin, and Alpine.
+  Prod smoke passed for all six tested SVG constructors; OCI health was blocked
+  by a TLS alert from this Windows shell, not by a frontend request failure.
 - OCI backend lives at `https://f1-api.129.150.58.64.sslip.io`. SSH access
   uses `OCI_SSH_CONNECT` from `.env`. See `deploy/oci/README.md` for the
   preserve-env redeploy flow.

@@ -25,20 +25,20 @@
 
 import { mkdir, readFile, writeFile, copyFile, readdir } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { NodeIO } from "@gltf-transform/core";
 import { ALL_EXTENSIONS } from "@gltf-transform/extensions";
 import draco3d from "draco3dgltf";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
-const GRID_NX = 384;
-const GRID_NY = 144;
+export const GRID_NX = 384;
+export const GRID_NY = 144;
 
 const TARGET_ASPECT = 3.05; // F1 side view length / height
 const MIN_ASPECT = 1.6;     // anything below this can't be a side view
 
-async function loadGlbPositions(glbPath) {
+export async function loadGlbPositions(glbPath) {
   const io = new NodeIO()
     .registerExtensions(ALL_EXTENSIONS)
     .registerDependencies({
@@ -103,7 +103,7 @@ async function loadGlbPositions(glbPath) {
  * using the 1st and 99th percentile of each axis to ignore stray outlier
  * points (suspension uprights, screws, etc.).
  */
-function computeRanges(points) {
+export function computeRanges(points) {
   if (!points.length) return null;
   const xs = points.map((p) => p[0]).sort((a, b) => a - b);
   const ys = points.map((p) => p[1]).sort((a, b) => a - b);
@@ -133,7 +133,7 @@ function computeRanges(points) {
  * `axesOverride` shape: { forward: "+x" | "-x" | "+y" | "-y" | "+z" | "-z",
  *                          up: "+x" | "-x" | "+y" | "-y" | "+z" | "-z" }.
  */
-function pickAxes(points, ranges, axesOverride) {
+export function pickAxes(points, ranges, axesOverride) {
   const sizes = [
     { axis: 0, len: ranges.x.max - ranges.x.min, name: "x" },
     { axis: 1, len: ranges.y.max - ranges.y.min, name: "y" },
@@ -235,7 +235,7 @@ function computeUpSign(points, ranges, upAxis) {
   return lower > upper ? 1 : -1;
 }
 
-function projectToSide(points, axes, ranges) {
+export function projectToSide(points, axes, ranges) {
   const fwdMin = ranges["xyz"[axes.forwardAxis]].min;
   const fwdMax = ranges["xyz"[axes.forwardAxis]].max;
   const upMin = ranges["xyz"[axes.upAxis]].min;
@@ -252,7 +252,7 @@ function projectToSide(points, axes, ranges) {
   return out;
 }
 
-function buildOccupancyGrid(side2d, ranges, axes) {
+export function buildOccupancyGrid(side2d, ranges, axes) {
   // Density-based silhouette extraction. Single-point occupancy is too noisy
   // because GLB vertex clouds are sparse and scatter beyond the actual body
   // (halo struts, suspension uprights, decals). Instead we count points per
@@ -369,7 +369,7 @@ function keepLargestComponent(grid) {
   return filtered;
 }
 
-function traceContour(grid) {
+export function traceContour(grid) {
   // Column-envelope silhouette extractor. For each grid column we find the
   // top-most and bottom-most occupied cell. The polygon is then formed by
   // walking along the top envelope from left to right, then back along the
@@ -443,7 +443,7 @@ function smoothEnvelope(values, xStart, xEnd) {
   return out;
 }
 
-function simplifyPolygon(polygon, tolerance = 1.4) {
+export function simplifyPolygon(polygon, tolerance = 1.4) {
   if (polygon.length < 4) return polygon;
   const sqTolerance = tolerance * tolerance;
   function sqSegDist(p, p1, p2) {
@@ -477,7 +477,7 @@ function simplifyPolygon(polygon, tolerance = 1.4) {
   return simplified;
 }
 
-function smoothPolygon(polygon, passes = 2) {
+export function smoothPolygon(polygon, passes = 2) {
   let current = polygon;
   for (let p = 0; p < passes; p += 1) {
     const next = [];
@@ -498,7 +498,7 @@ function smoothPolygon(polygon, passes = 2) {
  * into bins and look for cells where the silhouette extends close to the
  * floor; circular arches sit roughly at those positions.
  */
-function detectWheelsFromPolygon(polygon) {
+export function detectWheelsFromPolygon(polygon) {
   if (!polygon.length) return [];
   const xs = polygon.map((p) => p[0]);
   const ys = polygon.map((p) => p[1]);
@@ -548,7 +548,7 @@ function detectWheelsFromPolygon(polygon) {
   });
 }
 
-function normalizePolygonToCanvas(polygon) {
+export function normalizePolygonToCanvas(polygon) {
   // Bbox-normalize each axis independently to [0,1]. The aspect ratio is
   // recorded separately in the JSON so consumers can preserve the real
   // silhouette aspect when laying it out.
@@ -648,7 +648,7 @@ async function processModel(entry, glbPath, outDir) {
   return true;
 }
 
-function fallbackWheelArches() {
+export function fallbackWheelArches() {
   return [
     { cx: 0.22, cy: 0.86, r: 0.052 },
     { cx: 0.78, cy: 0.86, r: 0.052 },
@@ -684,7 +684,10 @@ async function main() {
   process.stdout.write(`\nDone. ok=${ok} fail=${fail}\n`);
 }
 
-main().catch((error) => {
-  process.stderr.write(`${error instanceof Error ? error.stack || error.message : error}\n`);
-  process.exit(1);
-});
+const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+if (isMain) {
+  main().catch((error) => {
+    process.stderr.write(`${error instanceof Error ? error.stack || error.message : error}\n`);
+    process.exit(1);
+  });
+}

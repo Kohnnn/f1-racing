@@ -203,6 +203,36 @@ readout probes per iteration) until the SVG silhouette simulation behaved:
   both confirm the 3D canvas mounts, car clicks fire, zero console errors.
   OCI health OK.
 
+## Constructor SVG silhouettes (2026-06-15)
+- Closed the remaining wind-tunnel silhouette gap for the five GLB-backed
+  constructors that still fell back to procedural outlines: Red Bull, Ferrari,
+  Mercedes, Aston Martin, and Alpine.
+- Refactored `pipeline/export/src/build-wind-profiles.mjs` so the proven GLB
+  trace pipeline is importable without executing its CLI. The silhouette builder
+  now reuses the same 1:1 hull trace instead of approximating from screenshots
+  or hand-authored paths.
+- Added `pipeline/export/src/build-silhouette-from-glb.mjs`: loads each GLB,
+  traces the side envelope, normalizes orientation to nose-left / floor-bottom /
+  rear-right, arc-length resamples to 100 points, derives floor/wing/halo/
+  sidepod detail bands, and writes both `data/silhouettes/` and
+  `apps/web/public/data/silhouettes/` mirrors plus ASCII/SVG review snapshots.
+- Registered the five new slugs in `CURATED_SVG_SILHOUETTES`; SVG-art mode now
+  covers FIA 2026, McLaren, Red Bull, Ferrari, Mercedes, Aston Martin, and
+  Alpine.
+- Hardened `applyDrsOpenToPolygon` to find the upper rear-wing crest
+  dynamically. Aston Martin's rear wing sits slightly inboard of the old
+  `x > 0.93` trim window, so DRS was a no-op there; the new logic targets the
+  actual upper-rear crest while preserving the existing effect on other cars.
+- Verified: DRS trim affects every new constructor; `tsc --noEmit -p apps/web`
+  clean; `next:build` clean; local SVG-art Playwright probe passed for Red Bull,
+  Ferrari, Mercedes, Aston Martin, Alpine, and McLaren.
+- Production deploy `6a30266fabc4dac8b37dd5c8` passed the same SVG-art smoke on
+  `https://playful-peony-77899c.netlify.app`: each silhouette fetches 200,
+  SVG-art is active, canvas paints non-blank, zero console errors, zero failed
+  requests. OCI health could not be checked from this Windows shell because the
+  endpoint returned a TLS alert before HTTP (`tlsv1 alert internal error`) via
+  curl, PowerShell, and Node fetch.
+
 ## Remaining
 - 2026 Bahrain/Saudi: gain real GPS + intervals + sectors once OpenF1
   publishes their `/location` and `/laps` data.
