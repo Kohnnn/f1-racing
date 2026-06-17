@@ -4,7 +4,7 @@ import "./globals.css";
 import { SiteNav } from "@/components/shell/site-nav";
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://playful-peony-77899c.netlify.app"),
+  metadataBase: new URL("https://f1-demo.netlify.app"),
   title: {
     default: "F1 Racing",
     template: "%s · F1 Racing",

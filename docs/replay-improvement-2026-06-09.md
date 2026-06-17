@@ -5,7 +5,7 @@ real GPS positions, and leverage telemetry. Shipped incrementally with the
 standard gate (build → local Playwright smoke → Netlify prod deploy → prod
 smoke → OCI health) between each.
 
-Production URL: https://playful-peony-77899c.netlify.app
+Production URL: https://f1-demo.netlify.app
 OCI health: https://f1-api.129.150.58.64.sslip.io/health
 
 ## Phase 1 — Position fixes (commit 7f33fe6)
@@ -227,7 +227,7 @@ readout probes per iteration) until the SVG silhouette simulation behaved:
   clean; `next:build` clean; local SVG-art Playwright probe passed for Red Bull,
   Ferrari, Mercedes, Aston Martin, Alpine, and McLaren.
 - Production deploy `6a30266fabc4dac8b37dd5c8` passed the same SVG-art smoke on
-  `https://playful-peony-77899c.netlify.app`: each silhouette fetches 200,
+  `https://f1-demo.netlify.app`: each silhouette fetches 200,
   SVG-art is active, canvas paints non-blank, zero console errors, zero failed
   requests. OCI health could not be checked from this Windows shell because the
   endpoint returned a TLS alert before HTTP (`tlsv1 alert internal error`) via

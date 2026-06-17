@@ -12,7 +12,7 @@ The current Formula 1 explainer at `interactive-explanation/formula-1-racing/` i
 
 ## Live deployment
 
-- Production URL: `https://f1-racing-622.netlify.app`
+- Production URL: `https://f1-demo.netlify.app`
 - Current production deploy flow: `docs/deploy-guide.md`
 - Static output directory: `apps/web/out`
 

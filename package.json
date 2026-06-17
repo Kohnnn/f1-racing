@@ -26,7 +26,7 @@
     "build:openf1:session": "node pipeline/export/src/build-openf1-session-pack.mjs",
     "build:silhouettes": "node pipeline/export/src/build-silhouette-from-svg.mjs",
     "build:openf1:replay": "node pipeline/export/src/build-openf1-replay-pack.mjs",
-    "refresh:showcase:replay": "node pipeline/export/src/build-openf1-replay-pack.mjs --grandPrixSlug abu-dhabi-grand-prix --sessionSlug race && node pipeline/export/src/split-replay-packs.mjs",
+    "refresh:showcase:replay": "node pipeline/export/src/build-openf1-session-pack.mjs --grandPrixSlug abu-dhabi-grand-prix --sessionSlug race && node pipeline/export/src/build-openf1-replay-pack.mjs --grandPrixSlug abu-dhabi-grand-prix --sessionSlug race && node pipeline/export/src/refresh-seasons-index.mjs && node pipeline/export/src/split-replay-packs.mjs",
     "build:fastf1:replay": "python pipeline/fastf1/build-fastf1-replay-pack.py",
     "build:fastf1:replay:2025": "node pipeline/fastf1/rebuild-fastf1-season.mjs --year 2025",
     "build:fastf1:replay:local": "pip install -r pipeline/fastf1/requirements.txt && python pipeline/fastf1/build-fastf1-replay-pack.py",

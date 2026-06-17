@@ -83,7 +83,7 @@ Invoke-Expression "$ociSsh 'cp /srv/f1-racing-api/current/deploy/oci/f1-racing-a
 Current minimum value:
 
 ```text
-F1_CORS_ALLOWED_ORIGINS=https://playful-peony-77899c.netlify.app,http://localhost:3000
+F1_CORS_ALLOWED_ORIGINS=https://f1-demo.netlify.app,http://localhost:3000
 ```
 
 Update this when your frontend domain changes.

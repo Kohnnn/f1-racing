@@ -4,7 +4,7 @@ import { learnModules } from "./learn/modules";
 
 export const dynamic = "force-static";
 
-const BASE_URL = "https://playful-peony-77899c.netlify.app";
+const BASE_URL = "https://f1-demo.netlify.app";
 
 const STATIC_ROUTES = [
   "/",

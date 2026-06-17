@@ -1,6 +1,14 @@
 import { chromium } from "playwright";
 
+function getBaseUrl() {
+  const baseIndex = process.argv.indexOf("--base");
+  const baseArg = process.argv.find((arg) => arg.startsWith("--base="));
+  const raw = baseArg?.slice("--base=".length) ?? (baseIndex >= 0 ? process.argv[baseIndex + 1] : null);
+  return (raw || "http://127.0.0.1:4199").replace(/\/$/, "");
+}
+
 const constructors = ["red-bull", "ferrari", "mercedes", "aston-martin", "alpine", "mclaren"];
+const baseUrl = getBaseUrl();
 const browser = await chromium.launch({ headless: true });
 let anyFail = false;
 
@@ -17,7 +25,7 @@ for (const slug of constructors) {
     if (resp.url().includes(`/data/silhouettes/${slug}.json`)) silhouetteStatus = resp.status();
   });
 
-  const url = `http://127.0.0.1:4199/cars/current-spec/?season=2025&constructor=${slug}&focus=front-wing`;
+  const url = `${baseUrl}/cars/current-spec/?season=2025&constructor=${slug}&focus=front-wing`;
   await page.goto(url, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.waitForTimeout(3000);
 

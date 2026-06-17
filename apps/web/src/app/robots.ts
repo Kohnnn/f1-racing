@@ -8,6 +8,6 @@ export default function robots(): MetadataRoute.Robots {
       userAgent: "*",
       allow: "/",
     },
-    sitemap: "https://playful-peony-77899c.netlify.app/sitemap.xml",
+    sitemap: "https://f1-demo.netlify.app/sitemap.xml",
   };
 }
