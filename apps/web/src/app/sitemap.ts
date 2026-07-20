@@ -8,7 +8,7 @@ const BASE_URL = "https://f1-demo.netlify.app";
 
 const STATIC_ROUTES = [
   "/",
-  "/live",
+  "/race-desk",
   "/replay",
   "/compare",
   "/stints",

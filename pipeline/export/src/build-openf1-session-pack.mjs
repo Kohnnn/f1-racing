@@ -50,22 +50,19 @@ async function writeJson(relativePath, payload) {
 }
 
 function summarizeWeather(samples) {
-  if (!samples.length) {
-    return {
-      airTempC: 0,
-      trackTempC: 0,
-      rainRiskPct: 0,
-    };
-  }
-
-  const airTempC = samples.reduce((sum, item) => sum + Number(item.air_temperature || 0), 0) / samples.length;
-  const trackTempC = samples.reduce((sum, item) => sum + Number(item.track_temperature || 0), 0) / samples.length;
-  const rainRiskPct = Math.max(...samples.map((item) => Number(item.rainfall || 0)), 0) * 100;
+  const values = (field) => samples
+    .map((item) => item[field])
+    .filter((value) => value != null)
+    .map(Number)
+    .filter(Number.isFinite);
+  const airTemps = values("air_temperature");
+  const trackTemps = values("track_temperature");
+  const rainfall = values("rainfall");
 
   return {
-    airTempC: Math.round(airTempC),
-    trackTempC: Math.round(trackTempC),
-    rainRiskPct: Math.round(rainRiskPct),
+    airTempC: airTemps.length ? Math.round(airTemps.reduce((sum, value) => sum + value, 0) / airTemps.length) : null,
+    trackTempC: trackTemps.length ? Math.round(trackTemps.reduce((sum, value) => sum + value, 0) / trackTemps.length) : null,
+    rainRiskPct: rainfall.length ? Math.round(Math.max(...rainfall) * 100) : null,
   };
 }
 
@@ -400,6 +397,7 @@ function buildCompareAnnotations(compare) {
 
 function buildStrategyPack(trackId, stints, weatherSummary) {
   const maxTyreAge = Math.max(...stints.map((stint) => Number(stint.tyre_age_at_start ?? 0)), 0);
+  const rainRiskPct = weatherSummary.rainRiskPct ?? 0;
 
   // Group stints by lap window so the recommended windows are real pit-strategy
   // bands (e.g. lap 18-22 medium, lap 38-44 hard) rather than per-driver duplicates.
@@ -440,8 +438,8 @@ function buildStrategyPack(trackId, stints, weatherSummary) {
     safetyCarPitLossS: Number((11 + Math.min(maxTyreAge, 10) * 0.12).toFixed(1)),
     recommendedWindows,
     weatherCrossover: {
-      toIntermediate: Number((Math.min(0.95, weatherSummary.rainRiskPct / 100 + 0.4)).toFixed(2)),
-      toWet: Number((Math.min(0.99, weatherSummary.rainRiskPct / 100 + 0.58)).toFixed(2)),
+      toIntermediate: Number((Math.min(0.95, rainRiskPct / 100 + 0.4)).toFixed(2)),
+      toWet: Number((Math.min(0.99, rainRiskPct / 100 + 0.58)).toFixed(2)),
     },
   };
 }

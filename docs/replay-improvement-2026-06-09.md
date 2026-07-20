@@ -132,7 +132,7 @@ Parallel agents shipped the remaining feasible roadmap items in one pass:
   smoothstep easing, residual smoother) so 2D and 3D stay in lockstep. Track
   ribbon + kerbs + corner billboards, low-poly cars with spinning wheels,
   DRS flap animation, brake glow, compound-coloured wheel rings,
-  position-change pulse, Orbit/Chase/TV camera rigs, yellow-flag atmosphere.
+  position-change pulse, Director/Follow/Trackside/Helicopter/Orbit camera rigs, yellow-flag atmosphere.
   Loaded via `next/dynamic` (ssr:false) so the 2D-only path pays no cost.
   New deps: three / @react-three/fiber / @react-three/drei (web workspace).
 - **Replay debug panel** (`replay-debug-panel.tsx`): backtick toggle or
@@ -150,7 +150,7 @@ Parallel agents shipped the remaining feasible roadmap items in one pass:
   wing detail kinds, DRS flap that rotates open with the DRS control; new
   `build-silhouette-from-svg.mjs` pipeline (assets/silhouettes/<slug>.svg →
   data/silhouettes/<slug>.json) with a curated McLaren side profile.
-- Prod smoke: 3D toggle renders (Orbit/Chase/TV all clean during playback),
+- Prod smoke: 3D toggle renders (Director/Follow/Trackside/Helicopter/Orbit all clean during playback),
   debug panel toggles, scroll-spy anchors resolve, sitemap/robots 200,
   og:site_name present, McLaren tunnel renders, zero console errors across
   every probe. OCI health OK.

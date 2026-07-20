@@ -134,6 +134,27 @@ These predate the art system and stay where they are:
 - Posters: `apps/web/public/posters/<season>/<slug>/<chassis>.svg`
   hand-authored.
 
+### Replay 3D broadcast scene
+
+All Replay 3D assets are self-hosted and released under Creative Commons CC0 1.0:
+
+- Formula car: mabaci, "Free, Low Poly 3D Race car model," OpenGameArt,
+  <https://opengameart.org/content/free-low-poly-3d-race-car-model-%F0%9F%8F%8D%EF%B8%8F%F0%9F%8F%81%F0%9F%9A%A6%F0%9F%8F%86>.
+  Local path: `apps/web/public/replay-3d/formula-car.glb`.
+- Circuit props: Kenney, "Racing Kit," <https://kenney.nl/assets/racing-kit>.
+  Local paths: `apps/web/public/replay-3d/props/barrierWall.glb`,
+  `fenceStraight.glb`, `grandStandCovered.glb`, `lightPostLarge.glb`,
+  `overhead.glb`, `pitsGarage.glb`, `pitsOffice.glb`, `pylon.glb`,
+  `tent.glb`, and `treeLarge.glb` in the same directory.
+- Asphalt material: ambientCG, "Asphalt 010," <https://ambientcg.com/view?id=Asphalt010>.
+  The source maps were resized to 512×512 WebP for delivery. Local paths:
+  `apps/web/public/replay-3d/asphalt-color.webp`, `asphalt-normal.webp`, and
+  `asphalt-roughness.webp`.
+- Environment lighting: Greg Zaal and Jarod Guest, "Kloofendal 48d Partly
+  Cloudy (Pure Sky)," Poly Haven,
+  <https://polyhaven.com/a/kloofendal_48d_partly_cloudy_puresky>.
+  Local path: `apps/web/public/replay-3d/kloofendal-pure-sky-1k.hdr`.
+
 ---
 
 ## 5. Helpers

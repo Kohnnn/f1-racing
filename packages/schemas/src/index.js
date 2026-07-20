@@ -43,9 +43,9 @@ export const SessionSummarySchema = z.object({
   source: z.literal("openf1"),
   drivers: z.array(z.string()),
   weatherSummary: z.object({
-    airTempC: z.number(),
-    trackTempC: z.number(),
-    rainRiskPct: z.number(),
+    airTempC: z.number().nullable(),
+    trackTempC: z.number().nullable(),
+    rainRiskPct: z.number().nullable(),
   }),
 });
 
@@ -351,6 +351,9 @@ export const ReplayFrameDriverSchema = z.object({
   interval: z.number().nullable(),
   tyreCompound: z.string().nullable(),
   tyreAge: z.number().int().nullable(),
+  rawX: z.number().nullable().optional(),
+  rawY: z.number().nullable().optional(),
+  positionSource: z.enum(["gps", "synthetic"]).optional(),
 });
 
 export const ReplayWeatherSampleSchema = z.object({
@@ -387,9 +390,9 @@ export const ReplayPackSchema = z.object({
   source: z.union([z.literal("openf1"), z.literal("fastf1")]),
   note: z.string().optional(),
   weatherSummary: z.object({
-    airTempC: z.number(),
-    trackTempC: z.number(),
-    rainRiskPct: z.number(),
+    airTempC: z.number().nullable(),
+    trackTempC: z.number().nullable(),
+    rainRiskPct: z.number().nullable(),
   }).optional(),
   drivers: z.array(z.object({
     driverCode: z.string(),
@@ -413,6 +416,23 @@ export const ReplayPackSchema = z.object({
     scope: z.string().nullable(),
     sector: z.number().int().nullable(),
     message: z.string(),
+  })).optional(),
+  totalTime: z.number().nonnegative().optional(),
+  totalLaps: z.number().int().nonnegative().optional(),
+  fastestLap: z.object({
+    driverCode: z.string(),
+    lapNumber: z.number().int(),
+    lapTime: z.number().nullable(),
+    compound: z.string().nullable(),
+  }).nullable().optional(),
+  frameCount: z.number().int().nonnegative().optional(),
+  frameChunkSize: z.number().int().positive().optional(),
+  frameChunks: z.array(z.string()).optional(),
+  frameChunkIndex: z.array(z.object({
+    index: z.number().int().nonnegative(),
+    fromTime: z.number().nonnegative(),
+    toTime: z.number().nonnegative(),
+    path: z.string(),
   })).optional(),
   frames: z.array(ReplayFrameSchema),
 });

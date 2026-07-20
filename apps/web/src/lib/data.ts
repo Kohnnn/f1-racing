@@ -40,9 +40,9 @@ export interface SessionSummary {
   source: "openf1";
   drivers: string[];
   weatherSummary: {
-    airTempC: number;
-    trackTempC: number;
-    rainRiskPct: number;
+    airTempC: number | null;
+    trackTempC: number | null;
+    rainRiskPct: number | null;
   };
 }
 
@@ -570,9 +570,9 @@ export interface ReplayPack {
   source: "openf1" | "fastf1";
   note?: string;
   weatherSummary?: {
-    airTempC: number;
-    trackTempC: number;
-    rainRiskPct: number;
+    airTempC: number | null;
+    trackTempC: number | null;
+    rainRiskPct: number | null;
   };
   drivers: ReplayDriver[];
   trackPath: [number, number][] | null;

@@ -45,9 +45,9 @@ function buildFallbackSummary(season: string, grandPrix: string, session: string
     source: "openf1",
     drivers: [],
     weatherSummary: {
-      airTempC: 0,
-      trackTempC: 0,
-      rainRiskPct: 0,
+      airTempC: null,
+      trackTempC: null,
+      rainRiskPct: null,
     },
   };
 }

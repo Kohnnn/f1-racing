@@ -1,18 +1,18 @@
 {
   "version": 1,
   "seasons": [
-    2024,
+    2026,
     2025,
-    2026
+    2024
   ],
   "latest": {
-    "season": 2025,
-    "grandPrixSlug": "abu-dhabi-grand-prix",
+    "season": 2026,
+    "grandPrixSlug": "miami-grand-prix",
     "sessionSlug": "race",
-    "grandPrixName": "Abu Dhabi Grand Prix",
+    "grandPrixName": "Miami Grand Prix",
     "sessionName": "Race",
-    "sessionKey": 9839,
-    "trackId": "yas-marina-circuit",
-    "path": "/sessions/2025/abu-dhabi-grand-prix/race"
+    "sessionKey": 11280,
+    "trackId": "miami",
+    "path": "/sessions/2026/miami-grand-prix/race"
   }
 }

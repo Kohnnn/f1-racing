@@ -47,6 +47,7 @@ export interface DriverHoverMeta {
   lastLapMs?: number | null;
   bestLapMs?: number | null;
   gap?: string | null;
+  gapProvenance?: string | null;
   interval?: string | null;
 }
 
@@ -675,6 +676,20 @@ export function TrackCanvas({
     transformRef.current = { tx: 0, ty: 0, scale: 1, rot: 0 };
   }
 
+  function handleKeyDown(event: React.KeyboardEvent<HTMLCanvasElement>) {
+    const transform = transformRef.current;
+    const panAmount = event.shiftKey ? 56 : 24;
+    if (event.key === "ArrowLeft") transform.tx += panAmount;
+    else if (event.key === "ArrowRight") transform.tx -= panAmount;
+    else if (event.key === "ArrowUp") transform.ty += panAmount;
+    else if (event.key === "ArrowDown") transform.ty -= panAmount;
+    else if (event.key === "+" || event.key === "=") transform.scale = Math.min(MAX_SCALE, transform.scale * 1.15);
+    else if (event.key === "-") transform.scale = Math.max(MIN_SCALE, transform.scale / 1.15);
+    else if (event.key === "0") resetTransform();
+    else return;
+    event.preventDefault();
+  }
+
   function handleDoubleClick() {
     resetTransform();
   }
@@ -739,10 +754,14 @@ export function TrackCanvas({
         onPointerCancel={handlePointerUp}
         onPointerLeave={handlePointerLeave}
         onWheel={handleWheel}
+        onKeyDown={handleKeyDown}
         onDoubleClick={handleDoubleClick}
         onContextMenu={(e) => e.preventDefault()}
+        aria-label="Interactive 2D race track map"
+        aria-description="Use arrow keys to pan, plus or minus to zoom, and zero to reset the track view."
+        tabIndex={0}
         className="replay-track-canvas"
-        style={{ width: "100%", height: "100%", display: "block", touchAction: "none" }}
+        style={{ width: "100%", height: "100%", display: "block", touchAction: "pan-y" }}
       />
       {hover && hoverTarget ? (
         <div
@@ -761,7 +780,7 @@ export function TrackCanvas({
             <p className="replay-track-canvas__tooltip-line"><span>Team</span><strong>{hoverMeta?.team ?? hoverTarget.team}</strong></p>
           ) : null}
           {fields.gap && hoverMeta?.gap ? (
-            <p className="replay-track-canvas__tooltip-line"><span>Gap</span><strong>{hoverMeta.gap}</strong></p>
+            <p className="replay-track-canvas__tooltip-line"><span>Gap</span><strong>{hoverMeta.gap}</strong>{hoverMeta.gapProvenance ? <small>{hoverMeta.gapProvenance}</small> : null}</p>
           ) : null}
           {fields.lastLap && typeof hoverMeta?.lastLapMs === "number" && hoverMeta.lastLapMs > 0 ? (
             <p className="replay-track-canvas__tooltip-line"><span>Last lap</span><strong>{formatLap(hoverMeta.lastLapMs)}</strong></p>

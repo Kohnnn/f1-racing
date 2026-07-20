@@ -1,6 +1,7 @@
 import { copyFile, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { refreshFeaturedIndexes } from "./refresh-seasons-index.mjs";
 import {
   CarModelCatalogSchema,
   CfdOverlaySchemaExampleSchema,
@@ -444,78 +445,6 @@ async function writeMirrored(relativePath, payload) {
   await writeJson(path.join(publicRoot, relativePath), payload);
 }
 
-async function readAvailablePackRefs() {
-  const seasonsDir = path.join(dataRoot, "packs", "seasons");
-  let seasonEntries = [];
-  try {
-    seasonEntries = await readdir(seasonsDir, { withFileTypes: true });
-  } catch {
-    return [];
-  }
-
-  const refs = [];
-  for (const seasonEntry of seasonEntries) {
-    if (!seasonEntry.isDirectory()) {
-      continue;
-    }
-    const seasonDir = path.join(seasonsDir, seasonEntry.name);
-    const grandPrixEntries = await readdir(seasonDir, { withFileTypes: true });
-    for (const grandPrixEntry of grandPrixEntries) {
-      if (!grandPrixEntry.isDirectory()) {
-        continue;
-      }
-      const grandPrixDir = path.join(seasonDir, grandPrixEntry.name);
-      const sessionEntries = await readdir(grandPrixDir, { withFileTypes: true });
-      for (const sessionEntry of sessionEntries) {
-        if (!sessionEntry.isDirectory()) {
-          continue;
-        }
-        const sessionDir = path.join(grandPrixDir, sessionEntry.name);
-        const summaryPath = path.join(sessionDir, "summary.json");
-        try {
-          const summary = JSON.parse(await readFile(summaryPath, "utf-8"));
-          refs.push({
-            season: Number(summary.season),
-            grandPrixSlug: grandPrixEntry.name,
-            sessionSlug: sessionEntry.name,
-            grandPrixName: summary.grandPrix,
-            sessionName: summary.session,
-            sessionKey: Number(summary.sessionKey),
-            trackId: summary.trackId,
-            path: `/sessions/${summary.season}/${grandPrixEntry.name}/${sessionEntry.name}`,
-          });
-        } catch {
-          // ignore incomplete packs
-        }
-      }
-    }
-  }
-
-  return refs.sort((left, right) => {
-    if (left.season !== right.season) {
-      return left.season - right.season;
-    }
-    return left.sessionKey - right.sessionKey;
-  });
-}
-
-function pickShowcaseRef(refs) {
-  const showcase = refs.find(
-    (ref) => ref.season === 2025 && ref.grandPrixSlug === "abu-dhabi-grand-prix" && ref.sessionSlug === "race",
-  );
-
-  if (showcase) {
-    return showcase;
-  }
-
-  return refs.at(-1) ?? sample.ref;
-}
-
-function getIndexedRefs(refs) {
-  const visibleRefs = refs.filter((ref) => ref.grandPrixSlug !== "demo-weekend");
-  return visibleRefs.length ? visibleRefs : refs;
-}
-
 async function syncDirectory(sourceDir, destinationDir) {
   await mkdir(destinationDir, { recursive: true });
   const entries = await readdir(sourceDir, { withFileTypes: true });
@@ -562,39 +491,10 @@ async function generate() {
   await writeMirrored(path.join(base, "strategy.json"), sample.strategy);
   await writeMirrored(path.join(base, "stints.json"), sample.stints);
 
-  const refs = await readAvailablePackRefs();
-  const indexedRefs = getIndexedRefs(refs);
-  const showcaseRef = pickShowcaseRef(indexedRefs);
-  const latest = {
-    version: 1,
-    seasons: Array.from(new Set(indexedRefs.map((ref) => ref.season))),
-    latest: showcaseRef,
-  };
-
-  const seasons = {
-    generatedAt: sample.summary.generatedAt,
-    seasons: Array.from(new Set(indexedRefs.map((ref) => ref.season))).map((season) => {
-      const seasonRefs = indexedRefs.filter((ref) => ref.season === season);
-      const grandsPrix = Array.from(new Set(seasonRefs.map((ref) => ref.grandPrixSlug))).map((grandPrixSlug) => {
-        const grandPrixRefs = seasonRefs.filter((ref) => ref.grandPrixSlug === grandPrixSlug);
-        return {
-          grandPrixSlug,
-          grandPrixName: grandPrixRefs[0]?.grandPrixName || grandPrixSlug,
-          sessions: grandPrixRefs,
-        };
-      });
-      return {
-        season,
-        grandsPrix,
-      };
-    }),
-  };
-
-  await writeMirrored(path.join("manifests", "latest.json"), latest);
-  await writeMirrored(path.join("manifests", "seasons.json"), seasons);
 }
 
 async function check() {
+  await refreshFeaturedIndexes({ check: true });
   const filePath = path.join(dataRoot, "manifests", "latest.json");
   const content = JSON.parse(await readFile(filePath, "utf-8"));
   LatestManifestSchema.parse(content);

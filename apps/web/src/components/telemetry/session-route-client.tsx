@@ -77,6 +77,10 @@ function findFastestLap(laps: LapRecord[]) {
     .sort((left, right) => left.lapTime - right.lapTime)[0] ?? null;
 }
 
+function formatWeatherMetric(value: number | null, unit: string) {
+  return value === null ? "Unavailable" : `${value}${unit}`;
+}
+
 async function fetchJson<T>(url: string): Promise<T> {
   const response = await fetch(url);
   if (!response.ok) {
@@ -213,8 +217,8 @@ export function SessionRouteClient({ manifest, summary, route }: SessionRouteCli
           <div className="metric-grid">
             <MetricChip label="Fastest lap" value={fastestLap ? `${fastestLap.driverCode} · ${formatLapTime(fastestLap.lapTime)}` : "-"} />
             <MetricChip label="Track" value={formatSlugLabel(summary.trackId)} />
-            <MetricChip label="Air / track" value={`${summary.weatherSummary.airTempC}C / ${summary.weatherSummary.trackTempC}C`} />
-            <MetricChip label="Rain risk" value={`${summary.weatherSummary.rainRiskPct}%`} />
+            <MetricChip label="Air / track" value={`${formatWeatherMetric(summary.weatherSummary.airTempC, "C")} / ${formatWeatherMetric(summary.weatherSummary.trackTempC, "C")}`} />
+            <MetricChip label="Rain risk" value={formatWeatherMetric(summary.weatherSummary.rainRiskPct, "%")} />
           </div>
           <div className="hero-actions">
             <a className="button button--secondary" href={`/replay/${route.season}/${route.grandPrix}/${route.session}`}>
@@ -273,8 +277,8 @@ export function SessionRouteClient({ manifest, summary, route }: SessionRouteCli
           </p>
           <div className="metric-grid">
             <MetricChip label="Track" value={formatSlugLabel(summary.trackId)} />
-            <MetricChip label="Air / track" value={`${summary.weatherSummary.airTempC}C / ${summary.weatherSummary.trackTempC}C`} />
-            <MetricChip label="Rain risk" value={`${summary.weatherSummary.rainRiskPct}%`} />
+            <MetricChip label="Air / track" value={`${formatWeatherMetric(summary.weatherSummary.airTempC, "C")} / ${formatWeatherMetric(summary.weatherSummary.trackTempC, "C")}`} />
+            <MetricChip label="Rain risk" value={formatWeatherMetric(summary.weatherSummary.rainRiskPct, "%")} />
             <MetricChip label="Drivers" value={`${summary.drivers.length}`} />
           </div>
           <div className="hero-actions">

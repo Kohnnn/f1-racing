@@ -89,10 +89,10 @@ export default async function CompareIndexPage() {
                       {session.pairs.map((pair) => {
                         const left = getDriverArt(pair.left, { season: session.season });
                         const right = getDriverArt(pair.right, { season: session.season });
-                        const href = `/compare/${session.season}/${session.grandPrixSlug}/${session.sessionSlug}/${pair.left}/${pair.right}`;
+                        const replayHref = `/replay/${session.season}/${session.grandPrixSlug}/${session.sessionSlug}?tab=compare&drivers=${pair.left},${pair.right}#analysis`;
                         return (
                           <li key={pair.key}>
-                            <a className="discovery-pair" href={href}>
+                            <a className="discovery-pair" href={replayHref}>
                               <span className="discovery-pair__driver">
                                 {/* eslint-disable-next-line @next/next/no-img-element */}
                                 <img src={left.avatar} alt="" aria-hidden="true" loading="lazy" />

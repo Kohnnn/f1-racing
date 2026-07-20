@@ -21,12 +21,12 @@ The current Formula 1 explainer at `interactive-explanation/formula-1-racing/` i
 Implemented now:
 
 - Next.js 15 static-export app in `apps/web`
-- landing page that links Modelview, Replay, and Learn as one product loop
+- replay-first landing page with a poster-first optional 3D stage
 - sessions index and session detail pages backed by generated manifests
-- compare route with telemetry traces and corner-level annotations
-- replay index and replay session pages backed by exported replay packs
-- stint story route backed by static stint packs
-- `model-viewer` car surface with local 2025 McLaren and APX GP GLBs
+- Compare and Stints indexes that deep-link into Replay analysis
+- guided replay workspace with provenance, completeness, telemetry, strategy, and race-control views
+- standalone compare and stint detail routes backed by static packs
+- `model-viewer` car surface with the current local car catalog
 - six learn modules: `/learn/car`, `/learn/aero`, `/learn/tyres`, `/learn/braking`, `/learn/setup`, and `/learn/strategy`
 - real OpenF1 metadata and exported packs in the generated data flow
 - starter OpenFOAM pipeline docs and scripts for future baked CFD overlays
@@ -43,11 +43,11 @@ Those materials are now archived under `docs/archived/flow-2p5d/`.
 - `/` - product overview
 - `/cars/current-spec` - `model-viewer` car surface
 - `/replay` - replay index
-- `/replay/2026/japan-grand-prix/race` - latest replay route from the current manifest
+- `/replay/2026/miami-grand-prix/race` - featured replay selected by the current manifest
 - `/sessions` - static session explorer
-- `/sessions/2026/japan-grand-prix/race` - latest session route from the current manifest
-- `/compare/2025/demo-weekend/qualifying/VER/NOR` - compare route with telemetry traces
-- `/stints/2025/demo-weekend/qualifying` - static stint story route
+- `/sessions/2026/miami-grand-prix/race` - featured session summary
+- `/compare` - sessions with lap-compare packs
+- `/stints` - sessions with stint packs
 - `/learn` - learn surface overview
 - `/learn/car`
 - `/learn/aero`
@@ -74,7 +74,7 @@ Cloudflare Pages and R2 remain documented options for the longer-term static-fir
 ### Install
 
 ```bash
-npm install
+npm ci
 ```
 
 ### Run locally
@@ -109,11 +109,12 @@ Example:
 npm run build:openf1:session -- --grandPrixSlug australian-grand-prix --sessionSlug qualifying
 ```
 
-### Production build
+### Production build and verification
 
 ```bash
-npm run check:data
+npm run quality
 npm run build
+npm run smoke:static
 ```
 
 ### Manual Netlify production deploy
@@ -230,12 +231,12 @@ Public model paths:
 - Root `.env` is local-only and gitignored.
 - `NETLIFY_AUTH_TOKEN` is used for CLI deploys.
 - `NETLIFY_SITE_ID` may be stale if the target Netlify site has been recreated.
-- The current frontend does not consume Appwrite runtime variables in app source.
-- `OCI_SSH_CONNECT` is only relevant for separate backend or infra work.
+- The static frontend does not require Appwrite runtime variables.
+- Deployment environment owns any public API origin.
+- Rotate any credential exposed in a local `.env` before using the related service.
 
 ## Recommended next steps
 
-1. add RPM/gear overlays to compare traces
-2. connect one real OpenFOAM-derived or mapped CFD overlay pack to the car surface
-3. optimize the large GLB assets with Draco or Meshopt before a more public release
-4. add Git-backed auto-deploy or dashboard-managed deploy settings for the Netlify site
+1. calibrate and ship offline CFD assets before presenting aerodynamic outputs as validated
+2. optimize the largest GLB assets with Draco or Meshopt
+3. automate the verified Netlify build and smoke workflow

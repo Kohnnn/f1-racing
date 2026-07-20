@@ -39,6 +39,7 @@ interface LeaderboardProps {
   layout?: "vertical" | "horizontal";
   /** Layout setter; renders a small toggle in the toolbar when provided. */
   onLayoutChange?: (layout: "vertical" | "horizontal") => void;
+  orderLabel?: string;
 }
 
 function tyreShort(compound: string | null) {
@@ -103,7 +104,7 @@ function isDrsActive(drs: number | null | undefined) {
   return Number(drs ?? 0) >= 10;
 }
 
-export function Leaderboard({ drivers, selectedDrivers, onDriverSelect, layout = "vertical", onLayoutChange }: LeaderboardProps) {
+export function Leaderboard({ drivers, selectedDrivers, onDriverSelect, layout = "vertical", onLayoutChange, orderLabel = "Live order" }: LeaderboardProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [comparePinned, setComparePinned] = useState(false);
 
@@ -145,7 +146,7 @@ export function Leaderboard({ drivers, selectedDrivers, onDriverSelect, layout =
     <div className={`replay-leaderboard replay-leaderboard--${layout}`}>
       <div className="replay-leaderboard__toolbar">
         <div className="replay-leaderboard__toolbar-main">
-          <p className="eyebrow">Live order</p>
+          <p className="eyebrow">{orderLabel}</p>
           <strong>Leaderboard</strong>
           <span>{toolbarLabel}</span>
         </div>

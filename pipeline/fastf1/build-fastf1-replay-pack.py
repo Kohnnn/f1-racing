@@ -200,15 +200,15 @@ def relative_seconds(value, session_start):
 
 def build_weather_summary(weather_df):
     if weather_df is None or weather_df.empty:
-        return {"airTempC": 0, "trackTempC": 0, "rainRiskPct": 0}
+        return {"airTempC": None, "trackTempC": None, "rainRiskPct": None}
 
-    air = float(weather_df["AirTemp"].mean()) if "AirTemp" in weather_df else 0.0
-    track = float(weather_df["TrackTemp"].mean()) if "TrackTemp" in weather_df else 0.0
-    rain_risk = 100 if bool(weather_df["Rainfall"].any()) else 0
+    air = weather_df["AirTemp"].dropna() if "AirTemp" in weather_df else []
+    track = weather_df["TrackTemp"].dropna() if "TrackTemp" in weather_df else []
+    rainfall = weather_df["Rainfall"].dropna() if "Rainfall" in weather_df else []
     return {
-        "airTempC": round(air),
-        "trackTempC": round(track),
-        "rainRiskPct": rain_risk,
+        "airTempC": round(float(air.mean())) if len(air) else None,
+        "trackTempC": round(float(track.mean())) if len(track) else None,
+        "rainRiskPct": 100 if bool(rainfall.any()) else 0 if len(rainfall) else None,
     }
 
 
@@ -478,17 +478,7 @@ def lap_state(lap_timeline, target):
     return current
 
 
-def weather_state(weather_timeline, target, fallback):
-    if not weather_timeline:
-        return {
-            "airTempC": fallback["airTempC"],
-            "trackTempC": fallback["trackTempC"],
-            "humidityPct": 0,
-            "rainfall": False,
-            "windSpeedMps": 0,
-            "windDirectionDeg": 0,
-        }
-
+def weather_state(weather_timeline, target):
     current = weather_timeline[0]
     for entry in weather_timeline:
         if entry["t"] <= target:
@@ -677,17 +667,17 @@ def build_replay_pack(session, resolved, base_replay):
                 sc_phase if sc_phase != "none" else safety_car.get("phase", "none")
             )
 
-            frames.append(
-                {
-                    **base_frame,
-                    "drivers": merged_drivers,
-                    "trackStatus": track_status,
-                    "safetyCar": safety_car,
-                    "weather": weather_state(
-                        weather_timeline, frame_time, weather_summary
-                    ),
-                }
-            )
+            merged_frame = {
+                **base_frame,
+                "drivers": merged_drivers,
+                "trackStatus": track_status,
+                "safetyCar": safety_car,
+            }
+            if weather_timeline:
+                merged_frame["weather"] = weather_state(weather_timeline, frame_time)
+            else:
+                merged_frame.pop("weather", None)
+            frames.append(merged_frame)
     else:
         duration = max(
             (telemetry["t"][-1] for telemetry in telemetry_by_code.values()),
@@ -770,8 +760,10 @@ def build_replay_pack(session, resolved, base_replay):
                     "trackStatus": track_status_state(
                         track_status_timeline, frame_time, "GREEN"
                     ),
-                    "weather": weather_state(
-                        weather_timeline, frame_time, weather_summary
+                    **(
+                        {"weather": weather_state(weather_timeline, frame_time)}
+                        if weather_timeline
+                        else {}
                     ),
                 }
             )

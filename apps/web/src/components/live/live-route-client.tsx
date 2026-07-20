@@ -53,6 +53,7 @@ interface LiveRouteClientProps {
   initialReplayMeta: ReplayPack;
   initialFrame: ReplayFrame | null;
   initialSpeed: number;
+  mode?: "live" | "race-desk";
 }
 
 function hasStaticTrackCoordinates(frames?: ReplayPack["frames"]) {
@@ -155,11 +156,11 @@ function buildSyntheticFrame(
 }
 
 function intervalLabel(interval: number | null, position?: number) {
-  if (interval === null) {
-    return "-";
-  }
   if (position === 1) {
     return "Leader";
+  }
+  if (typeof interval !== "number" || !Number.isFinite(interval) || interval <= 0) {
+    return "Unavailable";
   }
   return `+${interval.toFixed(3)}`;
 }
@@ -179,6 +180,10 @@ function formatSlugLabel(value: string) {
     .split("-")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(" ");
+}
+
+function formatWeatherValue(value: number | null, unit: string) {
+  return value === null ? "Unavailable" : `${value}${unit}`;
 }
 
 function formatLiveSourceLabel(value: string | null | undefined) {
@@ -261,7 +266,9 @@ export function LiveRouteClient({
   initialReplayMeta,
   initialFrame,
   initialSpeed,
+  mode = "live",
 }: LiveRouteClientProps) {
+  const isRaceDesk = mode === "race-desk";
   const apiOrigin = getClientApiOrigin();
   const [activeSession, setActiveSession] = useState<LiveSessionRef>(initialSession);
   const [summary, setSummary] = useState<SessionSummary>(initialSummary);
@@ -270,12 +277,12 @@ export function LiveRouteClient({
     loading: false,
     connected: false,
     finished: false,
-    sourceLabel: apiOrigin ? "Connecting to OCI live" : "Local replay simulator",
+    sourceLabel: isRaceDesk ? "Static replay pack" : apiOrigin ? "Connecting to OCI live" : "Local replay simulator",
     frame: initialFrame,
     rcMessages: [],
     error: null,
     lastFrameAt: initialFrame ? Date.now() : null,
-    isSimulated: !apiOrigin,
+    isSimulated: isRaceDesk || !apiOrigin,
   });
   const [selectedDrivers, setSelectedDrivers] = useState<string[]>([]);
   const [reloadKey, setReloadKey] = useState(0);
@@ -298,7 +305,7 @@ export function LiveRouteClient({
     let cancelled = false;
 
     async function resolveSession() {
-      if (!apiOrigin) {
+      if (isRaceDesk || !apiOrigin) {
         return;
       }
 
@@ -322,7 +329,7 @@ export function LiveRouteClient({
     return () => {
       cancelled = true;
     };
-  }, [activeSession.grandPrix, activeSession.season, activeSession.session, apiOrigin, reloadKey]);
+  }, [activeSession.grandPrix, activeSession.season, activeSession.session, apiOrigin, isRaceDesk, reloadKey]);
 
   useEffect(() => {
     const sessionRef = activeSession;
@@ -339,8 +346,8 @@ export function LiveRouteClient({
 
       try {
         const [nextSummary, nextReplayMeta, nextReplayLaps] = await Promise.all([
-          fetchJson<SessionSummary>(buildSummaryUrl(sessionRef)),
-          fetchJson<ReplayPack>(buildReplayMetaUrl(sessionRef)),
+          fetchJson<SessionSummary>(isRaceDesk ? `${buildSessionBasePath(sessionRef)}/summary.json` : buildSummaryUrl(sessionRef)),
+          fetchJson<ReplayPack>(isRaceDesk ? `${buildSessionBasePath(sessionRef)}/replay.meta.json` : buildReplayMetaUrl(sessionRef)),
           fetchJson<ReplayLap[]>(buildReplayLapsUrl(sessionRef)).catch(() => []),
         ]);
 
@@ -356,7 +363,7 @@ export function LiveRouteClient({
           setFeed((previous) => ({
             ...previous,
             loading: false,
-            error: error instanceof Error ? error.message : "Live metadata could not be loaded.",
+            error: error instanceof Error ? error.message : isRaceDesk ? "Historical replay metadata could not be loaded." : "Live metadata could not be loaded.",
           }));
         }
       }
@@ -380,14 +387,14 @@ export function LiveRouteClient({
       loading: previous.frame ? false : true,
       connected: false,
       finished: false,
-      sourceLabel: apiOrigin ? "OCI live" : "Local replay simulator",
+      sourceLabel: isRaceDesk ? "Static replay pack" : apiOrigin ? "OCI live" : "Local replay simulator",
       error: null,
     }));
 
     async function startStaticSimulation() {
       try {
         const [replay, raceControlPack] = await Promise.all([
-          fetchJson<ReplayPack>(buildReplayFullUrl(sessionRef)),
+          fetchJson<ReplayPack>(isRaceDesk ? `${buildSessionBasePath(sessionRef)}/replay.json` : buildReplayFullUrl(sessionRef)),
           fetchJson<ReplayRaceControlMessage[]>(buildReplayRaceControlUrl(sessionRef)).catch(() => null),
         ]);
         if (cancelled) {
@@ -414,7 +421,7 @@ export function LiveRouteClient({
           ...previous,
           loading: false,
           connected: true,
-          sourceLabel: apiOrigin ? "OCI replay fallback" : "Local replay simulator",
+          sourceLabel: isRaceDesk ? "Static replay pack" : apiOrigin ? "OCI replay fallback" : "Local replay simulator",
           isSimulated: true,
         }));
 
@@ -459,10 +466,18 @@ export function LiveRouteClient({
             ...previous,
             loading: false,
             connected: false,
-            error: error instanceof Error ? error.message : "Static live simulation failed.",
+            error: error instanceof Error ? error.message : isRaceDesk ? "Historical replay simulation failed." : "Static live simulation failed.",
           }));
         }
       }
+    }
+
+    if (isRaceDesk) {
+      void startStaticSimulation();
+      return () => {
+        cancelled = true;
+        closeTimer();
+      };
     }
 
     const socketUrl = buildLiveSocketUrl(sessionRef, speed, delaySeconds);
@@ -555,11 +570,11 @@ export function LiveRouteClient({
       closeTimer();
       socket?.close();
     };
-  }, [activeSession, apiOrigin, closeTimer, speed, delaySeconds]);
+  }, [activeSession, apiOrigin, closeTimer, delaySeconds, isRaceDesk, speed]);
 
   // Tick the displayed frame age (used in the Feed tile) once per second.
   useEffect(() => {
-    if (!feed.lastFrameAt) {
+    if (isRaceDesk || !feed.lastFrameAt) {
       setFrameAgeMs(null);
       return;
     }
@@ -567,7 +582,7 @@ export function LiveRouteClient({
     update();
     const interval = window.setInterval(update, 1000);
     return () => window.clearInterval(interval);
-  }, [feed.lastFrameAt]);
+  }, [feed.lastFrameAt, isRaceDesk]);
 
   const currentFrame = feed.frame;
   const currentTime = currentFrame?.t ?? 0;
@@ -697,10 +712,10 @@ export function LiveRouteClient({
   const grandPrixLabel = circuitArt.circuit.grandPrix !== "Unknown Grand Prix" ? circuitArt.circuit.grandPrix : null;
   const weatherLabel = currentFrame?.weather
     ? `${currentFrame.weather.airTempC}C air · ${currentFrame.weather.trackTempC}C track`
-    : `${summary.weatherSummary.airTempC}C air · ${summary.weatherSummary.trackTempC}C track`;
+    : `${formatWeatherValue(summary.weatherSummary.airTempC, "C")} air · ${formatWeatherValue(summary.weatherSummary.trackTempC, "C")} track`;
   const windLabel = currentFrame?.weather
     ? `${currentFrame.weather.windSpeedMps.toFixed(1)} m/s · ${Math.round(currentFrame.weather.windDirectionDeg)}°`
-    : `Rain risk ${summary.weatherSummary.rainRiskPct}%`;
+    : `Rain risk ${formatWeatherValue(summary.weatherSummary.rainRiskPct, "%")}`;
   const selectedDriverLabel = selectedTelemetryDrivers.length
     ? selectedTelemetryDrivers.map((driver) => driver.abbr).join(" · ")
     : "No drivers selected";
@@ -744,12 +759,12 @@ export function LiveRouteClient({
     return (
       <div className="page-stack">
         <section className="hero hero--compact">
-          <p className="eyebrow">Live workspace</p>
-          <h1>Live feed unavailable</h1>
+          <p className="eyebrow">{isRaceDesk ? "Race Desk" : "Live workspace"}</p>
+          <h1>{isRaceDesk ? "Historical replay unavailable" : "Live feed unavailable"}</h1>
           <p className="lead">{feed.error}</p>
           <div className="hero-actions">
             <button className="button" type="button" onClick={() => setReloadKey((value) => value + 1)}>
-              Retry live feed
+              {isRaceDesk ? "Retry historical replay" : "Retry live feed"}
             </button>
             <a className="button button--secondary" href="/replay">Replay library</a>
           </div>
@@ -762,11 +777,12 @@ export function LiveRouteClient({
     return (
       <div className="page-stack">
         <section className="hero hero--compact">
-          <p className="eyebrow">Live workspace</p>
+          <p className="eyebrow">{isRaceDesk ? "Race Desk" : "Live workspace"}</p>
           <h1>{activeSession.grandPrixName}</h1>
           <p className="lead">
-            Initializing the live workspace. When the backend is configured this route uses OCI WebSockets; otherwise it
-            simulates the feed from the latest replay pack.
+            {isRaceDesk
+              ? "Loading the historical replay simulation from the featured static pack."
+              : "Initializing the live workspace. When the backend is configured this route uses OCI WebSockets; otherwise it simulates the feed from the featured replay pack."}
           </p>
         </section>
       </div>
@@ -777,26 +793,27 @@ export function LiveRouteClient({
     <div className="replay-view replay-view--workspace">
       <section className="replay-session-banner">
         <div className="replay-session-banner__identity">
-          <p className="eyebrow">Live workspace</p>
+          <p className="eyebrow">{isRaceDesk ? "Race Desk" : "Live workspace"}</p>
           <h1>{activeSession.grandPrixName}</h1>
           <p>
-            {activeSession.sessionName} live surface at {trackLabel}. This route shares the replay map, leaderboard, and
-            telemetry shell, but drives them from a socket-first live feed or a local replay-backed simulator.
+            {isRaceDesk
+              ? `${activeSession.sessionName} historical replay simulation at ${trackLabel}, driven entirely by the featured static pack.`
+              : `${activeSession.sessionName} live surface at ${trackLabel}. This route shares the replay map, leaderboard, and telemetry shell, but drives them from a socket-first live feed or a local replay-backed simulator.`}
           </p>
         </div>
         <div className="replay-session-banner__facts">
           <article className="replay-session-banner__fact">
-            <span>Feed</span>
+            <span>{isRaceDesk ? "Source" : "Feed"}</span>
             <strong>{feed.sourceLabel}</strong>
-            {frameAgeMs !== null ? <small className="replay-session-banner__sub">Last frame {Math.max(0, Math.round(frameAgeMs / 1000))}s ago</small> : null}
+            {!isRaceDesk && frameAgeMs !== null ? <small className="replay-session-banner__sub">Last frame {Math.max(0, Math.round(frameAgeMs / 1000))}s ago</small> : null}
           </article>
           <article className="replay-session-banner__fact">
             <span>Status</span>
             <strong>
               {feed.finished
-                ? "Finished"
+                ? isRaceDesk ? "Replay complete" : "Finished"
                 : feed.isSimulated
-                  ? <span className="replay-session-banner__pill replay-session-banner__pill--simulated">SIMULATED</span>
+                  ? <span className="replay-session-banner__pill replay-session-banner__pill--simulated">{isRaceDesk ? "HISTORICAL" : "SIMULATED"}</span>
                   : feed.connected
                     ? <span className="replay-session-banner__pill replay-session-banner__pill--live">LIVE</span>
                     : currentFrame
@@ -823,38 +840,42 @@ export function LiveRouteClient({
         </div>
         <div className="replay-session-banner__footer">
           <p className="replay-session-banner__note">
-            {feed.isSimulated
-              ? `${feed.sourceLabel} · replay speed ${speed.toFixed(1)}x`
-              : `${feed.sourceLabel} · speed ${speed.toFixed(1)}x · displayed delay ${delaySeconds}s`}
+            {isRaceDesk
+              ? "Historical replay simulation · static data pack"
+              : feed.isSimulated
+                ? `${feed.sourceLabel} · replay speed ${speed.toFixed(1)}x`
+                : `${feed.sourceLabel} · speed ${speed.toFixed(1)}x · displayed delay ${delaySeconds}s`}
           </p>
           <div className="replay-session-banner__actions">
-            <a className="replay-session-banner__action replay-session-banner__action--primary" href={`/replay/${activeSession.season}/${activeSession.grandPrix}/${activeSession.session}`}>Replay route</a>
+            <a className="replay-session-banner__action replay-session-banner__action--primary" href={`/replay/${activeSession.season}/${activeSession.grandPrix}/${activeSession.session}`}>Open full Replay</a>
             <a className="replay-session-banner__action" href={`/sessions/${activeSession.season}/${activeSession.grandPrix}/${activeSession.session}`}>{activeSession.grandPrixName} summary</a>
             <a className="replay-session-banner__action" href="/cars/current-spec">Modelview</a>
             <a className="replay-session-banner__action" href="/learn">Learn</a>
           </div>
         </div>
 
-        <div className="live-controls-strip">
-          <label className="live-controls-strip__label">
-            <span>Display delay</span>
-            <input
-              type="range"
-              min={0}
-              max={60}
-              step={5}
-              value={delaySeconds}
-              onChange={(event) => setDelaySeconds(Number(event.target.value))}
-              aria-label="Live feed display delay"
-            />
-            <strong>{delaySeconds}s</strong>
-          </label>
-          <p className="live-controls-strip__hints">
-            <span><kbd>Click</kbd> driver to inspect</span>
-            <span><kbd>Shift</kbd>+click to pin compare</span>
-            <span><kbd>Esc</kbd> clears selection</span>
-          </p>
-        </div>
+        {!isRaceDesk ? (
+          <div className="live-controls-strip">
+            <label className="live-controls-strip__label">
+              <span>Display delay</span>
+              <input
+                type="range"
+                min={0}
+                max={60}
+                step={5}
+                value={delaySeconds}
+                onChange={(event) => setDelaySeconds(Number(event.target.value))}
+                aria-label="Live feed display delay"
+              />
+              <strong>{delaySeconds}s</strong>
+            </label>
+            <p className="live-controls-strip__hints">
+              <span><kbd>Click</kbd> driver to inspect</span>
+              <span><kbd>Shift</kbd>+click to pin compare</span>
+              <span><kbd>Esc</kbd> clears selection</span>
+            </p>
+          </div>
+        ) : null}
       </section>
 
       <div className="replay-workspace-grid">
@@ -865,8 +886,9 @@ export function LiveRouteClient({
               <h2>{trackLabel}</h2>
               {grandPrixLabel ? <p className="replay-track-panel__circuit">{grandPrixLabel} · {circuitArt.circuit.city}, {circuitArt.circuit.country}</p> : null}
               <p>
-                Select cars from the map or leaderboard to pin them into the live telemetry deck. Socket-backed feeds pull
-                chunks from OCI; static mode simulates the same surface from the replay pack.
+                {isRaceDesk
+                  ? "Select cars from the map or leaderboard to inspect the historical replay telemetry deck."
+                  : "Select cars from the map or leaderboard to pin them into the live telemetry deck. Socket-backed feeds pull chunks from OCI; static mode simulates the same surface from the replay pack."}
               </p>
             </div>
             <div className="replay-track-panel__stats">
@@ -931,11 +953,12 @@ export function LiveRouteClient({
 
         <aside className="replay-side-column">
           <section className="replay-side-card">
-            <p className="eyebrow">Live read</p>
-            <h3>{selectedTelemetryDrivers.length ? `Telemetry on ${selectedTelemetryDrivers.map((driver) => driver.abbr).join(" · ")}` : leadDriver ? `${leadDriver.abbr} leads the live feed` : "Select drivers to inspect"}</h3>
+            <p className="eyebrow">{isRaceDesk ? "Historical read" : "Live read"}</p>
+            <h3>{selectedTelemetryDrivers.length ? `Telemetry on ${selectedTelemetryDrivers.map((driver) => driver.abbr).join(" · ")}` : leadDriver ? isRaceDesk ? `${leadDriver.abbr} leads this replay frame` : `${leadDriver.abbr} leads the live feed` : "Select drivers to inspect"}</h3>
             <p>
-              This surface mirrors the replay workspace but lets you keep an always-on live board while the backend streams
-              session frames. Use replay afterward for fine-grained scrubbing.
+              {isRaceDesk
+                ? "This historical replay simulation provides a control-room view of the featured static pack. Open full Replay for fine-grained scrubbing."
+                : "This surface mirrors the replay workspace but lets you keep an always-on live board while the backend streams session frames. Use replay afterward for fine-grained scrubbing."}
             </p>
             <dl className="replay-side-card__stats">
               <div>
@@ -943,7 +966,7 @@ export function LiveRouteClient({
                 <dd>{leadDriver ? `${leadDriver.abbr} · ${leadDriver.team}` : "-"}</dd>
               </div>
               <div>
-                <dt>Feed source</dt>
+                <dt>{isRaceDesk ? "Pack source" : "Feed source"}</dt>
                 <dd>{feed.sourceLabel}</dd>
               </div>
               <div>
@@ -957,18 +980,23 @@ export function LiveRouteClient({
             </dl>
           </section>
 
-          <Leaderboard drivers={displayedDrivers} selectedDrivers={selectedDrivers} onDriverSelect={handleDriverSelect} />
+          <Leaderboard
+            drivers={displayedDrivers}
+            selectedDrivers={selectedDrivers}
+            onDriverSelect={handleDriverSelect}
+            orderLabel={isRaceDesk ? "Historical order" : "Live order"}
+          />
         </aside>
       </div>
 
       <section className="replay-telemetry-panel replay-support-panel">
         <div className="section-header replay-support-panel__header">
           <div>
-            <p className="eyebrow">Live analysis deck</p>
+            <p className="eyebrow">{isRaceDesk ? "Historical analysis deck" : "Live analysis deck"}</p>
             <h2>
               {analysisTab === "telemetry"
                 ? selectedTelemetryDrivers.length
-                  ? "Selected live telemetry strips"
+                  ? isRaceDesk ? "Selected historical telemetry strips" : "Selected live telemetry strips"
                   : "Select drivers from the leaderboard"
                 : analysisTab === "stints"
                   ? "Tyre stint snapshot"
@@ -1018,7 +1046,9 @@ export function LiveRouteClient({
             </div>
           ) : (
             <p className="replay-empty-copy">
-              Choose one driver for a focused live read, or shift-click several drivers to compare telemetry strips side by side.
+              {isRaceDesk
+                ? "Choose one driver for a focused historical read, or shift-click several drivers to compare telemetry strips side by side."
+                : "Choose one driver for a focused live read, or shift-click several drivers to compare telemetry strips side by side."}
             </p>
           )
         ) : null}
@@ -1042,7 +1072,7 @@ export function LiveRouteClient({
                 stints: stintsByDriver.get(driver.abbr) ?? [],
               }));
               if (!rows.length) {
-                return <p className="replay-empty-copy">Stint data appears once the simulator has produced laps.</p>;
+                return <p className="replay-empty-copy">Stint data appears once the replay simulation has produced laps.</p>;
               }
               return (
                 <ul className="live-stints__list">
@@ -1090,7 +1120,9 @@ export function LiveRouteClient({
               </div>
             </div>
             <p className="live-strategy__hint">
-              Live strategy reads are heuristic until OpenF1 publishes the official pit-window pack for this session.
+              {isRaceDesk
+                ? "Historical strategy reads are heuristic from the featured static pack."
+                : "Live strategy reads are heuristic until OpenF1 publishes the official pit-window pack for this session."}
             </p>
           </div>
         ) : null}

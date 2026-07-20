@@ -67,7 +67,7 @@ export default async function StintsPage({ params }: StintsPageProps) {
             Review tyre windows and stint trends for this session. The replay workspace also includes this read beside the moving race context.
           </p>
           <div className="hero-actions">
-            <a className="button" href={`/replay/${season}/${grandPrix}/${session}`}>Back to replay</a>
+            <a className="button" href={`/replay/${season}/${grandPrix}/${session}?tab=stints#analysis`}>Open in replay</a>
           </div>
         </section>
 

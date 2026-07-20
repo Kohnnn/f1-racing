@@ -14,9 +14,61 @@ report. Each pass touches one or more of these surfaces:
 - OCI FastAPI backend (live socket + replay chunk delivery)
 - Pipelines under `pipeline/export/` and `pipeline/ingest/`
 
-## Current pass status (2026-05-22)
+## Completed milestone (2026-07-20)
 
-### Shipped in this pass
+### Replay 3D broadcast reconstruction
+
+- [x] Keep the accessible 2D map as the default and lazy-load 3D only after explicit selection.
+- [x] Reuse the canonical replay interpolator so 2D and 3D follow identical recorded movement.
+- [x] Add Director, Follow, Trackside, Helicopter, and Orbit cameras with reduced-motion-safe direction.
+- [x] Render an instanced 20-car field, circuit surfaces, DRS and marshal overlays, pit pulses, telemetry heatmaps, and broadcast graphics from self-hosted CC0 assets.
+- [x] Adapt DPR between 1.0 and 1.5, stop rendering offscreen, and use demand rendering while paused.
+- [x] Return to 2D after missing WebGL, scene errors, or context loss.
+- [x] Enforce the 2.1 MB Replay 3D asset budget and static bundle coverage in smoke tests.
+- [x] Verify the featured route at `/replay/2026/miami-grand-prix/race/` before production deployment.
+
+### Shareable pit-cycle replay
+
+- [x] Hydrate Replay time, analysis tab, and selected drivers from validated URL state.
+- [x] Add a direct action that copies the current Replay evidence URL.
+- [x] Preserve clean Replay URLs for guided Story mode and use timestamped links for Workspace mode.
+- [x] Derive pit-cycle outcomes only from complete race frames, recorded stint boundaries, and recorded laps.
+- [x] Label every pit-cycle outcome **Derived** and expose its before/after replay anchors.
+- [x] Report only supported position, replay-gap, and median pace changes; leave unsupported metrics unavailable.
+- [x] Require an explicit full-race load before showing pit-cycle outcomes and disclose incomplete or unavailable inputs.
+- [x] Add focused derivation and static-bundle regression checks.
+- [x] Pass quality, typecheck, build, static smoke, and browser acceptance checks.
+- [x] Deploy the verified static export to Netlify and complete production acceptance.
+
+#### Acceptance criteria
+
+- A shared Replay URL restores replay seconds, Workspace analysis, and up to four valid selected drivers.
+- Invalid, negative, or out-of-range timestamp and driver values cannot corrupt Replay state.
+- Pit cycles accept same-compound stops, omit out-laps from post-stop pace, and never claim measured pit loss, undercuts, overtakes, or causality.
+- Partial frame windows cannot produce pit outcomes; complete-race loading remains explicit and retryable.
+- Each outcome can seek to its recorded pre-stop and post-stop frame.
+
+## Completed milestone (2026-07-16)
+
+### Trustworthy guided replay
+
+- [x] Select the newest complete race deterministically by canonical session date, session key, and stable lexical path.
+- [x] Show replay source, generated date, position coverage, frame count, and the full pack note.
+- [x] Default clean Replay URLs to Story mode and analysis deep links to Workspace mode.
+- [x] Add evidence-derived race outcome, pace, strategy, race-control, and driver story steps.
+- [x] Validate and synchronize `tab` and `drivers` query state for shareable Replay analysis links.
+- [x] Route Compare and Stints discovery actions into Replay while retaining standalone detail routes.
+- [x] Load a bounded replay window first, provide retryable chunk failures, and keep full-race loading explicit.
+- [x] Make `/race-desk` the canonical historical simulation and retain `/live` as a permanent compatibility redirect.
+- [x] Prevent Race Desk from constructing live-status or WebSocket requests.
+- [x] Keep unavailable gaps explicit and make the 2D map keyboard accessible.
+- [x] Use poster-first landing 3D, same-origin Troika fonts, and reduced-motion defaults.
+- [x] Label the wind field and all force outputs as illustrative estimates, not validated CFD.
+- [x] Add backend path validation, replay chunk guards, security headers, deterministic builds, and static smoke checks.
+- [x] Pass merged-tree quality, build, static smoke, backend, and browser acceptance checks.
+- [x] Deploy the verified static export to Netlify and complete production acceptance.
+
+### Shipped in the 2026-05-22 pass
 
 - **Final replay workspace polish** — playback controls now include elapsed/remaining time, restart, speed label, load-full-race progress, hover/segment ribbons for SC/VSC/yellow/red/pit/DRS, lap-loop hooks (`I`, `O`, `P`), and a keyboard shortcut overlay.
 - **Professional telemetry strip** — replay telemetry now renders rolling SVG sparklines for speed, throttle, brake, and RPM alongside gear/DRS/lap readouts.
@@ -30,7 +82,7 @@ report. Each pass touches one or more of these surfaces:
 - **Leaderboard correctness polish** — replay rows trust published race position, show gap-to-leader wording, wider constructor color stripes, position movement arrows, fastest-lap marker, and personal-best sector data from all driver laps.
 - **Session CTA clarity** — unavailable compare/stint actions now show disabled explanatory chips instead of disappearing or linking to empty surfaces.
 - **Wind tunnel offscreen pause** — the canvas solver skips simulation/draw work when offscreen to reduce wasted CPU/battery.
-- **Replay Library 2026 clarity** — 2026 cards now say `live OpenF1 pack` and coverage notes distinguish exported session types.
+- **Replay Library 2026 clarity** — 2026 cards identify exported OpenF1 replay packs and coverage notes distinguish archived session types.
 
 ### Shipped in previous pass
 
@@ -85,10 +137,8 @@ report. Each pass touches one or more of these surfaces:
 - Frontend deploys via `npx netlify deploy --prod --no-build --dir
   apps/web/out --site d783914b-0638-46bc-ae4b-371b66cca51e`.
 - Current production domain: `https://f1-demo.netlify.app`.
-- Latest production deploy `6a30266fabc4dac8b37dd5c8` shipped GLB-traced
-  SVG-art silhouettes for Red Bull, Ferrari, Mercedes, Aston Martin, and Alpine.
-  Prod smoke passed for all six tested SVG constructors; OCI health was blocked
-  by a TLS alert from this Windows shell, not by a frontend request failure.
+- Latest accepted production deploy `6a5d0b70dee70866f4e5410b` ships the shareable pit-cycle replay milestone.
+  Production acceptance passed Replay timestamp hydration, complete-race gating, pit-cycle outcomes and anchors, evidence-link copying, console, and network checks.
 - OCI backend lives at `https://f1-api.129.150.58.64.sslip.io`. SSH access
   uses `OCI_SSH_CONNECT` from `.env`. See `deploy/oci/README.md` for the
   preserve-env redeploy flow.

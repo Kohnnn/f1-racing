@@ -30,6 +30,15 @@ export function LearnModelEmbed({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [status, setStatus] = useState<"booting" | "loading" | "ready" | "error">("booting");
   const [progress, setProgress] = useState<number>(0);
+  const [reduceMotion, setReduceMotion] = useState(false);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const syncPreference = () => setReduceMotion(media.matches);
+    syncPreference();
+    media.addEventListener("change", syncPreference);
+    return () => media.removeEventListener("change", syncPreference);
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -78,7 +87,7 @@ export function LearnModelEmbed({
               alt: modelTitle,
               scale: modelScale,
               "camera-controls": true,
-              "auto-rotate": true,
+               "auto-rotate": reduceMotion ? undefined : true,
               "auto-rotate-delay": 1200,
               "rotation-per-second": "12deg",
               reveal: "auto",

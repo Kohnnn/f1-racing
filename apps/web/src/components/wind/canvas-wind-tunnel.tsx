@@ -316,6 +316,12 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
     pausedRef.current = paused;
   }, [paused]);
 
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setPaused(true);
+    }
+  }, []);
+
   // Keyboard shortcuts for the wind tunnel (focus-scoped to the panel root).
   // Space toggles pause; arrows nudge airspeed / yaw; R resets controls.
   const rootRef = useRef<HTMLDivElement | null>(null);
@@ -1794,8 +1800,8 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
         <p className="eyebrow">Wind tunnel · geometry field</p>
         <h3>Airflow simulation around {modelTitle}</h3>
         <p className="wind-tunnel__copy">
-          {SOLVER_NX} × {SOLVER_NY} silhouette-derived distance field running in a Web Worker.
-          Ribbon, Technical, and Smoke views sample the same live u/v field while Cd, Cl, and Cy remain educational estimates.
+          {SOLVER_NX} × {SOLVER_NY} illustrative geometry field running in a Web Worker.
+          Ribbon, Technical, and Smoke views sample the same live u/v field. This is not validated CFD; forces and coefficients are educational estimates.
         </p>
         <div className="wind-tunnel__header-actions">
           <button
@@ -1911,13 +1917,13 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
           <span className={`wind-tunnel__solver-state wind-tunnel__solver-state--${readout?.solverState ?? "warming"}`}>
             {readout?.solverState ?? "warming"}
           </span>
-          <span>Drag <strong>{readout ? formatForce(readout.drag) : "-"}</strong></span>
-          <span>Lift <strong>{readout ? formatForce(readout.lift) : "-"}</strong></span>
+          <span>Drag est <strong>{readout ? formatForce(readout.drag) : "-"}</strong></span>
+          <span>Lift est <strong>{readout ? formatForce(readout.lift) : "-"}</strong></span>
           <span>Cd est <strong>{estimatedCd.toFixed(2)}</strong></span>
           <span>Cl est <strong>{estimatedCl.toFixed(2)}</strong></span>
           <span>Cy est <strong>{estimatedCy.toFixed(2)}</strong></span>
-          <span>ΔD <strong>{readout ? signed(dragDelta) : "-"}</strong></span>
-          <span>ΔL <strong>{readout ? signed(liftDelta) : "-"}</strong></span>
+          <span>ΔD est <strong>{readout ? signed(dragDelta) : "-"}</strong></span>
+          <span>ΔL est <strong>{readout ? signed(liftDelta) : "-"}</strong></span>
           <span>Re <strong>{readout?.reynolds ? `${(readout.reynolds / 1e6).toFixed(2)}M` : "-"}</strong></span>
           <span>FPS <strong>{readout?.fps ? readout.fps.toFixed(0) : "-"}</strong></span>
         </div>
@@ -2277,8 +2283,7 @@ function remapWheelArches(arches: unknown, aspect: number): WheelArch[] {
  * the body outline so the solver mask loses frontal area at the top-rear,
  * mirroring how the procedural builder trims rwHeight when DRS opens. Points
  * in the rear-upper region (x > 0.93 of the span, top quarter) are pushed
- * down by ~35% of their height above the upper-quartile line, tuned so the
- * solver drag drop lands near the real-world ~10% DRS effect.
+ * down by ~35% of their height above the upper-quartile line.
  */
 function applyDrsOpenToPolygon(polygon: Array<[number, number]>): Array<[number, number]> {
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;

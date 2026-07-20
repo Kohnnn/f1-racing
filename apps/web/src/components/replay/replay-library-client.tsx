@@ -54,7 +54,7 @@ function buildCoverageLabel(sessions: Array<{ sessionName: string }>) {
 
 function buildSessionMeta(season: number, sessionName: string) {
   if (season > 2025) {
-    return `2026 ${sessionName.toLowerCase()} · live OpenF1 pack`;
+    return `${season} ${sessionName.toLowerCase()} · exported OpenF1 replay pack`;
   }
   return `${sessionName} replay`;
 }
@@ -70,15 +70,15 @@ function buildCoverageNote(label: string, names: string[]) {
     return "Race and sprint sessions exported.";
   }
   if (label === "Race only") {
-    return "Race exported. Qualifying and sprint not yet released by OpenF1.";
+    return "Race exported. Qualifying and sprint are not in this archive.";
   }
   if (label === "Qualifying only") {
-    return "Qualifying exported. Race pack pending.";
+    return "Qualifying exported. Race is not in this archive.";
   }
   if (label === "Sprint only") {
-    return "Sprint exported. Other sessions pending.";
+    return "Sprint exported. Other sessions are not in this archive.";
   }
-  return "More sessions become available as the OpenF1 archive opens up.";
+  return "Coverage reflects the current exported OpenF1 archive.";
 }
 
 export function ReplayLibraryClient({ aliasMode, latestManifest, index }: ReplayLibraryClientProps) {
@@ -114,17 +114,9 @@ export function ReplayLibraryClient({ aliasMode, latestManifest, index }: Replay
             ? "Sessions has been folded into Discover and Replay. Choose a pack here, then stay inside the replay workspace for track map, leaderboard, telemetry, and strategy context."
             : "Choose a session pack, open the replay workspace, and keep the track map, leaderboard, telemetry, race-control context, and driver analysis in one place."}
         </p>
-        <div className="hero-actions">
-          <a className="button" href={latestReplayHref}>Open latest replay</a>
-          <a className="button button--secondary" href="/live">Open live feed</a>
-          <a className="button button--ghost" href="/compare">Browse compare</a>
-          <a className="button button--ghost" href="/stints">Browse stints</a>
-          <a className="button button--ghost" href="/cars/current-spec">Open modelview</a>
-          <a className="button button--ghost" href="/learn">Open learn</a>
-        </div>
         <div className="discover-action-grid" aria-label="Discover shortcuts">
           <a className="discover-action-card" href={latestReplayHref}>
-            <span>Latest Pack</span>
+            <span>Featured Replay</span>
             <strong>{latestManifest.latest.grandPrixName}</strong>
             <small>{latestManifest.latest.sessionName} replay workspace</small>
           </a>
@@ -138,10 +130,10 @@ export function ReplayLibraryClient({ aliasMode, latestManifest, index }: Replay
             <strong>Tyre windows</strong>
             <small>Stint length and pace evolution across the race.</small>
           </a>
-          <a className="discover-action-card" href="/live">
-            <span>Live Desk</span>
-            <strong>Socket or simulator</strong>
-            <small>Use the OCI feed when available, with static fallback.</small>
+          <a className="discover-action-card" href="/race-desk">
+            <span>Race Desk</span>
+            <strong>Historical simulation</strong>
+            <small>Review the featured static pack as a control-room simulation.</small>
           </a>
           <a className="discover-action-card" href="/cars/current-spec">
             <span>Modelview</span>
@@ -154,7 +146,7 @@ export function ReplayLibraryClient({ aliasMode, latestManifest, index }: Replay
           <span className="replay-meta-pill">
             {latestManifest.latest.grandPrixName} · {latestManifest.latest.sessionName}
           </span>
-          <span className="replay-meta-pill">Coverage varies by available exported data</span>
+          <span className="replay-meta-pill">Featured selection · browse all seasons below</span>
         </div>
       </section>
 

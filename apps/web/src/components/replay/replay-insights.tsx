@@ -1,4 +1,4 @@
-import { formatDeltaMs, formatLapTime } from "@f1-racing/telemetry-utils";
+import { formatDeltaMs, formatLapTime, type PitCycleResult } from "@f1-racing/telemetry-utils";
 import type { ComparePack, ReplayPack, StintPack, StrategyPack } from "@/lib/data";
 import { getCircuitArt } from "@/lib/art";
 
@@ -25,7 +25,7 @@ export function ReplayComparePanel({ compare, legacyHref, embedded = false }: { 
         </div>
       </div>
       <p className="replay-insight-panel__lead">
-        Featured lap pair from this replay. Use the section deltas and derived events below when you want quick context without leaving the playback workspace.
+        Selected lap pair from this replay. Use the section deltas and derived events below when you want quick context without leaving the playback workspace.
       </p>
       <div className="replay-insight-grid">
         <div>
@@ -73,7 +73,7 @@ export function ReplayStintPanel({ stintPack, legacyHref, embedded = false }: { 
         </div>
       </div>
       <p className="replay-insight-panel__lead">
-        Latest tyre-window read for the featured pack. Compound, pace, and fade stay visible here instead of living on a separate route.
+        Tyre-window read for this replay pack. Compound, pace, and fade stay visible here instead of living on a separate route.
       </p>
       <div className="replay-stint-grid">
         {featuredDrivers.map((driver) => {
@@ -376,6 +376,116 @@ export function ReplayStrategyPanel({ strategy, stintPack, selectedDrivers = [] 
             );
           })}
         </div>
+      ) : null}
+    </section>
+  );
+}
+
+interface ReplayPitCyclePanelProps {
+  result: PitCycleResult;
+  selectedDrivers?: string[];
+  strategy: StrategyPack | null;
+  loadProgress?: number;
+  onLoadFullRace?: () => void;
+  onSeek: (time: number) => void;
+}
+
+function signedSeconds(value: number) {
+  return `${value > 0 ? "+" : value < 0 ? "−" : ""}${Math.abs(value).toFixed(3)}s`;
+}
+
+export function ReplayPitCyclePanel({ result, selectedDrivers = [], strategy, loadProgress = 0, onLoadFullRace, onSeek }: ReplayPitCyclePanelProps) {
+  const outcomes = selectedDrivers.length
+    ? result.outcomes.filter((outcome) => selectedDrivers.includes(outcome.driverCode))
+    : result.outcomes;
+  const isLoading = loadProgress > 0;
+
+  return (
+    <section className="replay-insight-panel replay-insight-panel--embedded replay-pit-cycles">
+      <div className="section-header">
+        <div>
+          <p className="eyebrow">Derived</p>
+          <h2>Pit-cycle outcomes</h2>
+        </div>
+      </div>
+      <p className="replay-insight-panel__lead">
+        Position, replay-gap, and median pace changes around recorded stint boundaries. These are replay-local observations, not measured pit loss or causal undercut claims.
+      </p>
+
+      {result.status === "requires_full_race" ? (
+        <div className="replay-pit-cycles__gate" role="status">
+          <strong>Complete race required</strong>
+          <p>{result.reason}</p>
+          <button className="button" type="button" onClick={onLoadFullRace} disabled={!onLoadFullRace || isLoading}>
+            {isLoading ? `Loading ${Math.round(loadProgress * 100)}%` : "Load full race"}
+          </button>
+        </div>
+      ) : null}
+
+      {result.status === "unavailable" ? (
+        <p className="replay-empty-copy">{result.reason}</p>
+      ) : null}
+
+      {result.status === "ready" && outcomes.length ? (
+        <div className="replay-pit-cycle-list">
+          {outcomes.map((outcome) => {
+            const positionRead = outcome.positionDelta < 0
+              ? `${Math.abs(outcome.positionDelta)} gained`
+              : outcome.positionDelta > 0
+                ? `${outcome.positionDelta} lost`
+                : "Position held";
+            const paceRead = outcome.paceDelta === null
+              ? "Unavailable"
+              : `${signedSeconds(outcome.paceDelta)} post-stop`;
+            const gapRead = outcome.replayGapDelta === null
+              ? "Unavailable"
+              : signedSeconds(outcome.replayGapDelta);
+            return (
+              <article className="replay-pit-cycle" key={outcome.id}>
+                <header>
+                  <div>
+                    <p className="eyebrow">Lap {outcome.pitLap} · {outcome.team}</p>
+                    <h3>{outcome.driverCode}</h3>
+                  </div>
+                  <strong className="replay-pit-cycle__compound">{outcome.fromCompound} / {outcome.toCompound}</strong>
+                </header>
+                <dl>
+                  <div>
+                    <dt>Position</dt>
+                    <dd>P{outcome.beforePosition} / P{outcome.afterPosition}</dd>
+                    <small>{positionRead}</small>
+                  </div>
+                  <div>
+                    <dt>Replay gap change</dt>
+                    <dd>{gapRead}</dd>
+                    <small>Derived gap to leader</small>
+                  </div>
+                  <div>
+                    <dt>Median pace change</dt>
+                    <dd>{paceRead}</dd>
+                    <small>Up to 3 laps each side; out-lap omitted</small>
+                  </div>
+                </dl>
+                <div className="replay-pit-cycle__anchors" aria-label={`${outcome.driverCode} replay anchors`}>
+                  <button type="button" onClick={() => onSeek(outcome.beforeTime)}>Before · Lap {outcome.pitLap} · T+{Math.floor(outcome.beforeTime)}s</button>
+                  <button type="button" onClick={() => onSeek(outcome.afterTime)}>After · Lap {outcome.outLap} · T+{Math.floor(outcome.afterTime)}s</button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      ) : null}
+
+      {result.status === "ready" && !outcomes.length ? (
+        <p className="replay-empty-copy">{selectedDrivers.length ? "No selected driver has a pit cycle with complete replay anchors." : result.reason}</p>
+      ) : null}
+
+      {result.status === "ready" && result.omittedCycles > 0 ? (
+        <p className="replay-pit-cycles__note">{result.omittedCycles} stint transition{result.omittedCycles === 1 ? " was" : "s were"} omitted because a before or after replay anchor was unavailable.</p>
+      ) : null}
+
+      {strategy ? (
+        <p className="replay-pit-cycles__note">Strategy reference only: {strategy.pitLossS.toFixed(1)}s green · {strategy.safetyCarPitLossS.toFixed(1)}s SC/VSC. These are estimates, not measured stop losses.</p>
       ) : null}
     </section>
   );

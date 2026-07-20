@@ -136,6 +136,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
   const viewerRef = useRef<ModelViewerElement | null>(null);
   const [modelReady, setModelReady] = useState(false);
   const [modelLoadFailed, setModelLoadFailed] = useState(false);
+  const [modelRetryKey, setModelRetryKey] = useState(0);
   const [viewerBootFailed, setViewerBootFailed] = useState(false);
 
   const seasons = useMemo(
@@ -326,6 +327,12 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
     setModelLoadFailed(false);
   }, [selected?.id]);
 
+  function retryModel() {
+    setModelReady(false);
+    setModelLoadFailed(false);
+    setModelRetryKey((key) => key + 1);
+  }
+
   useEffect(() => {
     if (!selected) {
       return;
@@ -375,7 +382,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
       viewer.removeEventListener("load", markLoaded);
       viewer.removeEventListener("error", markFailed);
     };
-  }, [selected]);
+  }, [modelRetryKey, selected]);
 
   if (!selected) {
     return <div className="panel">No models available.</div>;
@@ -530,9 +537,9 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
             {createElement(
               "model-viewer",
               {
-                key: selected.id,
+                key: `${selected.id}-${modelRetryKey}`,
                 ref: viewerRef,
-                src: selected.file,
+                src: modelRetryKey ? `${selected.file}?retry=${modelRetryKey}` : selected.file,
                 alt: selected.displayName,
                 scale: selected.modelScale,
                 "camera-controls": interactionMode === "orbit",
@@ -582,14 +589,14 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
             )}
 
             {/* First-load drag hint that fades after a couple of seconds. */}
-            {modelReady ? (
+            {modelReady && !modelLoadFailed ? (
               <div className="car-viewer-drag-hint" aria-hidden="true">
                 Drag to orbit · scroll to zoom · R resets · arrows nudge
               </div>
             ) : null}
 
             {/* Floating zoom controls. */}
-            {modelReady ? (
+            {modelReady && !modelLoadFailed ? (
               <div className="car-viewer-zoom-controls" aria-hidden="true">
                 <button type="button" onClick={() => handleZoomButton(-0.18)} aria-label="Zoom in">+</button>
                 <button type="button" onClick={() => handleZoomButton(0.18)} aria-label="Zoom out">-</button>
@@ -599,7 +606,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
             ) : null}
 
             {/* Exploded-view annotation pin overlay shown only in Inspect mode. */}
-            {interactionMode === "inspect" && modelReady ? (
+            {interactionMode === "inspect" && modelReady && !modelLoadFailed ? (
               <div
                 className={`car-viewer-inspect-overlay${explodedExpanded ? " car-viewer-inspect-overlay--expanded" : ""}`}
               >
@@ -623,8 +630,11 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
               </div>
             ) : null}
             {modelLoadFailed ? (
-              <div className="car-viewer-loading" role="status" aria-live="polite">
-                3D model could not finish loading. Try another constructor or reload the page.
+              <div className="car-viewer-loading car-viewer-loading--failed" role="alert">
+                <span>3D model could not finish loading.</span>
+                <button type="button" className="button button--secondary" onClick={retryModel}>
+                  Retry 3D model
+                </button>
               </div>
             ) : null}
 
@@ -788,7 +798,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
                 <span>Jump from the physical car into airflow, floor behavior, and rear-wing tradeoffs.</span>
               </a>
               <a href={latestReplayHref}>
-                <strong>Watch latest replay</strong>
+                <strong>Watch featured replay</strong>
                 <span>Carry the same engineering story into a real session pack and track position view.</span>
               </a>
             </div>

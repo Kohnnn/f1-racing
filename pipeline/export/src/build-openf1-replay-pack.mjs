@@ -114,22 +114,19 @@ function getReplayStartTime(ref, lapsRaw, carDataByDriver, positionData) {
 }
 
 function summarizeWeather(samples) {
-  if (!samples.length) {
-    return {
-      airTempC: 0,
-      trackTempC: 0,
-      rainRiskPct: 0,
-    };
-  }
-
-  const airTempC = samples.reduce((sum, item) => sum + Number(item.air_temperature || 0), 0) / samples.length;
-  const trackTempC = samples.reduce((sum, item) => sum + Number(item.track_temperature || 0), 0) / samples.length;
-  const rainRiskPct = Math.max(...samples.map((item) => Number(item.rainfall || 0)), 0) * 100;
+  const values = (field) => samples
+    .map((item) => item[field])
+    .filter((value) => value != null)
+    .map(Number)
+    .filter(Number.isFinite);
+  const airTemps = values("air_temperature");
+  const trackTemps = values("track_temperature");
+  const rainfall = values("rainfall");
 
   return {
-    airTempC: Math.round(airTempC),
-    trackTempC: Math.round(trackTempC),
-    rainRiskPct: Math.round(rainRiskPct),
+    airTempC: airTemps.length ? Math.round(airTemps.reduce((sum, value) => sum + value, 0) / airTemps.length) : null,
+    trackTempC: trackTemps.length ? Math.round(trackTemps.reduce((sum, value) => sum + value, 0) / trackTemps.length) : null,
+    rainRiskPct: rainfall.length ? Math.round(Math.max(...rainfall) * 100) : null,
   };
 }
 
@@ -284,18 +281,7 @@ function buildWeatherTimeline(samples, sessionStartTime) {
     .sort((left, right) => left.t - right.t);
 }
 
-function getWeatherState(weatherTimeline, frameTimeMs, fallbackWeatherSummary) {
-  if (!weatherTimeline.length) {
-    return {
-      airTempC: fallbackWeatherSummary.airTempC,
-      trackTempC: fallbackWeatherSummary.trackTempC,
-      humidityPct: 0,
-      rainfall: false,
-      windSpeedMps: 0,
-      windDirectionDeg: 0,
-    };
-  }
-
+function getWeatherState(weatherTimeline, frameTimeMs) {
   const index = findLatestIndex(weatherTimeline, frameTimeMs, (entry) => entry.t);
   return weatherTimeline[index === -1 ? 0 : index];
 }
@@ -1478,7 +1464,7 @@ async function buildReplayPack(sessionKey, drivers, ref) {
 
     const scPhase = determineSafetyCarState(raceControlTimeline, t);
     const trackStatus = determineTrackStatus(raceControlTimeline, t);
-    const weather = getWeatherState(weatherTimeline, t, weatherSummary);
+    const weather = weatherTimeline.length ? getWeatherState(weatherTimeline, t) : null;
     const scAnchorRatio = leader ? (leader.trackRatio + 0.03) % 1 : 0;
     const [scX, scY] = interpolatePosition(trackPath, scAnchorRatio);
 
@@ -1492,7 +1478,7 @@ async function buildReplayPack(sessionKey, drivers, ref) {
         y: scPhase !== "none" ? scY : null,
       },
       trackStatus,
-      weather,
+      ...(weather ? { weather } : {}),
     });
 
     if (frameIndex % 50 === 0) {

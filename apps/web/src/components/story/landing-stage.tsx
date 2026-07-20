@@ -1,7 +1,8 @@
 "use client";
 
-import { createElement, useEffect } from "react";
+import { createElement, useEffect, useState } from "react";
 import type { TeamProfile } from "@/lib/data";
+import { ensureModelViewerLoaded } from "@/lib/model-viewer-loader";
 
 interface LandingStageProps {
   modelSrc: string;
@@ -34,9 +35,23 @@ export function LandingStage({
   note,
   teamProfile,
 }: LandingStageProps) {
+  const [viewerState, setViewerState] = useState<"poster" | "loading" | "ready" | "error">("poster");
+  const [reduceMotion, setReduceMotion] = useState(false);
+
   useEffect(() => {
-    import("@google/model-viewer");
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const syncPreference = () => setReduceMotion(media.matches);
+    syncPreference();
+    media.addEventListener("change", syncPreference);
+    return () => media.removeEventListener("change", syncPreference);
   }, []);
+
+  function loadViewer() {
+    setViewerState("loading");
+    ensureModelViewerLoaded()
+      .then(() => setViewerState("ready"))
+      .catch(() => setViewerState("error"));
+  }
 
   return (
     <div className="landing-stage-v2">
@@ -45,16 +60,16 @@ export function LandingStage({
         <div className="landing-stage-v2__beam landing-stage-v2__beam--mid" />
         <div className="landing-stage-v2__beam landing-stage-v2__beam--bottom" />
 
-        {createElement("model-viewer", {
+        {viewerState === "ready" ? createElement("model-viewer", {
           className: "landing-stage-v2__viewer",
           src: modelSrc,
           poster: posterSrc,
           alt: modelTitle,
           scale: modelScale,
           reveal: "auto",
-          loading: "eager",
+          loading: "lazy",
           "camera-controls": true,
-          "auto-rotate": true,
+          "auto-rotate": reduceMotion ? undefined : true,
           "auto-rotate-delay": 0,
           "rotation-per-second": "12deg",
           "camera-orbit": heroCamera?.orbit || "20deg 76deg 1.45m",
@@ -67,10 +82,17 @@ export function LandingStage({
           "touch-action": "pan-y",
           "interaction-prompt": "none",
           "environment-image": "neutral",
-        })}
+        }) : (
+          <div className="landing-stage-v2__poster">
+            <img src={posterSrc} alt={`${modelTitle} preview`} />
+            <button type="button" onClick={loadViewer} disabled={viewerState === "loading"}>
+              {viewerState === "loading" ? "Loading 3D..." : viewerState === "error" ? "Retry 3D model" : "Load interactive 3D"}
+            </button>
+          </div>
+        )}
 
         <a className="button landing-stage-v2__cta" href="/cars/current-spec">
-          Open live 3D model
+          Open modelview
         </a>
 
         <div className="landing-stage-v2__panel landing-stage-v2__panel--status">

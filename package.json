@@ -8,14 +8,18 @@
   ],
   "scripts": {
     "dev": "npm run sync:models && npm run generate:sample && npm run refresh:showcase:replay && npm run dev -w @f1-racing/web",
-    "build": "npm run sync:models && npm run generate:sample && npm run refresh:showcase:replay && npm run next:build -w @f1-racing/web",
-    "build:pages": "npm run sync:models && npm run generate:sample && npm run refresh:showcase:replay && npm run next:build -w @f1-racing/web",
+    "build": "npm run check:featured && npm run next:build -w @f1-racing/web",
+    "build:pages": "npm run check:featured && npm run next:build -w @f1-racing/web",
     "generate:sample": "node pipeline/export/src/generate-sample-data.mjs",
     "sync:models": "node pipeline/export/src/sync-web-models.mjs",
     "split:replay": "node pipeline/export/src/split-replay-packs.mjs",
     "api:dev": "python -m uvicorn backend.main:app --reload --host 127.0.0.1 --port 8080",
     "api:start": "python -m uvicorn backend.main:app --host 0.0.0.0 --port 8080",
     "check:data": "node pipeline/export/src/generate-sample-data.mjs --check",
+    "test:featured": "node pipeline/export/src/refresh-seasons-index.test.mjs",
+    "test:pit-cycles": "node packages/telemetry-utils/src/pit-cycle.test.mjs",
+    "test:replay-director": "node tools/replay-director.test.mjs",
+    "check:featured": "npm run test:featured && node pipeline/export/src/refresh-seasons-index.mjs --check",
     "init:openfoam:local": "node pipeline/openfoam/src/init-openfoam-local.mjs",
     "build:openfoam:overlay": "node pipeline/openfoam/src/build-openfoam-overlay-pack.mjs",
     "apply:openfoam:inputs": "node pipeline/openfoam/src/apply-openfoam-user-inputs.mjs",
@@ -32,7 +36,10 @@
     "build:fastf1:replay:local": "pip install -r pipeline/fastf1/requirements.txt && python pipeline/fastf1/build-fastf1-replay-pack.py",
     "worker:dev": "npm run dev -w @f1-racing/metadata-api",
     "worker:check": "npm run check -w @f1-racing/metadata-api",
-    "worker:deploy": "npm run deploy -w @f1-racing/metadata-api"
+    "worker:deploy": "npm run deploy -w @f1-racing/metadata-api",
+    "typecheck": "npm run typecheck -w @f1-racing/web",
+    "quality": "npm run typecheck && npm run test:replay-director && npm run check:data",
+    "smoke:static": "node tools/smoke-static.mjs"
   },
   "devDependencies": {
     "@gltf-transform/core": "^4.3.0",

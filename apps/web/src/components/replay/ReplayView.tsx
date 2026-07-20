@@ -1,6 +1,6 @@
 "use client";
 
-import { formatLapTime } from "@f1-racing/telemetry-utils";
+import { derivePitCycleOutcomes, formatLapTime } from "@f1-racing/telemetry-utils";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ComparePack, DriverSummary, LapRecord, ReplayPack, SessionManifest, SessionSummary, StintPack, StrategyPack } from "@/lib/data";
@@ -8,7 +8,7 @@ import { getFocusPoint } from "@/components/model-viewer/focus-points";
 import { Leaderboard, type ReplayLeaderboardRow } from "./Leaderboard";
 import { PlaybackControls } from "./PlaybackControls";
 import { ReplayDebugPanel } from "./replay-debug-panel";
-import { ReplayComparePanel, ReplayLapWaterfall, ReplayStintPanel, ReplayStrategyPanel, ReplayTrackInfoPanel, ReplayBattleGraph, ReplayCornerSpeeds, ReplaySectorDominance } from "./replay-insights";
+import { ReplayComparePanel, ReplayLapWaterfall, ReplayPitCyclePanel, ReplayStintPanel, ReplayStrategyPanel, ReplayTrackInfoPanel, ReplayBattleGraph, ReplayCornerSpeeds, ReplaySectorDominance } from "./replay-insights";
 import { ReplayTelemetryStrip } from "./replay-telemetry-strip";
 import { TrackCanvas, type PitPulse } from "./TrackCanvas";
 import { buildTrackGeometry } from "./track-geometry";
@@ -17,13 +17,42 @@ const ReplayScene3D = dynamic(() => import("./three/ReplayScene3D"), { ssr: fals
 
 const UI_SYNC_INTERVAL_MS = 180;
 
-type AnalysisTab = "telemetry" | "compare" | "stints" | "strategy" | "track" | "racecontrol" | "waterfall" | "battle" | "corners" | "sectors";
+type AnalysisTab = "telemetry" | "compare" | "stints" | "strategy" | "pitcycles" | "track" | "racecontrol" | "waterfall" | "battle" | "corners" | "sectors";
+
+type StoryStep = {
+  id: string;
+  label: "Observed" | "Derived";
+  title: string;
+  detail: string;
+  time?: number;
+  tab?: AnalysisTab;
+  drivers?: string[];
+};
+
+const ANALYSIS_TAB_LABELS: Record<AnalysisTab, string> = {
+  telemetry: "Telemetry",
+  compare: "Compare",
+  stints: "Stints",
+  strategy: "Strategy",
+  pitcycles: "Pit cycles",
+  track: "Track",
+  racecontrol: "Race control",
+  waterfall: "Lap times",
+  battle: "Battle map",
+  corners: "Corner speeds",
+  sectors: "Sectors",
+};
+
+function isAnalysisTab(value: string | null): value is AnalysisTab {
+  return value !== null && value in ANALYSIS_TAB_LABELS;
+}
 
 interface ReplayViewProps {
   replay: ReplayPack;
   manifest: SessionManifest;
   summary: SessionSummary;
   compare: ComparePack | null;
+  insightsReady: boolean;
   route: {
     season: string;
     grandPrix: string;
@@ -33,7 +62,10 @@ interface ReplayViewProps {
   driverSummaries?: DriverSummary[] | null;
   lapRecords?: LapRecord[] | null;
   strategy?: StrategyPack | null;
+  fullLoadProgress?: number;
+  fullRaceLoaded?: boolean;
   onEnsureTimeLoaded?: (time: number) => void;
+  onLoadFullRace?: () => void;
 }
 
 function hasMovingTrackCoordinates(frames: ReplayPack["frames"]) {
@@ -186,14 +218,23 @@ function formatSeconds(seconds: number) {
   return `${minutes}:${String(secs).padStart(2, "0")}`;
 }
 
-function intervalLabel(interval: number | null, position?: number) {
-  if (interval === null) {
-    return "-";
-  }
+function intervalLabel(interval: number | null | undefined, position?: number | null) {
   if (position === 1) {
     return "Leader";
   }
+  if (typeof interval !== "number" || !Number.isFinite(interval) || interval <= 0) {
+    return "Unavailable";
+  }
   return `+${interval.toFixed(3)}`;
+}
+
+function gapProvenanceLabel(interval: number | null | undefined, position?: number | null) {
+  if (position === 1) {
+    return "Race order";
+  }
+  return typeof interval === "number" && Number.isFinite(interval) && interval > 0
+    ? "Published gap"
+    : "Timing unavailable";
 }
 
 function normalizeTrackStatus(status: string) {
@@ -286,9 +327,9 @@ function findLastIndexBeforeOrAt(time: number, values: number[]) {
   return result;
 }
 
-export function ReplayView({ replay, manifest, summary, compare, route, stintPack, driverSummaries, lapRecords, strategy, onEnsureTimeLoaded }: ReplayViewProps) {
+export function ReplayView({ replay, manifest, summary, compare, insightsReady, route, stintPack, driverSummaries, lapRecords, strategy, fullLoadProgress = 0, fullRaceLoaded = false, onEnsureTimeLoaded, onLoadFullRace }: ReplayViewProps) {
   const initialTime = replay.frames[0]?.t || 0;
-  const defaultAnalysisTab = compare ? "compare" as const : stintPack ? "stints" as const : "telemetry" as const;
+  const defaultAnalysisTab = Object.keys(manifest.compare ?? {}).length ? "compare" as const : manifest.stints ? "stints" as const : "telemetry" as const;
   const [playbackState, setPlaybackState] = useState(() => ({
     currentTime: initialTime,
     frameIndex: 0,
@@ -309,7 +350,6 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
   const lastUiSyncRef = useRef(initialTime);
   const lastPositionsRef = useRef<Map<string, number>>(new Map());
   const [showMarshalSectors, setShowMarshalSectors] = useState(true);
-  const [loadProgress, setLoadProgress] = useState<number>(0);
   const [loopBounds, setLoopBounds] = useState<{ from: number | null; to: number | null }>({ from: null, to: null });
   const [loopActive, setLoopActive] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -329,17 +369,75 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
   const [showHoverFieldsMenu, setShowHoverFieldsMenu] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
   const [trackViewMode, setTrackViewMode] = useState<"2d" | "3d">("2d");
+  const [trackViewNotice, setTrackViewNotice] = useState<string | null>(null);
+  const [seekToken, setSeekToken] = useState(0);
+  const [viewMode, setViewMode] = useState<"story" | "workspace">("story");
+  const [queryReady, setQueryReady] = useState(false);
+  const [syncWorkspaceUrl, setSyncWorkspaceUrl] = useState(false);
+  const [shareStatus, setShareStatus] = useState<"idle" | "copied" | "failed">("idle");
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
     const params = new URLSearchParams(window.location.search);
+    const requestedTab = params.get("tab");
+    const requestedTimeParam = params.get("t");
+    const requestedTimeValue = Number(requestedTimeParam);
+    const requestedTime = requestedTimeParam !== null
+      && requestedTimeParam.trim() !== ""
+      && Number.isFinite(requestedTimeValue)
+      && requestedTimeValue >= 0
+      ? Math.min(requestedTimeValue, replay.totalTime ?? replay.frames.at(-1)?.t ?? 0)
+      : null;
+    const validDriverCodes = new Set(replay.drivers.map((driver) => driver.driverCode));
+    const requestedDrivers = Array.from(new Set(
+      (params.get("drivers") ?? "")
+        .split(",")
+        .map((driverCode) => driverCode.trim().toUpperCase())
+        .filter((driverCode) => validDriverCodes.has(driverCode)),
+    )).slice(0, 4);
+
+    const workspaceRequested = Boolean(
+      requestedTime !== null
+      || requestedTab
+      || params.get("drivers")
+      || params.get("focus")
+      || window.location.hash === "#analysis",
+    );
     setFocusId(params.get("focus"));
-    if (window.location.search.includes("debug=1")) {
+    setSelectedDrivers(requestedDrivers);
+    if (isAnalysisTab(requestedTab)) {
+      setAnalysisTab(requestedTab);
+    }
+    if (requestedTime !== null) {
+      onEnsureTimeLoaded?.(requestedTime);
+      playheadTimeRef.current = requestedTime;
+      lastUiSyncRef.current = requestedTime;
+      setPlaybackState({ currentTime: requestedTime, frameIndex: 0 });
+    } else if (requestedTimeParam !== null) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("t");
+      window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+    }
+    setViewMode(workspaceRequested ? "workspace" : "story");
+    setSyncWorkspaceUrl(workspaceRequested);
+    if (params.get("debug") === "1") {
       setShowDebug(true);
     }
-  }, []);
+    setQueryReady(true);
+  }, [onEnsureTimeLoaded, replay.drivers, replay.totalTime]);
+
+  useEffect(() => {
+    if (!queryReady || !syncWorkspaceUrl) {
+      return;
+    }
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", analysisTab);
+    if (selectedDrivers.length) {
+      url.searchParams.set("drivers", selectedDrivers.join(","));
+    } else {
+      url.searchParams.delete("drivers");
+    }
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [analysisTab, queryReady, selectedDrivers, syncWorkspaceUrl]);
 
   const totalTime = replay.totalTime ?? (replay.frames.at(-1)?.t || 0);
   const loadedEndTime = replay.frames.at(-1)?.t || 0;
@@ -426,11 +524,29 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
   const trackLabel = formatSlugLabel(replay.trackId);
   const replaySourceLabel = formatReplaySource(replay.source);
   const cleanReplayNote = useMemo(() => sanitizeReplayNote(replay.note), [replay.note]);
+  const positionCoverage = useMemo(() => {
+    let gpsSamples = 0;
+    let syntheticSamples = 0;
+    for (const frame of replay.frames) {
+      for (const driver of Object.values(frame.drivers)) {
+        if (driver.positionSource === "gps") gpsSamples += 1;
+        if (driver.positionSource === "synthetic") syntheticSamples += 1;
+      }
+    }
+    if (gpsSamples && syntheticSamples) return "GPS + projected positions";
+    if (gpsSamples) return "GPS-projected positions";
+    if (syntheticSamples || useSyntheticTrackMotion) return "Projected timing positions";
+    return "Published track positions";
+  }, [replay.frames, useSyntheticTrackMotion]);
+  const replayPackLabel = replay.frameCount
+    ? `${replay.frameCount.toLocaleString()} frames · ${replay.frameChunkIndex?.length ?? replay.frameChunks?.length ?? 1} file${(replay.frameChunkIndex?.length ?? replay.frameChunks?.length ?? 1) === 1 ? "" : "s"}`
+    : `${replay.frames.length.toLocaleString()} loaded frames`;
   const [showMessageList, setShowMessageList] = useState(false);
   const [raceControlFilter, setRaceControlFilter] = useState<RaceControlCategoryId>("all");
-  const replayBannerNote = useSyntheticTrackMotion
-    ? `${replaySourceLabel} timing replay. Track motion is projected onto the circuit polyline.`
-    : cleanReplayNote || `${replaySourceLabel} replay data`;
+  const replayBannerNote = [
+    cleanReplayNote || `${replaySourceLabel} replay data.`,
+    useSyntheticTrackMotion ? "The current loaded window uses lap-progress projection until moving coordinates are available." : null,
+  ].filter(Boolean).join(" ");
   const lapLabel = currentLap
     ? `${currentLap}${totalLaps ? ` / ${totalLaps}` : ""}`
     : totalLaps
@@ -881,10 +997,14 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
   const currentWeather = currentFrame?.weather || null;
   const weatherLabel = currentWeather
     ? `${currentWeather.airTempC}C air · ${currentWeather.trackTempC}C track`
-    : `${summary.weatherSummary.airTempC}C air · ${summary.weatherSummary.trackTempC}C track`;
+    : summary.weatherSummary.airTempC !== null && summary.weatherSummary.trackTempC !== null
+      ? `${summary.weatherSummary.airTempC}C air · ${summary.weatherSummary.trackTempC}C track`
+      : "Unavailable";
   const windLabel = currentWeather
     ? `${currentWeather.windSpeedMps.toFixed(1)} m/s · ${Math.round(currentWeather.windDirectionDeg)}°`
-    : `Rain risk ${summary.weatherSummary.rainRiskPct}%`;
+    : summary.weatherSummary.rainRiskPct !== null
+      ? `Rain risk ${summary.weatherSummary.rainRiskPct}%`
+      : "Unavailable";
   const selectedDriverLabel = selectedTelemetryDrivers.length
     ? selectedTelemetryDrivers.map((driver) => driver.abbr).join(" · ")
     : "No drivers selected";
@@ -899,8 +1019,9 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
       tyreAge?: number | null;
       lastLapMs?: number | null;
       bestLapMs?: number | null;
-      gap?: string | null;
-      interval?: string | null;
+        gap?: string | null;
+        gapProvenance?: string | null;
+        interval?: string | null;
     }>();
     for (const driver of displayedDrivers) {
       const driverLaps = lapHistoryByDriver.get(driver.abbr) ?? [];
@@ -917,6 +1038,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
         tyreCompound: driver.compound,
         tyreAge: driver.tyreAge,
         gap: driver.intervalLabel,
+        gapProvenance: gapProvenanceLabel(currentFrame?.drivers[driver.abbr]?.interval, driver.position),
         interval: driver.intervalLabel,
         lastLapMs,
         bestLapMs,
@@ -993,17 +1115,149 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
   }, [displayedDrivers, lapRecords, replay.trackId, selectedDrivers]);
 
   const activeCompare = dynamicCompare ?? compare;
+  const pitCycleResult = useMemo(() => derivePitCycleOutcomes({
+    session: route.session,
+    frames: replay.frames,
+    expectedFrameCount: replay.frameCount,
+    totalTime: replay.totalTime,
+    fullRaceLoaded,
+    stintPack,
+    lapRecords: lapRecords ?? null,
+    raceControlMessages: replay.raceControlMessages,
+  }), [fullRaceLoaded, lapRecords, replay.frameCount, replay.frames, replay.raceControlMessages, replay.totalTime, route.session, stintPack]);
+  const availableAnalysisTabs: AnalysisTab[] = [
+    "telemetry",
+    ...(activeCompare || (!insightsReady && Object.keys(manifest.compare ?? {}).length) ? ["compare" as const] : []),
+    ...(stintPack || (!insightsReady && manifest.stints) ? ["stints" as const] : []),
+    ...(strategy || stintPack || (!insightsReady && (manifest.strategy || manifest.stints)) ? ["strategy" as const] : []),
+    ...(stintPack || (!insightsReady && manifest.stints) ? ["pitcycles" as const] : []),
+    "track",
+    "waterfall",
+    "battle",
+    "corners",
+    "sectors",
+    ...(totalRaceControlMessages ? ["racecontrol" as const] : []),
+  ];
+  const decidingTab: AnalysisTab = strategy || stintPack
+    ? "strategy"
+    : totalRaceControlMessages
+      ? "racecontrol"
+      : "battle";
+  const paceTab: AnalysisTab = activeCompare ? "compare" : "sectors";
+  const analysisTitle = analysisTab === "telemetry"
+    ? selectedTelemetryDrivers.length
+      ? "Selected telemetry strips"
+      : "Select drivers from the leaderboard"
+    : analysisTab === "compare" && activeCompare
+      ? `${activeCompare.drivers[0]} vs ${activeCompare.drivers[1]}`
+      : analysisTab === "stints"
+        ? "Tyre window snapshot"
+        : ANALYSIS_TAB_LABELS[analysisTab];
+  const storySteps = useMemo<StoryStep[]>(() => {
+    const steps: StoryStep[] = [{
+      id: "provenance",
+      label: "Observed",
+      title: "Start with the recorded evidence",
+      detail: `${replaySourceLabel} · ${positionCoverage}.`,
+      tab: "track",
+    }];
+    const raceControl = (replay.raceControlMessages ?? []).find((message) => {
+      const category = categorizeRaceControlMessage(message);
+      return category !== "other" && category !== "drs";
+    });
+    if (raceControl) {
+      steps.push({
+        id: "race-control",
+        label: "Observed",
+        title: raceControl.flag || RACE_CONTROL_BADGE_LABEL[categorizeRaceControlMessage(raceControl)],
+        detail: raceControl.message,
+        time: raceControl.t,
+        tab: "racecontrol",
+      });
+    }
+    if (activeCompare) {
+      steps.push({
+        id: "pace",
+        label: "Derived",
+        title: `${activeCompare.drivers[0]} vs ${activeCompare.drivers[1]} pace read`,
+        detail: `${activeCompare.deltaSections.length} sector comparison${activeCompare.deltaSections.length === 1 ? "" : "s"} from recorded laps.`,
+        tab: "compare",
+        drivers: [...activeCompare.drivers],
+      });
+    } else if (replay.laps.some((lap) => typeof lap.sector1 === "number" || typeof lap.sector2 === "number" || typeof lap.sector3 === "number")) {
+      steps.push({
+        id: "sectors",
+        label: "Derived",
+        title: "Sector pace is available",
+        detail: "Compare recorded sector times to locate the pace difference.",
+        tab: "sectors",
+      });
+    }
+    const stints = stintPack?.drivers.find((driver) => driver.stints.length);
+    if (stints) {
+      steps.push({
+        id: "strategy",
+        label: "Derived",
+        title: `${stints.driverCode} tyre sequence`,
+        detail: `${stints.stints.length} recorded stint${stints.stints.length === 1 ? "" : "s"} available for strategy context.`,
+        tab: strategy ? "strategy" : "stints",
+        drivers: [stints.driverCode],
+      });
+    } else if (strategy?.recommendedWindows.length) {
+      const window = strategy.recommendedWindows[0];
+      steps.push({
+        id: "strategy-window",
+        label: "Derived",
+        title: `Strategy window: laps ${window.lapStart}–${window.lapEnd}`,
+        detail: window.reason,
+        tab: "strategy",
+      });
+    }
+    if (suggestedDriver) {
+      steps.push({
+        id: "driver",
+        label: "Derived",
+        title: `Inspect ${suggestedDriver}`,
+        detail: fastestLap?.driverCode === suggestedDriver && fastestLap.lapTime
+          ? `Fastest recorded lap: ${formatLapTime(fastestLap.lapTime)}.`
+          : "Suggested from the current recorded order.",
+        tab: "telemetry",
+        drivers: [suggestedDriver],
+      });
+    }
+    return steps;
+  }, [activeCompare, fastestLap, positionCoverage, replay.laps, replay.raceControlMessages, replaySourceLabel, strategy, stintPack, suggestedDriver]);
+
+  const openAnalysis = useCallback((tab: AnalysisTab, drivers?: string[]) => {
+    if (drivers?.length) {
+      setSelectedDrivers(drivers.slice(0, 4));
+    }
+    setAnalysisTab(tab);
+    window.requestAnimationFrame(() => {
+      document.getElementById("analysis")?.scrollIntoView({ block: "start" });
+    });
+  }, []);
 
   useEffect(() => {
+    if (!insightsReady) {
+      return;
+    }
     if (analysisTab === "compare" && !activeCompare) {
       setAnalysisTab(stintPack ? "stints" : "telemetry");
       return;
     }
-
     if (analysisTab === "stints" && !stintPack) {
       setAnalysisTab(activeCompare ? "compare" : "telemetry");
+      return;
     }
-  }, [activeCompare, analysisTab, stintPack]);
+    if (analysisTab === "strategy" && !strategy && !stintPack) {
+      setAnalysisTab(activeCompare ? "compare" : "telemetry");
+      return;
+    }
+    if (analysisTab === "pitcycles" && !stintPack) {
+      setAnalysisTab(activeCompare ? "compare" : "telemetry");
+    }
+  }, [activeCompare, analysisTab, insightsReady, stintPack, strategy]);
 
   const syncPlaybackState = useCallback((time: number, frameIndex: number) => {
     playheadTimeRef.current = time;
@@ -1017,8 +1271,36 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
     onEnsureTimeLoaded?.(nextTime);
     const nextFrameIndex = findFrameIndexForTime(nextTime);
     syncPlaybackState(nextTime, nextFrameIndex);
+    setSeekToken((value) => value + 1);
     setIsPlaying(false);
   }, [findFrameIndexForTime, onEnsureTimeLoaded, syncPlaybackState, totalTime]);
+
+  const handleShareReplay = useCallback(async () => {
+    const url = new URL(window.location.href);
+    url.searchParams.set("t", String(Math.round(playheadTimeRef.current * 10) / 10));
+    url.searchParams.set("tab", analysisTab);
+    if (selectedDrivers.length) {
+      url.searchParams.set("drivers", selectedDrivers.join(","));
+    } else {
+      url.searchParams.delete("drivers");
+    }
+    url.hash = "analysis";
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+    setViewMode("workspace");
+    setSyncWorkspaceUrl(true);
+    try {
+      await navigator.clipboard.writeText(url.href);
+      setShareStatus("copied");
+    } catch {
+      setShareStatus("failed");
+    }
+  }, [analysisTab, selectedDrivers]);
+
+  useEffect(() => {
+    if (shareStatus === "idle") return;
+    const timeout = window.setTimeout(() => setShareStatus("idle"), 2400);
+    return () => window.clearTimeout(timeout);
+  }, [shareStatus]);
 
   const handleSkipTime = useCallback((delta: number) => {
     const next = Math.max(0, Math.min(totalTime, playheadTimeRef.current + delta));
@@ -1053,6 +1335,18 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
       return [driverCode];
     });
   }, []);
+
+  const activateStoryStep = useCallback((step: StoryStep) => {
+    setIsPlaying(false);
+    if (typeof step.time === "number") {
+      handleSeek(step.time);
+    }
+    setViewMode("workspace");
+    setSyncWorkspaceUrl(true);
+    if (step.tab) {
+      openAnalysis(step.tab, step.drivers);
+    }
+  }, [handleSeek, openAnalysis]);
 
   const animate = useCallback((timestamp: number) => {
     if (!lastTimeRef.current) {
@@ -1100,24 +1394,6 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
 
     animationRef.current = requestAnimationFrame(animate);
   }, [findFrameIndexForTime, loadedEndTime, loopActive, loopBounds.from, loopBounds.to, onEnsureTimeLoaded, playbackSpeed, replay.frames.length, syncPlaybackState, totalTime]);
-
-  // Track loaded-time growth as a 0..1 progress value while a `Load full race`
-  // request is in flight. Once `loadedEndTime` reaches `totalTime` we clear the
-  // progress so the load-bar disappears.
-  useEffect(() => {
-    if (totalTime <= 0) return;
-    if (loadedEndTime >= totalTime) {
-      if (loadProgress > 0) setLoadProgress(0);
-      return;
-    }
-    if (route.session === "race" && totalTime - loadedEndTime > 30 && loadProgress === 0) {
-      setLoadProgress(Math.max(0.01, loadedEndTime / totalTime));
-      return;
-    }
-    if (loadProgress > 0) {
-      setLoadProgress(Math.min(0.99, loadedEndTime / totalTime));
-    }
-  }, [loadedEndTime, loadProgress, route.session, totalTime]);
 
   // Fire a "purple sector" banner whenever a new fastest lap is set.
   useEffect(() => {
@@ -1174,7 +1450,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
     function onKeyDown(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
       const tagName = target?.tagName ?? "";
-      if (target?.isContentEditable || ["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(tagName)) {
+      if (target?.isContentEditable || ["INPUT", "TEXTAREA", "SELECT", "BUTTON", "CANVAS"].includes(tagName)) {
         return;
       }
 
@@ -1254,7 +1530,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
   }, [handleSeek, handleSkipLap, handleSkipTime, showShortcuts]);
 
   return (
-    <div className="replay-view replay-view--workspace">
+    <div className={`replay-view replay-view--workspace replay-view--${viewMode}`}>
       {showDebug ? (
         <ReplayDebugPanel
           currentTime={currentTime}
@@ -1271,7 +1547,35 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
       ) : null}
       <section className="replay-session-banner">
         <div className="replay-session-banner__identity">
-          <p className="eyebrow">Replay workspace</p>
+          <p className="eyebrow">Replay {viewMode}</p>
+          <div className="replay-mode-toggle" role="group" aria-label="Replay mode">
+            {(["story", "workspace"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                className={viewMode === mode ? "replay-mode-toggle__button replay-mode-toggle__button--active" : "replay-mode-toggle__button"}
+                aria-pressed={viewMode === mode}
+                onClick={() => {
+                  setViewMode(mode);
+                  if (mode === "workspace") {
+                    setSyncWorkspaceUrl(true);
+                    return;
+                  }
+                  const url = new URL(window.location.href);
+                   url.searchParams.delete("t");
+                   url.searchParams.delete("tab");
+                   url.searchParams.delete("drivers");
+                   url.searchParams.delete("focus");
+                   url.hash = "";
+                   window.history.replaceState({}, "", `${url.pathname}${url.search}`);
+
+                  setSyncWorkspaceUrl(false);
+                }}
+              >
+                {mode === "story" ? "Story" : "Workspace"}
+              </button>
+            ))}
+          </div>
           <h1>{replay.grandPrix}</h1>
           <p>
             {replay.session} replay at {trackLabel}. One dense control surface for order, track state, telemetry, and comparison work.
@@ -1307,8 +1611,17 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
           <p className="replay-session-banner__note">
             {replayBannerNote}
           </p>
+          <div className="replay-session-banner__trust" aria-label="Replay data provenance">
+            <span>{replaySourceLabel}</span>
+            <span>{positionCoverage}</span>
+            <span>{replayPackLabel}</span>
+            <span>Generated {replay.generatedAt.slice(0, 10)}</span>
+          </div>
           <div className="replay-session-banner__actions">
-            <a className="replay-session-banner__action replay-session-banner__action--primary" href="/replay">Replay library</a>
+            <button className="replay-session-banner__action replay-session-banner__action--primary" type="button" onClick={() => void handleShareReplay()}>
+              {shareStatus === "copied" ? "Link copied" : shareStatus === "failed" ? "Copy failed" : "Copy evidence link"}
+            </button>
+            <a className="replay-session-banner__action" href="/replay">Replay library</a>
             <a className="replay-session-banner__action" href="/cars/current-spec">Modelview</a>
             <a className="replay-session-banner__action" href="/learn">Learn</a>
             <a className="replay-session-banner__action" href={`/sessions/${route.season}/${route.grandPrix}/${route.session}`}>Session summary</a>
@@ -1335,14 +1648,41 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
         </section>
       ) : null}
 
-      <div className="replay-workspace-grid replay-workspace-grid--stacked">
+      {viewMode === "story" ? (
+        <section className="replay-story" aria-labelledby="replay-story-title">
+          <div className="replay-story__header">
+            <p className="eyebrow">Guided story</p>
+            <h2 id="replay-story-title">Follow the evidence.</h2>
+            <p>Each step pauses the replay and opens the existing evidence behind the read.</p>
+          </div>
+          <ol className="replay-story__steps">
+            {storySteps.map((step, index) => (
+              <li key={step.id}>
+                <button type="button" onClick={() => activateStoryStep(step)}>
+                  <span className="replay-story__index">{String(index + 1).padStart(2, "0")}</span>
+                  <span className={`replay-story__label replay-story__label--${step.label.toLowerCase()}`}>{step.label}</span>
+                  <strong>{step.title}</strong>
+                  <span>{step.detail}</span>
+                  <small>{step.time === undefined ? "Open analysis" : `Pause at T+${Math.floor(step.time)}s`}</small>
+                </button>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : null}
+
+      {viewMode === "workspace" ? (
+        <>
+          <div className="replay-workspace-grid replay-workspace-grid--stacked">
         <section className="replay-track-panel">
           <div className="replay-track-panel__header">
             <div className="replay-track-panel__title">
               <p className="eyebrow">Track stage</p>
               <h2>{trackLabel}</h2>
               <p>
-                Drag to pan · Shift+wheel to zoom · Right-drag (or Alt+drag) to rotate · Double-click to reset · Click a marker to inspect.
+                {trackViewMode === "3d"
+                  ? "Choose a broadcast camera, or use Orbit to rotate and zoom. Select a car to inspect its telemetry."
+                  : "Drag to pan · Shift+wheel to zoom · Right-drag (or Alt+drag) to rotate · Double-click or 0 to reset · Arrow keys pan · +/- zoom · Click a marker to inspect."}
               </p>
             </div>
             <div className="replay-track-panel__stats">
@@ -1421,7 +1761,10 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
                 type="button"
                 className={`replay-heatmap-button${trackViewMode === key ? " replay-heatmap-button--active" : ""}`}
                 aria-pressed={trackViewMode === key}
-                onClick={() => setTrackViewMode(key)}
+                onClick={() => {
+                  setTrackViewNotice(null);
+                  setTrackViewMode(key);
+                }}
               >
                 {label}
               </button>
@@ -1447,6 +1790,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
               <span className="replay-heatmap-control__hint">Select a driver to colour their lap</span>
             ) : null}
           </div>
+          {trackViewNotice ? <p className="replay-track-panel__notice" role="status">{trackViewNotice}</p> : null}
           <div className="replay-track-panel__canvas">
             {fastestLapToast ? (
               <div key={fastestLapToast.key} className="fastest-lap-banner">
@@ -1461,10 +1805,25 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
                 currentFrame={currentFrame}
                 nextFrame={nextFrame}
                 playheadTimeRef={playheadTimeRef}
+                clockSeconds={currentTime}
+                isPlaying={isPlaying}
+                seekToken={seekToken}
                 estimatedLapDuration={estimatedLapDuration}
                 selectedDrivers={selectedDrivers}
+                showDrsZones={showDrsZones}
+                showEvents={showEvents}
+                showMarshalSectors={showMarshalSectors}
                 drsZones={effectiveDrsZones}
+                marshalSectors={replay.trackMetadata?.marshalSectors ?? []}
+                activeMarshalFlagBySector={activeMarshalFlagBySector}
+                pitPulses={activePitPulses}
+                heatmapChannel={heatmapChannel}
+                heatmapSamples={heatmapSamples}
                 onDriverSelect={handleDriverSelect}
+                onUnavailable={(message) => {
+                  setTrackViewNotice(message);
+                  setTrackViewMode("2d");
+                }}
               />
             ) : (
             <TrackCanvas
@@ -1605,7 +1964,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
             loopActive={loopActive}
             loopFromTime={loopBounds.from}
             loopToTime={loopBounds.to}
-            loadProgress={loadProgress}
+            loadProgress={fullLoadProgress}
             onToggleLabels={() => setShowDriverLabels((value) => !value)}
             onToggleDrsZones={() => setShowDrsZones((value) => !value)}
             onToggleEvents={() => setShowEvents((value) => !value)}
@@ -1620,12 +1979,7 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
             onSeek={handleSeek}
             onSkipLap={handleSkipLap}
             onSkipTime={handleSkipTime}
-            onLoadFullRace={() => {
-              if (totalTime > loadedEndTime && onEnsureTimeLoaded) {
-                setLoadProgress(loadedEndTime / Math.max(1, totalTime));
-                onEnsureTimeLoaded(totalTime);
-              }
-            }}
+            onLoadFullRace={onLoadFullRace}
             onPlay={() => {
               if (playheadTimeRef.current >= totalTime) {
                 syncPlaybackState(0, 0);
@@ -1673,109 +2027,44 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
         </aside>
       </div>
 
-      <section className="replay-support-panel">
+      <section id="analysis" className="replay-support-panel" aria-labelledby="analysis-title">
         <div className="section-header replay-support-panel__header">
           <div>
             <p className="eyebrow">Analysis deck</p>
-            <h2>
-              {analysisTab === "telemetry"
-                ? selectedTelemetryDrivers.length
-                  ? "Selected telemetry strips"
-                  : "Select drivers from the leaderboard"
-                : analysisTab === "compare"
-                  ? activeCompare ? `${activeCompare.drivers[0]} vs ${activeCompare.drivers[1]}` : "Compare"
-                  : analysisTab === "stints"
-                    ? "Tyre window snapshot"
-                    : analysisTab === "strategy"
-                      ? "Strategy desk"
-                      : analysisTab === "track"
-                        ? "Track read"
-                        : analysisTab === "waterfall"
-                          ? "Lap times waterfall"
-                          : "Race control"}
-            </h2>
+            <h2 id="analysis-title">{analysisTitle}</h2>
           </div>
-          <div className="replay-support-panel__tabs">
-            <button
-              type="button"
-              className={`replay-support-panel__tab${analysisTab === "telemetry" ? " replay-support-panel__tab--active" : ""}`}
-              onClick={() => setAnalysisTab("telemetry")}
-            >
-              Telemetry {selectedTelemetryDrivers.length ? `· ${selectedTelemetryDrivers.length}` : ""}
-            </button>
-            {activeCompare ? (
+          <label className="replay-support-panel__select">
+            <span>Analysis view</span>
+            <select value={analysisTab} onChange={(event) => setAnalysisTab(event.target.value as AnalysisTab)}>
+              {availableAnalysisTabs.map((tab) => (
+                <option key={tab} value={tab}>{ANALYSIS_TAB_LABELS[tab]}</option>
+              ))}
+            </select>
+          </label>
+          <div className="replay-support-panel__tabs" role="tablist" aria-label="Replay analysis views">
+            {availableAnalysisTabs.map((tab) => (
               <button
+                key={tab}
+                id={`analysis-tab-${tab}`}
                 type="button"
-                className={`replay-support-panel__tab${analysisTab === "compare" ? " replay-support-panel__tab--active" : ""}`}
-                onClick={() => setAnalysisTab("compare")}
+                role="tab"
+                aria-selected={analysisTab === tab}
+                aria-controls="analysis-panel"
+                className={`replay-support-panel__tab${analysisTab === tab ? " replay-support-panel__tab--active" : ""}`}
+                onClick={() => setAnalysisTab(tab)}
               >
-                Compare {dynamicCompare ? "· live" : ""}
+                {ANALYSIS_TAB_LABELS[tab]}
+                {tab === "telemetry" && selectedTelemetryDrivers.length ? ` · ${selectedTelemetryDrivers.length}` : ""}
+                {tab === "compare" && dynamicCompare ? " · live" : ""}
+                {tab === "racecontrol" ? ` · ${totalRaceControlMessages}` : ""}
               </button>
-            ) : null}
-            {stintPack ? (
-              <button
-                type="button"
-                className={`replay-support-panel__tab${analysisTab === "stints" ? " replay-support-panel__tab--active" : ""}`}
-                onClick={() => setAnalysisTab("stints")}
-              >
-                Stints
-              </button>
-            ) : null}
-            {(strategy || stintPack) ? (
-              <button
-                type="button"
-                className={`replay-support-panel__tab${analysisTab === "strategy" ? " replay-support-panel__tab--active" : ""}`}
-                onClick={() => setAnalysisTab("strategy")}
-              >
-                Strategy
-              </button>
-            ) : null}
-            <button
-              type="button"
-              className={`replay-support-panel__tab${analysisTab === "track" ? " replay-support-panel__tab--active" : ""}`}
-              onClick={() => setAnalysisTab("track")}
-            >
-              Track
-            </button>
-            <button
-              type="button"
-              className={`replay-support-panel__tab${analysisTab === "waterfall" ? " replay-support-panel__tab--active" : ""}`}
-              onClick={() => setAnalysisTab("waterfall")}
-            >
-              Lap times
-            </button>
-            <button
-              type="button"
-              className={`replay-support-panel__tab${analysisTab === "battle" ? " replay-support-panel__tab--active" : ""}`}
-              onClick={() => setAnalysisTab("battle")}
-            >
-              Battle map
-            </button>
-            <button
-              type="button"
-              className={`replay-support-panel__tab${analysisTab === "corners" ? " replay-support-panel__tab--active" : ""}`}
-              onClick={() => setAnalysisTab("corners")}
-            >
-              Corner speeds
-            </button>
-            <button
-              type="button"
-              className={`replay-support-panel__tab${analysisTab === "sectors" ? " replay-support-panel__tab--active" : ""}`}
-              onClick={() => setAnalysisTab("sectors")}
-            >
-              Sectors
-            </button>
-            {totalRaceControlMessages > 0 ? (
-              <button
-                type="button"
-                className={`replay-support-panel__tab${analysisTab === "racecontrol" ? " replay-support-panel__tab--active" : ""}`}
-                onClick={() => setAnalysisTab("racecontrol")}
-              >
-                Race control · {totalRaceControlMessages}
-              </button>
-            ) : null}
+            ))}
           </div>
         </div>
+        <div id="analysis-panel" role="tabpanel" aria-labelledby={`analysis-tab-${analysisTab}`} tabIndex={0}>
+        {!insightsReady && ["compare", "stints", "strategy", "pitcycles"].includes(analysisTab) ? (
+          <p className="replay-empty-copy" role="status">Loading this analysis pack...</p>
+        ) : null}
 
         {analysisTab === "telemetry" ? (
           <>
@@ -1807,7 +2096,11 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
         ) : null}
 
         {analysisTab === "compare" && activeCompare ? (
-          <ReplayComparePanel compare={activeCompare} legacyHref={featuredCompareHref} embedded />
+          <ReplayComparePanel
+            compare={activeCompare}
+            legacyHref={activeCompare.drivers.join("-") === featuredCompareKey ? featuredCompareHref : null}
+            embedded
+          />
         ) : null}
 
         {analysisTab === "stints" && stintPack ? (
@@ -1816,6 +2109,17 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
 
         {analysisTab === "strategy" ? (
           <ReplayStrategyPanel strategy={strategy ?? null} stintPack={stintPack} selectedDrivers={selectedDrivers} />
+        ) : null}
+
+        {analysisTab === "pitcycles" ? (
+          <ReplayPitCyclePanel
+            result={pitCycleResult}
+            selectedDrivers={selectedDrivers}
+            strategy={strategy ?? null}
+            loadProgress={fullLoadProgress}
+            onLoadFullRace={onLoadFullRace}
+            onSeek={handleSeek}
+          />
         ) : null}
 
         {analysisTab === "track" ? (
@@ -1877,7 +2181,10 @@ export function ReplayView({ replay, manifest, summary, compare, route, stintPac
             </ul>
           </section>
         ) : null}
+        </div>
       </section>
+        </>
+      ) : null}
 
       {showShortcuts ? (
         <div className="shortcut-overlay" role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" onClick={() => setShowShortcuts(false)}>

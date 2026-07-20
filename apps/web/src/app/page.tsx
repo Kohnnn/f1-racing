@@ -44,7 +44,7 @@ export default async function HomePage() {
           </div>
 
           <a className="landing-start" href={replayHref}>
-            <strong>Open latest replay</strong>
+            <strong>Open newest complete race</strong>
             <span>{manifest.latest.grandPrixName}</span>
             {latestCircuitSubtitle ? <span className="landing-start__circuit">{latestCircuitSubtitle}</span> : null}
             {latestCircuitArt.map ? (
@@ -53,10 +53,10 @@ export default async function HomePage() {
           </a>
 
           <div className="landing-support-grid" aria-label="Secondary product routes">
-            <a className="landing-support-card" href="/live">
+            <a className="landing-support-card" href="/race-desk">
               <span>Primary route</span>
-              <strong>Live</strong>
-              <p>Open the socket-backed live board or the fallback simulator to watch the current session as a control room surface.</p>
+              <strong>Race Desk</strong>
+              <p>Open the historical replay simulation as a static control-room surface.</p>
             </a>
             <a className="landing-support-card" href="/cars/current-spec">
               <span>Secondary route</span>
@@ -103,7 +103,7 @@ export default async function HomePage() {
             routes that deepen the same story instead of competing for top-level attention.
           </p>
           <div className="hero-actions">
-            <a className="button button--secondary" href="/live">Open live feed</a>
+            <a className="button button--secondary" href="/race-desk">Open Race Desk</a>
             <a className="button" href="/replay">Browse replay library</a>
             <a className="button button--secondary" href="/compare">Compare laps</a>
             <a className="button button--secondary" href="/stints">Stint story</a>
@@ -114,7 +114,7 @@ export default async function HomePage() {
 
         <div className="landing-briefing__stack">
           <div>
-            <span>Latest pack</span>
+            <span>Featured replay</span>
             <strong>{manifest.latest.grandPrixName} · {manifest.latest.sessionName}</strong>
           </div>
           <div>

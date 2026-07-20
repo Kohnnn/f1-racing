@@ -1,128 +1,251 @@
-/**
- * Rebuilds `data/manifests/seasons.json` from the on-disk pack inventory under
- * `data/packs/seasons/<year>/<gp>/<session>/manifest.json`.
- *
- * The route shell uses this aggregated manifest to populate the replay library
- * and the static-export `generateStaticParams` lists. After building new
- * packs (e.g. for 2026) run this script to make sure the new GPs/sessions are
- * discoverable from the home page and replay library.
- */
-import { readFile, readdir, stat, writeFile, mkdir } from "node:fs/promises";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const dataDir = path.join(root, "data");
-const packsDir = path.join(dataDir, "packs", "seasons");
 const manifestsDir = path.join(dataDir, "manifests");
-const webMirror = path.join(root, "apps", "web", "public", "data", "manifests", "seasons.json");
+const packsDir = path.join(dataDir, "packs", "seasons");
+const dataSeasonsPath = path.join(manifestsDir, "seasons.json");
+const dataLatestPath = path.join(manifestsDir, "latest.json");
+const publicManifestsDir = path.join(root, "apps", "web", "public", "data", "manifests");
+const publicSeasonsPath = path.join(publicManifestsDir, "seasons.json");
+const publicLatestPath = path.join(publicManifestsDir, "latest.json");
 
-function titleCase(slug) {
-  return slug
-    .split("-")
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ");
+function isRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-async function listSubDirs(parent) {
-  let entries;
-  try {
-    entries = await readdir(parent, { withFileTypes: true });
-  } catch {
-    return [];
-  }
-  return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+function jsonText(payload) {
+  return `${JSON.stringify(payload, null, 2)}\n`;
 }
 
 async function readJson(filePath) {
   try {
     const raw = await readFile(filePath, "utf-8");
-    return JSON.parse(raw);
+    const payload = JSON.parse(raw);
+    return isRecord(payload) ? payload : null;
   } catch {
     return null;
   }
 }
 
-async function main() {
-  const seasonDirs = await listSubDirs(packsDir);
-  const seasons = [];
-
-  for (const seasonName of seasonDirs.sort((a, b) => Number(b) - Number(a))) {
-    const seasonNumber = Number(seasonName);
-    if (!Number.isFinite(seasonNumber)) continue;
-    const grandsPrixDirs = await listSubDirs(path.join(packsDir, seasonName));
-    const grandsPrix = [];
-    for (const gpSlug of grandsPrixDirs.sort()) {
-      if (gpSlug === "demo-weekend") continue;
-      const sessionDirs = await listSubDirs(path.join(packsDir, seasonName, gpSlug));
-      const sessions = [];
-      let grandPrixName = titleCase(gpSlug);
-      for (const sessionSlug of sessionDirs.sort()) {
-        const manifestPath = path.join(packsDir, seasonName, gpSlug, sessionSlug, "manifest.json");
-        const summaryPath = path.join(packsDir, seasonName, gpSlug, sessionSlug, "summary.json");
-        const replayMetaPath = path.join(packsDir, seasonName, gpSlug, sessionSlug, "replay.meta.json");
-        const replayPath = path.join(packsDir, seasonName, gpSlug, sessionSlug, "replay.json");
-
-        const manifest = (await readJson(manifestPath)) ?? {};
-        const summary = (await readJson(summaryPath)) ?? {};
-        let replayMeta = await readJson(replayMetaPath);
-        if (!replayMeta) {
-          // Fall back to the un-split replay file when the splitter hasn't run yet.
-          replayMeta = await readJson(replayPath);
-        }
-
-        try {
-          // skip empties so we don't add stub routes
-          await stat(manifestPath);
-        } catch {
-          continue;
-        }
-
-        const sessionName = summary.session ?? replayMeta?.session ?? titleCase(sessionSlug);
-        const trackId = summary.trackId ?? replayMeta?.trackId ?? gpSlug;
-        const sessionKey = manifest.sessionKey ?? summary.sessionKey ?? replayMeta?.sessionKey ?? 0;
-
-        if (summary.grandPrix) grandPrixName = summary.grandPrix;
-        else if (replayMeta?.grandPrix) grandPrixName = replayMeta.grandPrix;
-
-        sessions.push({
-          season: seasonNumber,
-          grandPrixSlug: gpSlug,
-          sessionSlug,
-          grandPrixName,
-          sessionName,
-          sessionKey,
-          trackId,
-          path: `/sessions/${seasonNumber}/${gpSlug}/${sessionSlug}`,
-        });
-      }
-      if (sessions.length) {
-        grandsPrix.push({ grandPrixSlug: gpSlug, grandPrixName, sessions });
-      }
-    }
-    if (grandsPrix.length) {
-      seasons.push({ season: seasonNumber, grandsPrix });
-    }
+async function listSeasonManifestPaths() {
+  let entries;
+  try {
+    entries = await readdir(manifestsDir, { withFileTypes: true });
+  } catch {
+    return [];
   }
 
-  const payload = {
-    generatedAt: new Date().toISOString(),
-    seasons,
-  };
-
-  await mkdir(manifestsDir, { recursive: true });
-  await writeFile(path.join(manifestsDir, "seasons.json"), `${JSON.stringify(payload, null, 2)}\n`, "utf-8");
-  await mkdir(path.dirname(webMirror), { recursive: true });
-  await writeFile(webMirror, `${JSON.stringify(payload, null, 2)}\n`, "utf-8");
-
-  process.stdout.write(`Wrote seasons.json with ${seasons.length} season(s)\n`);
-  for (const season of seasons) {
-    const totalSessions = season.grandsPrix.reduce((acc, gp) => acc + gp.sessions.length, 0);
-    process.stdout.write(`  ${season.season}: ${season.grandsPrix.length} GPs / ${totalSessions} sessions\n`);
-  }
+  return entries
+    .filter((entry) => entry.isFile() && /^openf1-\d{4}-season\.json$/.test(entry.name))
+    .map((entry) => path.join(manifestsDir, entry.name))
+    .sort();
 }
 
-main().catch((error) => {
-  process.stderr.write(`${error instanceof Error ? error.stack || error.message : error}\n`);
-  process.exit(1);
-});
+function readCanonicalSessions(seasonManifest) {
+  if (!Array.isArray(seasonManifest.grandsPrix)) return [];
+
+  return seasonManifest.grandsPrix.flatMap((grandPrix) => {
+    if (!isRecord(grandPrix) || !Array.isArray(grandPrix.sessions)) return [];
+    return grandPrix.sessions
+      .filter(isRecord)
+      .map((session) => ({
+        ...session,
+        grandPrixSlug: typeof session.grandPrixSlug === "string" ? session.grandPrixSlug : grandPrix.grandPrixSlug,
+        grandPrixName: typeof session.grandPrixName === "string" ? session.grandPrixName : grandPrix.grandPrixName,
+      }));
+  });
+}
+
+function isCanonicalSession(session) {
+  return Number.isInteger(session.season)
+    && typeof session.grandPrixSlug === "string"
+    && typeof session.grandPrixName === "string"
+    && typeof session.sessionSlug === "string"
+    && typeof session.sessionName === "string"
+    && Number.isInteger(session.sessionKey)
+    && typeof session.trackId === "string"
+    && typeof session.startDate === "string"
+    && Number.isFinite(Date.parse(session.startDate));
+}
+
+function hasSessionKey(payload, session) {
+  return payload.sessionKey === session.sessionKey;
+}
+
+function matchesReplay(payload, session) {
+  return hasSessionKey(payload, session)
+    && payload.season === session.season
+    && payload.trackId === session.trackId;
+}
+
+async function hasCompleteReplay(sessionDir, session) {
+  const replayMeta = await readJson(path.join(sessionDir, "replay.meta.json"));
+  if (replayMeta && matchesReplay(replayMeta, session)) {
+    const firstChunkPath = replayMeta.frameChunkIndex?.[0]?.path;
+    if (typeof firstChunkPath === "string" && firstChunkPath.length) {
+      const firstChunk = await readJson(path.join(sessionDir, firstChunkPath));
+      if (firstChunk && Array.isArray(firstChunk.frames) && firstChunk.frames.length) return true;
+    }
+  }
+
+  const replay = await readJson(path.join(sessionDir, "replay.json"));
+  return Boolean(replay && matchesReplay(replay, session) && Array.isArray(replay.frames) && replay.frames.length);
+}
+
+async function toAvailableSession(session) {
+  if (!isCanonicalSession(session) || session.grandPrixSlug === "demo-weekend") return null;
+
+  const sessionDir = path.join(packsDir, String(session.season), session.grandPrixSlug, session.sessionSlug);
+  const [manifest, summary] = await Promise.all([
+    readJson(path.join(sessionDir, "manifest.json")),
+    readJson(path.join(sessionDir, "summary.json")),
+  ]);
+  if (!manifest || !summary || !(await hasCompleteReplay(sessionDir, session))) return null;
+  if (!hasSessionKey(manifest, session) || !matchesReplay(summary, session)) return null;
+
+  return {
+    season: session.season,
+    grandPrixSlug: session.grandPrixSlug,
+    sessionSlug: session.sessionSlug,
+    grandPrixName: session.grandPrixName,
+    sessionName: session.sessionName,
+    sessionKey: session.sessionKey,
+    trackId: session.trackId,
+    path: `/sessions/${session.season}/${session.grandPrixSlug}/${session.sessionSlug}`,
+    startDate: session.startDate,
+  };
+}
+
+function compareSessionPath(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function compareByStartDate(left, right) {
+  const startDifference = Date.parse(right.startDate) - Date.parse(left.startDate);
+  if (startDifference) return startDifference;
+  if (left.sessionKey !== right.sessionKey) return right.sessionKey - left.sessionKey;
+  return compareSessionPath(left.path, right.path);
+}
+
+function compareForIndex(left, right) {
+  if (left.season !== right.season) return right.season - left.season;
+  const grandPrixDifference = compareSessionPath(left.grandPrixSlug, right.grandPrixSlug);
+  if (grandPrixDifference) return grandPrixDifference;
+  const startDifference = Date.parse(left.startDate) - Date.parse(right.startDate);
+  if (startDifference) return startDifference;
+  if (left.sessionKey !== right.sessionKey) return left.sessionKey - right.sessionKey;
+  return compareSessionPath(left.sessionSlug, right.sessionSlug);
+}
+
+function toSessionRef(session) {
+  const { startDate, ...ref } = session;
+  return ref;
+}
+
+export function buildPayloads(sessions) {
+  if (!sessions.length) throw new Error("No complete non-demo OpenF1 session packs found.");
+
+  const sortedSessions = [...sessions].sort(compareForIndex);
+  const seasons = [];
+  for (const season of [...new Set(sortedSessions.map((session) => session.season))]) {
+    const seasonSessions = sortedSessions.filter((session) => session.season === season);
+    const grandsPrix = [];
+    for (const grandPrixSlug of [...new Set(seasonSessions.map((session) => session.grandPrixSlug))]) {
+      const grandPrixSessions = seasonSessions.filter((session) => session.grandPrixSlug === grandPrixSlug);
+      grandsPrix.push({
+        grandPrixSlug,
+        grandPrixName: grandPrixSessions[0].grandPrixName,
+        sessions: grandPrixSessions.map(toSessionRef),
+      });
+    }
+    seasons.push({ season, grandsPrix });
+  }
+
+  const latest = [...sessions]
+    .filter((session) => session.sessionSlug === "race")
+    .sort(compareByStartDate)[0];
+  if (!latest) throw new Error("No complete non-demo OpenF1 race packs found.");
+
+  const generatedAt = new Date(Math.max(...sessions.map((session) => Date.parse(session.startDate)))).toISOString();
+  return {
+    seasons: { generatedAt, seasons },
+    latest: {
+      version: 1,
+      seasons: seasons.map((season) => season.season),
+      latest: toSessionRef(latest),
+    },
+  };
+}
+
+async function collectPayloads() {
+  const sessions = [];
+  for (const manifestPath of await listSeasonManifestPaths()) {
+    const seasonManifest = await readJson(manifestPath);
+    if (!seasonManifest) continue;
+    for (const session of readCanonicalSessions(seasonManifest)) {
+      const availableSession = await toAvailableSession(session);
+      if (availableSession) sessions.push(availableSession);
+    }
+  }
+  return buildPayloads(sessions);
+}
+
+async function assertMatches(filePath, expected) {
+  let actual;
+  try {
+    actual = await readFile(filePath, "utf-8");
+  } catch {
+    throw new Error(`Missing ${path.relative(root, filePath)}`);
+  }
+  if (actual !== expected) throw new Error(`Outdated ${path.relative(root, filePath)}`);
+}
+
+async function writeIfChanged(filePath, content) {
+  let current = null;
+  try {
+    current = await readFile(filePath, "utf-8");
+  } catch {}
+  if (current === content) return;
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, content, "utf-8");
+}
+
+export async function refreshFeaturedIndexes({ check = false } = {}) {
+  const payloads = await collectPayloads();
+  const seasonsText = jsonText(payloads.seasons);
+  const latestText = jsonText(payloads.latest);
+
+  if (check) {
+    await Promise.all([
+      assertMatches(dataSeasonsPath, seasonsText),
+      assertMatches(publicSeasonsPath, seasonsText),
+      assertMatches(dataLatestPath, latestText),
+      assertMatches(publicLatestPath, latestText),
+    ]);
+    return payloads;
+  }
+
+  await Promise.all([
+    writeIfChanged(dataSeasonsPath, seasonsText),
+    writeIfChanged(publicSeasonsPath, seasonsText),
+    writeIfChanged(dataLatestPath, latestText),
+    writeIfChanged(publicLatestPath, latestText),
+  ]);
+  return payloads;
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  refreshFeaturedIndexes({ check: process.argv.includes("--check") })
+    .then((payloads) => {
+      process.stdout.write(process.argv.includes("--check")
+        ? "Featured race and season mirrors are current.\n"
+        : `Featured race: ${payloads.latest.latest.path}\n`);
+    })
+    .catch((error) => {
+      process.stderr.write(`${error instanceof Error ? error.stack || error.message : error}\n`);
+      process.exit(1);
+    });
+}

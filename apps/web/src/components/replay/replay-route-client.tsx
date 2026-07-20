@@ -16,6 +16,13 @@ interface ReplayRouteClientProps {
   };
 }
 
+interface ChunkFailure {
+  chunkIndex: number;
+  fromTime: number;
+  toTime: number;
+  message: string;
+}
+
 type ReplayRouteState =
   | {
       status: "loading";
@@ -23,6 +30,7 @@ type ReplayRouteState =
   | {
       status: "ready";
       replay: ReplayPack;
+      chunkFailure: ChunkFailure | null;
     }
   | {
       status: "error";
@@ -30,6 +38,7 @@ type ReplayRouteState =
     };
 
 interface ReplayInsightsState {
+  status: "loading" | "ready" | "unavailable";
   compare: ComparePack | null;
   stintPack: StintPack | null;
   driverSummaries: DriverSummary[] | null;
@@ -37,8 +46,14 @@ interface ReplayInsightsState {
   strategy: StrategyPack | null;
 }
 
+type OptionalPack<T> = {
+  status: "ready" | "unavailable";
+  value: T | null;
+};
+
 const BUFFER_LOOKAHEAD_CHUNKS = 2;
 const BUFFER_HISTORY_CHUNKS = 1;
+const SOCKET_CHUNK_TIMEOUT_MS = 5000;
 
 function normalizeRaceControlMessages(messages: ReplayRaceControlMessage[], totalTime: number) {
   const msThreshold = totalTime > 0 ? totalTime * 1.5 : 7200;
@@ -79,6 +94,17 @@ async function fetchJson<T>(url: string): Promise<T> {
     throw new Error(`Request failed for ${url} (${response.status})`);
   }
   return response.json() as Promise<T>;
+}
+
+async function fetchOptionalPack<T>(url: string | null): Promise<OptionalPack<T>> {
+  if (!url) {
+    return { status: "unavailable", value: null };
+  }
+  try {
+    return { status: "ready", value: await fetchJson<T>(url) };
+  } catch {
+    return { status: "unavailable", value: null };
+  }
 }
 
 function getReplayMetaFile(replayFile: string) {
@@ -143,8 +169,7 @@ function pruneReplayFrames(
 
   const keptEntries = chunkEntries
     .filter((entry) => loadedChunkIndexes.has(entry.index))
-    .sort((left, right) => left.index - right.index);
-
+    .sort((left, right) => left.fromTime - right.fromTime || left.index - right.index);
   if (!keptEntries.length) {
     return frames;
   }
@@ -154,25 +179,65 @@ function pruneReplayFrames(
   return frames.filter((frame) => frame.t >= minTime && frame.t <= maxTime);
 }
 
+function hasCompleteReplayFrames(replay: ReplayPack) {
+  return replay.frames.length > 0
+    && (!replay.frameCount || replay.frames.length === replay.frameCount)
+    && replay.frames.at(-1)!.t >= (replay.totalTime ?? 0);
+}
+
+function getChunkWindow(
+  chunkEntries: NonNullable<ReplayPack["frameChunkIndex"]>,
+  anchorChunkIndex: number,
+) {
+  const anchorPosition = chunkEntries.findIndex((entry) => entry.index === anchorChunkIndex);
+  if (anchorPosition === -1) {
+    return new Set<number>();
+  }
+  return new Set(
+    chunkEntries
+      .slice(
+        Math.max(0, anchorPosition - BUFFER_HISTORY_CHUNKS),
+        anchorPosition + BUFFER_LOOKAHEAD_CHUNKS + 1,
+      )
+      .map((entry) => entry.index),
+  );
+}
+
 export function ReplayRouteClient({ initialReplay, manifest, summary, route }: ReplayRouteClientProps) {
   const [state, setState] = useState<ReplayRouteState>({
     status: "ready",
     replay: normalizeReplayRaceControl(initialReplay),
+    chunkFailure: null,
   });
-  const [insights, setInsights] = useState<ReplayInsightsState>({ compare: null, stintPack: null, driverSummaries: null, lapRecords: null, strategy: null });
+  const [insights, setInsights] = useState<ReplayInsightsState>({ status: "loading", compare: null, stintPack: null, driverSummaries: null, lapRecords: null, strategy: null });
+  const [fullLoadProgress, setFullLoadProgress] = useState(0);
+  const [fullRaceLoaded, setFullRaceLoaded] = useState(() => hasCompleteReplayFrames(initialReplay));
   const [reloadKey, setReloadKey] = useState(0);
   const chunkEntriesRef = useRef<NonNullable<ReplayPack["frameChunkIndex"]>>([]);
   const loadedChunksRef = useRef<Set<number>>(new Set());
   const requestedChunksRef = useRef<Set<number>>(new Set());
   const keepAllChunksLoadedRef = useRef(false);
   const socketRef = useRef<WebSocket | null>(null);
-  const socketChunkResolversRef = useRef<Map<number, { resolve: (chunk: ReplayFrameChunk) => void; reject: (error: Error) => void }>>(new Map());
+  const socketChunkResolversRef = useRef<Map<number, {
+    resolve: (chunk: ReplayFrameChunk) => void;
+    reject: (error: Error) => void;
+    timeout: ReturnType<typeof setTimeout>;
+  }>>(new Map());
 
   const rejectSocketChunkRequests = useCallback((message: string) => {
     for (const pending of socketChunkResolversRef.current.values()) {
+      clearTimeout(pending.timeout);
       pending.reject(new Error(message));
     }
     socketChunkResolversRef.current.clear();
+  }, []);
+
+  const clearSocketChunkRequest = useCallback((chunkIndex: number) => {
+    const pending = socketChunkResolversRef.current.get(chunkIndex);
+    if (pending) {
+      clearTimeout(pending.timeout);
+      socketChunkResolversRef.current.delete(chunkIndex);
+    }
   }, []);
 
   const closeReplaySocket = useCallback(() => {
@@ -190,8 +255,18 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
     }
 
     return new Promise<ReplayFrameChunk>((resolve, reject) => {
-      socketChunkResolversRef.current.set(chunkIndex, { resolve, reject });
-      socket.send(JSON.stringify({ type: "chunk", index: chunkIndex }));
+      const timeout = setTimeout(() => {
+        socketChunkResolversRef.current.delete(chunkIndex);
+        reject(new Error(`Replay socket request timed out for chunk ${chunkIndex}`));
+      }, SOCKET_CHUNK_TIMEOUT_MS);
+      socketChunkResolversRef.current.set(chunkIndex, { resolve, reject, timeout });
+      try {
+        socket.send(JSON.stringify({ type: "chunk", index: chunkIndex }));
+      } catch (error) {
+        clearTimeout(timeout);
+        socketChunkResolversRef.current.delete(chunkIndex);
+        reject(error instanceof Error ? error : new Error("Replay socket request failed"));
+      }
     });
   }, []);
 
@@ -216,6 +291,7 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
       if (message.type === "chunk" && typeof message.index === "number" && message.payload) {
         const pending = socketChunkResolversRef.current.get(message.index);
         if (pending) {
+          clearTimeout(pending.timeout);
           socketChunkResolversRef.current.delete(message.index);
           pending.resolve(message.payload);
         }
@@ -261,13 +337,24 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
     }
 
     requestedChunksRef.current.add(chunkIndex);
-
     try {
-      const chunk = socketRef.current?.readyState === WebSocket.OPEN
-        ? await requestChunkOverSocket(chunkIndex)
-        : await fetchJson<ReplayFrameChunk>(buildReplayChunkUrl(route, chunkEntry));
+      let chunk: ReplayFrameChunk;
+      try {
+        chunk = await requestChunkOverSocket(chunkIndex);
+      } catch {
+        chunk = await fetchJson<ReplayFrameChunk>(buildReplayChunkUrl(route, chunkEntry));
+      }
 
       loadedChunksRef.current.add(chunkIndex);
+      if (keepAllChunksLoadedRef.current) {
+        const totalChunks = chunkEntriesRef.current.length;
+        const loadedChunks = loadedChunksRef.current.size;
+        const complete = loadedChunks >= totalChunks;
+        setFullLoadProgress(complete ? 0 : Math.max(0.01, loadedChunks / totalChunks));
+        if (complete) {
+          setFullRaceLoaded(true);
+        }
+      }
       setState((previous) => {
         if (previous.status !== "ready") {
           return previous;
@@ -278,25 +365,38 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
             ...previous.replay,
             frames: mergeReplayFrames(previous.replay.frames, chunk.frames),
           },
+          chunkFailure: null,
         };
       });
-    } catch {
+    } catch (error) {
+      setState((previous) => {
+        if (previous.status !== "ready") {
+          return previous;
+        }
+        return {
+          ...previous,
+          chunkFailure: {
+            chunkIndex,
+            fromTime: chunkEntry.fromTime,
+            toTime: chunkEntry.toTime,
+            message: error instanceof Error ? error.message : "Replay chunk request failed",
+          },
+        };
+      });
+    } finally {
+      clearSocketChunkRequest(chunkIndex);
       requestedChunksRef.current.delete(chunkIndex);
-      return;
     }
-
-    requestedChunksRef.current.delete(chunkIndex);
-  }, [requestChunkOverSocket, route]);
+  }, [clearSocketChunkRequest, requestChunkOverSocket, route]);
 
   const trimChunkCache = useCallback((anchorChunkIndex: number) => {
     if (keepAllChunksLoadedRef.current) {
       return;
     }
 
-    const minChunkIndex = Math.max(0, anchorChunkIndex - BUFFER_HISTORY_CHUNKS);
-    const maxChunkIndex = anchorChunkIndex + BUFFER_LOOKAHEAD_CHUNKS;
+    const window = getChunkWindow(chunkEntriesRef.current, anchorChunkIndex);
     const nextLoadedChunks = new Set(
-      Array.from(loadedChunksRef.current).filter((index) => index >= minChunkIndex && index <= maxChunkIndex),
+      Array.from(loadedChunksRef.current).filter((index) => window.has(index)),
     );
 
     if (nextLoadedChunks.size === loadedChunksRef.current.size) {
@@ -315,6 +415,7 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
           ...previous.replay,
           frames: pruneReplayFrames(previous.replay.frames, chunkEntriesRef.current, nextLoadedChunks),
         },
+        chunkFailure: previous.chunkFailure,
       };
     });
   }, []);
@@ -330,51 +431,50 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
       return;
     }
 
-    // If the caller is asking for all-loaded (i.e. >= the last chunk's toTime), pull the
-    // remaining tail in one shot. Otherwise honor the lookahead buffer + cache trim window.
-    const lastEntry = chunkEntries.at(-1);
-    if (lastEntry && time >= lastEntry.toTime) {
-      keepAllChunksLoadedRef.current = true;
-      for (const entry of chunkEntries) {
-        void ensureChunkLoaded(entry.index);
-      }
-      // Don't trim when we're loading the full race; let everything sit in memory.
-      return;
+    const window = getChunkWindow(chunkEntries, activeEntry.index);
+    for (const chunkIndex of window) {
+      void ensureChunkLoaded(chunkIndex);
     }
-
-    for (let offset = 0; offset <= BUFFER_LOOKAHEAD_CHUNKS; offset += 1) {
-      void ensureChunkLoaded(activeEntry.index + offset);
-    }
-
     trimChunkCache(activeEntry.index);
   }, [ensureChunkLoaded, trimChunkCache]);
 
+  const loadFullRace = useCallback(() => {
+    const totalChunks = chunkEntriesRef.current.length;
+    if (!totalChunks) {
+      return;
+    }
+    keepAllChunksLoadedRef.current = true;
+    if (loadedChunksRef.current.size >= totalChunks) {
+      setFullLoadProgress(0);
+      setFullRaceLoaded(true);
+      return;
+    }
+    setFullLoadProgress(Math.max(0.01, loadedChunksRef.current.size / totalChunks));
+    for (const entry of chunkEntriesRef.current) {
+      void ensureChunkLoaded(entry.index);
+    }
+  }, [ensureChunkLoaded]);
+
   useEffect(() => {
     chunkEntriesRef.current = initialReplay.frameChunkIndex ?? [];
+    loadedChunksRef.current = new Set();
     requestedChunksRef.current = new Set();
-    keepAllChunksLoadedRef.current = route.session === "race";
+    keepAllChunksLoadedRef.current = false;
+    setFullLoadProgress(0);
+    setFullRaceLoaded(hasCompleteReplayFrames(initialReplay));
 
     setState({
       status: "ready",
       replay: normalizeReplayRaceControl(initialReplay),
+      chunkFailure: null,
     });
-    setInsights({ compare: null, stintPack: null, driverSummaries: null, lapRecords: null, strategy: null });
+    setInsights({ status: "loading", compare: null, stintPack: null, driverSummaries: null, lapRecords: null, strategy: null });
 
-    if (initialReplay.frameChunkIndex?.length) {
-      loadedChunksRef.current = new Set();
-      if (route.session === "race") {
-        for (const entry of initialReplay.frameChunkIndex) {
-          void ensureChunkLoaded(entry.index);
-        }
-      } else {
-        for (let offset = 0; offset <= BUFFER_LOOKAHEAD_CHUNKS; offset += 1) {
-          void ensureChunkLoaded(offset);
-        }
-      }
-    } else {
-      loadedChunksRef.current = new Set();
+    const firstTime = initialReplay.frames[0]?.t ?? chunkEntriesRef.current[0]?.fromTime;
+    if (firstTime !== undefined) {
+      ensureTimeLoaded(firstTime);
     }
-  }, [ensureChunkLoaded, initialReplay, route.session]);
+  }, [ensureTimeLoaded, initialReplay]);
 
   useEffect(() => {
     let cancelled = false;
@@ -383,18 +483,25 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
     async function loadReplayRoute() {
       try {
         Promise.all([
-          compareFile ? fetchJson<ComparePack>(buildPackUrl(route, compareFile)).catch(() => null) : Promise.resolve(null),
-          manifest.stints ? fetchJson<StintPack>(buildPackUrl(route, manifest.stints)).catch(() => null) : Promise.resolve(null),
-          manifest.drivers ? fetchJson<DriverSummary[]>(buildPackUrl(route, manifest.drivers)).catch(() => null) : Promise.resolve(null),
-          manifest.laps ? fetchJson<LapRecord[]>(buildPackUrl(route, manifest.laps)).catch(() => null) : Promise.resolve(null),
-          manifest.strategy ? fetchJson<StrategyPack>(buildPackUrl(route, manifest.strategy)).catch(() => null) : Promise.resolve(null),
+          fetchOptionalPack<ComparePack>(compareFile ? buildPackUrl(route, compareFile) : null),
+          fetchOptionalPack<StintPack>(manifest.stints ? buildPackUrl(route, manifest.stints) : null),
+          fetchOptionalPack<DriverSummary[]>(manifest.drivers ? buildPackUrl(route, manifest.drivers) : null),
+          fetchOptionalPack<LapRecord[]>(manifest.laps ? buildPackUrl(route, manifest.laps) : null),
+          fetchOptionalPack<StrategyPack>(manifest.strategy ? buildPackUrl(route, manifest.strategy) : null),
         ]).then(([compare, stintPack, driverSummaries, lapRecords, strategy]) => {
           if (cancelled) {
             return;
           }
 
           startTransition(() => {
-            setInsights({ compare, stintPack, driverSummaries, lapRecords, strategy });
+            setInsights({
+              status: [compare, stintPack, driverSummaries, lapRecords, strategy].every((pack) => pack.status === "ready") ? "ready" : "unavailable",
+              compare: compare.value,
+              stintPack: stintPack.value,
+              driverSummaries: driverSummaries.value,
+              lapRecords: lapRecords.value,
+              strategy: strategy.value,
+            });
           });
         });
 
@@ -420,6 +527,7 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
                   previous.replay.totalTime ?? previous.replay.frames.at(-1)?.t ?? 0,
                 ),
               },
+              chunkFailure: previous.chunkFailure,
             };
           });
         });
@@ -428,6 +536,7 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
           setState({
             status: "ready",
             replay: normalizeReplayRaceControl(initialReplay),
+            chunkFailure: null,
           });
         }
       }
@@ -443,19 +552,34 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
 
   if (state.status === "ready") {
     return (
+      <>
+        {state.chunkFailure ? (
+          <section className="panel replay-error-panel" role="alert">
+            <p>Replay chunk {state.chunkFailure.chunkIndex} ({state.chunkFailure.fromTime.toFixed(1)}s–{state.chunkFailure.toTime.toFixed(1)}s) could not load.</p>
+            <p>{state.chunkFailure.message}</p>
+            <button className="button" type="button" onClick={() => void ensureChunkLoaded(state.chunkFailure?.chunkIndex ?? -1)}>
+              Retry chunk
+            </button>
+          </section>
+        ) : null}
         <ReplayView
           replay={state.replay}
           manifest={manifest}
           summary={summary}
           compare={insights.compare}
+          insightsReady={insights.status !== "loading"}
           route={route}
           stintPack={insights.stintPack}
           driverSummaries={insights.driverSummaries}
           lapRecords={insights.lapRecords}
           strategy={insights.strategy}
+          fullLoadProgress={fullLoadProgress}
+          fullRaceLoaded={fullRaceLoaded}
           onEnsureTimeLoaded={ensureTimeLoaded}
+          onLoadFullRace={loadFullRace}
         />
-      );
+      </>
+    );
   }
 
   if (state.status !== "error") {

@@ -17,7 +17,7 @@ User decisions (2026-06-07):
 
 ---
 
-## Investigation findings (pre-work)
+## Historical investigation findings (before Track B shipped)
 
 - `/compare/[season]/[grandPrix]/[session]/[left]/[right]/page.tsx` and
   `/stints/[season]/[grandPrix]/[session]/page.tsx` are **fully built and

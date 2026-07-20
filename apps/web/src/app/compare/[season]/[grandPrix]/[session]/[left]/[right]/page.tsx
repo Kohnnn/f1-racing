@@ -87,7 +87,7 @@ export default async function ComparePage({ params }: ComparePageProps) {
             Compare two representative laps with section deltas, telemetry traces, and derived braking or throttle notes. The replay workspace also embeds this same compare view for in-context analysis.
           </p>
           <div className="hero-actions">
-            <a className="button" href={`/replay/${season}/${grandPrix}/${session}`}>Back to replay</a>
+            <a className="button" href={`/replay/${season}/${grandPrix}/${session}?tab=compare&drivers=${left},${right}#analysis`}>Open in replay</a>
           </div>
           <div className="metric-grid">
             <div className="metric-chip">

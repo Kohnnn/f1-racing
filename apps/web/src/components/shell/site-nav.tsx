@@ -10,7 +10,7 @@ interface NavLink {
 }
 
 const PRIMARY_LINKS: NavLink[] = [
-  { href: "/live", label: "Live", prefixes: ["/live"] },
+  { href: "/race-desk", label: "Race Desk", prefixes: ["/race-desk", "/live"] },
   { href: "/replay", label: "Replay", prefixes: ["/replay"] },
   { href: "/compare", label: "Compare", prefixes: ["/compare"] },
   { href: "/stints", label: "Stints", prefixes: ["/stints"] },

@@ -3,9 +3,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node ../../pipeline/export/src/sync-web-models.mjs && node ../../pipeline/export/src/generate-sample-data.mjs && node ../../pipeline/export/src/build-openf1-replay-pack.mjs --grandPrixSlug abu-dhabi-grand-prix --sessionSlug race && node ../../pipeline/export/src/split-replay-packs.mjs && npm run next:build",
+    "build": "npm run next:build",
     "next:build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@f1-racing/schemas": "*",
@@ -17,6 +18,7 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "three": "^0.182.0",
+    "troika-three-text": "0.52.4",
     "zod": "^3.24.1"
   },
   "devDependencies": {

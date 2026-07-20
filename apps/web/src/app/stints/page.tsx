@@ -58,7 +58,7 @@ export default async function StintsIndexPage() {
               {group.sessions.map((session) => {
                 const { circuit, map } = getCircuitArt(session.trackId);
                 const dateLabel = sessionDateLabel(session.season, session.grandPrixSlug, session.sessionSlug);
-                const href = `/stints/${session.season}/${session.grandPrixSlug}/${session.sessionSlug}`;
+                const href = `/replay/${session.season}/${session.grandPrixSlug}/${session.sessionSlug}?tab=stints#analysis`;
                 return (
                   <a
                     className="discovery-card discovery-card--link"
@@ -79,7 +79,7 @@ export default async function StintsIndexPage() {
                         </p>
                       </div>
                     </div>
-                    <span className="discovery-card__cta">Open stint story →</span>
+                    <span className="discovery-card__cta">Open in replay →</span>
                   </a>
                 );
               })}

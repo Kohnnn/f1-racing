@@ -1,9 +1,6 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "apps/web/out",
-  "installCommand": "npm install",
-  "framework": "nextjs",
-  "env": {
-    "NEXT_PUBLIC_F1_API_ORIGIN": "https://f1-api.129.150.58.64.sslip.io"
-  }
+  "installCommand": "npm ci",
+  "framework": "nextjs"
 }
