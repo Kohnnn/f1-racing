@@ -1,6 +1,10 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  ReplayFrameChunkSchema,
+  ReplayMetaSchema,
+} from "../../../packages/schemas/src/index.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
@@ -61,6 +65,22 @@ function hasMovingCoordinates(frames) {
   });
 }
 
+async function validateChunks(basePath, meta, label) {
+  const chunks = [];
+  for (const [position, entry] of meta.frameChunkIndex.entries()) {
+    assert(entry.index === position, `${label} replay chunk indexes are not contiguous.`);
+    assert(entry.path === meta.frameChunks[position], `${label} replay chunk path lists disagree.`);
+    const chunk = ReplayFrameChunkSchema.parse(await readJson(path.join(basePath, entry.path)));
+    assert(chunk.index === entry.index, `${label} replay chunk ${entry.index} has the wrong index.`);
+    assert(chunk.fromTime === entry.fromTime, `${label} replay chunk ${entry.index} has the wrong start time.`);
+    assert(chunk.toTime === entry.toTime, `${label} replay chunk ${entry.index} has the wrong end time.`);
+    assert(chunk.frames[0].t === entry.fromTime, `${label} replay chunk ${entry.index} frame coverage starts incorrectly.`);
+    assert(chunk.frames.at(-1).t === entry.toTime, `${label} replay chunk ${entry.index} frame coverage ends incorrectly.`);
+    chunks.push(chunk);
+  }
+  return chunks;
+}
+
 async function main() {
   const args = parseArgs(process.argv);
   const basePath = path.join(
@@ -85,22 +105,26 @@ async function main() {
     String(args.sessionSlug),
   );
 
-  const meta = await readJson(path.join(basePath, "replay.meta.json"));
-  const publicMeta = await readJson(path.join(publicBasePath, "replay.meta.json"));
+  const meta = ReplayMetaSchema.parse(await readJson(path.join(basePath, "replay.meta.json")));
+  const publicMeta = ReplayMetaSchema.parse(await readJson(path.join(publicBasePath, "replay.meta.json")));
 
   assert(meta.trackPath?.length >= 20, "Replay trackPath is missing or too sparse.");
-  assert(meta.frameChunkIndex?.length > 0, "Replay frame chunk index is missing.");
   assert(meta.totalTime > 0, "Replay totalTime must be positive.");
-  assert(publicMeta.frameChunkIndex?.length === meta.frameChunkIndex.length, "Public replay chunk index does not match canonical data.");
+  assert(JSON.stringify(publicMeta) === JSON.stringify(meta), "Public replay metadata does not match canonical data.");
 
+  const chunks = await validateChunks(basePath, meta, "Canonical");
+  const publicChunks = await validateChunks(publicBasePath, publicMeta, "Public");
+  const frameCount = chunks.reduce((count, chunk) => count + chunk.frames.length, 0);
+  const publicFrameCount = publicChunks.reduce((count, chunk) => count + chunk.frames.length, 0);
   const firstEntry = meta.frameChunkIndex[0];
   const lastEntry = meta.frameChunkIndex.at(-1);
-  assert(firstEntry.fromTime <= 0.01, "First replay chunk does not start at the beginning.");
-  assert(lastEntry.toTime >= meta.totalTime - 0.01, "Replay chunks do not cover totalTime.");
+  const firstChunk = chunks[0];
 
-  const firstChunk = await readJson(path.join(basePath, firstEntry.path));
-  assert(firstChunk.frames?.length > 0, "First replay chunk has no frames.");
-  assert(Object.keys(firstChunk.frames[0].drivers ?? {}).length >= 10, "First replay frame has too few drivers.");
+  assert(frameCount === meta.frameCount, "Replay chunks do not contain the declared frame count.");
+  assert(publicFrameCount === meta.frameCount, "Public replay chunks do not contain the declared frame count.");
+  assert(firstEntry.fromTime <= 0.01, "First replay chunk does not start at the beginning.");
+  assert(lastEntry.toTime === meta.totalTime, "Replay chunks do not cover totalTime.");
+  assert(Object.keys(firstChunk.frames[0].drivers).length >= 10, "First replay frame has too few drivers.");
   assert(hasMovingCoordinates(firstChunk.frames), "First replay chunk has frozen driver coordinates.");
 
   console.log(JSON.stringify({
@@ -110,6 +134,7 @@ async function main() {
     sessionSlug: args.sessionSlug,
     trackPoints: meta.trackPath.length,
     chunks: meta.frameChunkIndex.length,
+    frames: frameCount,
     totalTime: meta.totalTime,
     firstChunkFrames: firstChunk.frames.length,
     drivers: Object.keys(firstChunk.frames[0].drivers).length,

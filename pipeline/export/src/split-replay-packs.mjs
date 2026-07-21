@@ -1,6 +1,11 @@
 import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  ReplayFrameChunkSchema,
+  ReplayMetaSchema,
+  ReplayPackSchema,
+} from "../../../packages/schemas/src/index.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const chunkSize = 120;
@@ -8,6 +13,23 @@ const seasonRoots = [
   path.join(root, "data", "packs", "seasons"),
   path.join(root, "apps", "web", "public", "data", "packs", "seasons"),
 ];
+
+function parseArgs(argv) {
+  const options = {};
+  for (let index = 0; index < argv.length; index += 1) {
+    const token = argv[index];
+    if (!token.startsWith("--")) {
+      continue;
+    }
+    const value = argv[index + 1];
+    if (!value || value.startsWith("--")) {
+      throw new Error(`Missing value for ${token}`);
+    }
+    options[token.slice(2)] = value;
+    index += 1;
+  }
+  return options;
+}
 
 async function walk(directory, files = []) {
   let entries = [];
@@ -37,14 +59,15 @@ async function writeJson(filePath, payload) {
   await writeFile(filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
 }
 
-async function splitReplayPack(filePath) {
+export async function splitReplayPack(filePath) {
   const replay = JSON.parse(await readFile(filePath, "utf8"));
-  const frames = Array.isArray(replay.frames) ? replay.frames : [];
-  const laps = Array.isArray(replay.laps) ? replay.laps : [];
-  const raceControlMessages = Array.isArray(replay.raceControlMessages) ? replay.raceControlMessages : [];
+  ReplayPackSchema.parse(replay);
+  const frames = replay.frames;
+  const laps = replay.laps;
+  const raceControlMessages = replay.raceControlMessages ?? [];
 
   if (!frames.length) {
-    return;
+    throw new Error(`Replay pack has no frames: ${path.relative(root, filePath)}`);
   }
 
   const chunkDirectory = path.join(path.dirname(filePath), "replay.frames");
@@ -62,12 +85,14 @@ async function splitReplayPack(filePath) {
       toTime: chunkFrames.at(-1)?.t ?? chunkFrames[0]?.t ?? 0,
       path: `replay.frames/${chunkName}`,
     });
-    await writeJson(path.join(chunkDirectory, chunkName), {
+    const chunk = {
       index: index / chunkSize,
       fromTime: chunkFrames[0]?.t ?? 0,
       toTime: chunkFrames.at(-1)?.t ?? chunkFrames[0]?.t ?? 0,
       frames: chunkFrames,
-    });
+    };
+    ReplayFrameChunkSchema.parse(chunk);
+    await writeJson(path.join(chunkDirectory, chunkName), chunk);
   }
 
   const totalLaps = laps.reduce((max, lap) => Math.max(max, lap.lapNumber || 0), 0);
@@ -78,7 +103,7 @@ async function splitReplayPack(filePath) {
   await writeJson(filePath.replace(/replay\.json$/i, "replay.laps.json"), laps);
   await writeJson(filePath.replace(/replay\.json$/i, "replay.race-control.json"), raceControlMessages);
 
-  const meta = {
+  const metaPayload = {
     ...replay,
     laps: [],
     raceControlMessages: [],
@@ -90,16 +115,33 @@ async function splitReplayPack(filePath) {
     frameChunks: chunkFileNames,
     frameChunkIndex: chunkIndex,
   };
-  delete meta.frames;
+  delete metaPayload.frames;
+  ReplayMetaSchema.parse(metaPayload);
 
-  await writeJson(filePath.replace(/\.json$/i, ".meta.json"), meta);
+  await writeJson(filePath.replace(/\.json$/i, ".meta.json"), metaPayload);
   process.stdout.write(`Split ${path.relative(root, filePath)} into ${chunkFileNames.length} frame chunks\n`);
 }
 
 async function main() {
+  const options = parseArgs(process.argv.slice(2));
+  const hasTarget = options.season || options.grandPrixSlug || options.sessionSlug;
+  if (hasTarget && !(options.season && options.grandPrixSlug && options.sessionSlug)) {
+    throw new Error("Targeted replay splitting requires --season, --grandPrixSlug, and --sessionSlug");
+  }
+
   const replayFiles = [];
   for (const seasonRoot of seasonRoots) {
-    await walk(seasonRoot, replayFiles);
+    if (hasTarget) {
+      replayFiles.push(path.join(
+        seasonRoot,
+        options.season,
+        options.grandPrixSlug,
+        options.sessionSlug,
+        "replay.json",
+      ));
+    } else {
+      await walk(seasonRoot, replayFiles);
+    }
   }
 
   for (const replayFile of replayFiles) {
@@ -107,7 +149,9 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}

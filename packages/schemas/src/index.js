@@ -380,6 +380,40 @@ export const ReplayFrameSchema = z.object({
   weather: ReplayWeatherSampleSchema.optional(),
 });
 
+export const ReplayTrackMetadataSchema = z.object({
+  trackId: z.string(),
+  name: z.string(),
+  rotationDeg: z.number(),
+  length: z.number().positive(),
+  corners: z.array(z.object({
+    number: z.number().int().positive(),
+    letter: z.string(),
+    angleDeg: z.number(),
+    trackPosition: z.number().nullable(),
+  })),
+  drsZones: z.array(z.object({
+    id: z.string().optional(),
+    from: z.number(),
+    to: z.number(),
+    fromRatio: z.number().optional(),
+    toRatio: z.number().optional(),
+  })),
+  marshalSectors: z.array(z.object({
+    index: z.number().int().nonnegative(),
+    fromDistance: z.number().nonnegative(),
+    toDistance: z.number().nonnegative(),
+    flag: z.string().nullable().optional(),
+  })).optional(),
+  source: z.string(),
+});
+
+export const ReplayChunkIndexEntrySchema = z.object({
+  index: z.number().int().nonnegative(),
+  fromTime: z.number().nonnegative(),
+  toTime: z.number().nonnegative(),
+  path: z.string().min(1),
+});
+
 export const ReplayPackSchema = z.object({
   generatedAt: z.string(),
   sessionKey: z.number().int(),
@@ -402,6 +436,7 @@ export const ReplayPackSchema = z.object({
     teamColor: z.string(),
   })),
   trackPath: z.array(z.array(z.number()).length(2)).nullable(),
+  trackMetadata: ReplayTrackMetadataSchema.nullable().optional(),
   laps: z.array(z.object({
     driverCode: z.string(),
     lapNumber: z.number().int(),
@@ -428,13 +463,37 @@ export const ReplayPackSchema = z.object({
   frameCount: z.number().int().nonnegative().optional(),
   frameChunkSize: z.number().int().positive().optional(),
   frameChunks: z.array(z.string()).optional(),
-  frameChunkIndex: z.array(z.object({
-    index: z.number().int().nonnegative(),
-    fromTime: z.number().nonnegative(),
-    toTime: z.number().nonnegative(),
-    path: z.string(),
-  })).optional(),
+  frameChunkIndex: z.array(ReplayChunkIndexEntrySchema).optional(),
   frames: z.array(ReplayFrameSchema),
+});
+
+export const ReplayMetaSchema = ReplayPackSchema.omit({ frames: true }).extend({
+  totalTime: z.number().nonnegative(),
+  totalLaps: z.number().int().nonnegative(),
+  frameCount: z.number().int().positive(),
+  frameChunkSize: z.number().int().positive(),
+  frameChunks: z.array(z.string().min(1)).min(1),
+  frameChunkIndex: z.array(ReplayChunkIndexEntrySchema).min(1),
+});
+
+export const ReplayFrameChunkSchema = z.object({
+  index: z.number().int().nonnegative(),
+  fromTime: z.number().nonnegative(),
+  toTime: z.number().nonnegative(),
+  frames: z.array(ReplayFrameSchema).min(1),
+}).superRefine((chunk, context) => {
+  let previousTime = chunk.fromTime;
+  for (const frame of chunk.frames) {
+    if (frame.t < chunk.fromTime || frame.t > chunk.toTime || frame.t < previousTime) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Replay chunk ${chunk.index} contains out-of-range or unordered frames`,
+        path: ["frames"],
+      });
+      return;
+    }
+    previousTime = frame.t;
+  }
 });
 
 export const ReplayManifestSchema = z.object({

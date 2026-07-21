@@ -5,6 +5,7 @@ import argparse
 import json
 import math
 import re
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -787,6 +788,7 @@ def build_replay_pack(session, resolved, base_replay):
         "trackPath": track_path
         if track_path is not None
         else (base_replay.get("trackPath") if base_replay else None),
+        "trackMetadata": base_replay.get("trackMetadata") if base_replay else None,
         "laps": lap_records
         if lap_records
         else (base_replay.get("laps", []) if base_replay else []),
@@ -837,6 +839,21 @@ def main():
         manifest = read_json(manifest_path)
     manifest["replay"] = "replay.json"
     write_mirrored(manifest_relative, manifest)
+
+    subprocess.run(
+        [
+            "node",
+            str(ROOT / "pipeline" / "export" / "src" / "split-replay-packs.mjs"),
+            "--season",
+            str(replay_pack["season"]),
+            "--grandPrixSlug",
+            relative_base.parent.name,
+            "--sessionSlug",
+            relative_base.name,
+        ],
+        cwd=ROOT,
+        check=True,
+    )
 
     print(f"Wrote GPS-backed replay pack to {relative_base / 'replay.json'}")
 

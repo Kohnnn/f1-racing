@@ -17,7 +17,7 @@ npm run api:dev
 
 ## Frontend wiring
 
-Set this at frontend build time so the static web app calls the backend instead of fetching static JSON directly:
+Historical replay metadata, laps, race control, and the initial frame load directly from static CDN assets. Set this at frontend build time to enable the optional OCI-backed live feed, session insights, WebSocket replay chunks, and HTTP chunk fallback:
 
 ```bash
 NEXT_PUBLIC_F1_API_ORIGIN=https://your-oci-api.example.com

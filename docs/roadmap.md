@@ -65,6 +65,9 @@ report. Each pass touches one or more of these surfaces:
 - [x] Use poster-first landing 3D, same-origin Troika fonts, and reduced-motion defaults.
 - [x] Label the wind field and all force outputs as illustrative estimates, not validated CFD.
 - [x] Add backend path validation, replay chunk guards, security headers, deterministic builds, and static smoke checks.
+- [x] Bound full-race chunk loading, reject mismatched payloads, and test the scheduler.
+- [x] Validate full/meta/chunk artifact contracts and canonical/public mirror parity.
+- [x] Preserve track metadata and regenerate chunk artifacts after every FastF1 replay build.
 - [x] Pass merged-tree quality, build, static smoke, backend, and browser acceptance checks.
 - [x] Deploy the verified static export to Netlify and complete production acceptance.
 

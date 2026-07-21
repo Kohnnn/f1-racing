@@ -3,6 +3,7 @@
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import type { ComparePack, DriverSummary, LapRecord, ReplayFrameChunk, ReplayLap, ReplayPack, ReplayRaceControlMessage, SessionManifest, SessionSummary, StintPack, StrategyPack } from "@/lib/data";
 import { buildClientDataUrl, buildClientWebSocketUrl } from "@/lib/client-data";
+import { loadReplayChunkQueue, validateReplayFrameChunk } from "./replay-chunks";
 import { ReplayView } from "./ReplayView";
 
 interface ReplayRouteClientProps {
@@ -105,24 +106,6 @@ async function fetchOptionalPack<T>(url: string | null): Promise<OptionalPack<T>
   } catch {
     return { status: "unavailable", value: null };
   }
-}
-
-function getReplayMetaFile(replayFile: string) {
-  return replayFile.replace(/\.json$/i, ".meta.json");
-}
-
-function buildReplayMetaUrl(route: ReplayRouteClientProps["route"], replayFile: string) {
-  return buildClientDataUrl(
-    buildPackUrl(route, getReplayMetaFile(replayFile)),
-    `/api/replay/${route.season}/${route.grandPrix}/${route.session}/meta`,
-  );
-}
-
-function buildReplayFullUrl(route: ReplayRouteClientProps["route"], replayFile: string) {
-  return buildClientDataUrl(
-    buildPackUrl(route, replayFile),
-    `/api/replay/${route.season}/${route.grandPrix}/${route.session}/full`,
-  );
 }
 
 function buildReplayChunkUrl(
@@ -340,11 +323,16 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
     try {
       let chunk: ReplayFrameChunk;
       try {
-        chunk = await requestChunkOverSocket(chunkIndex);
+        chunk = validateReplayFrameChunk(
+          await requestChunkOverSocket(chunkIndex),
+          chunkEntry,
+        );
       } catch {
-        chunk = await fetchJson<ReplayFrameChunk>(buildReplayChunkUrl(route, chunkEntry));
+        chunk = validateReplayFrameChunk(
+          await fetchJson<ReplayFrameChunk>(buildReplayChunkUrl(route, chunkEntry)),
+          chunkEntry,
+        );
       }
-
       loadedChunksRef.current.add(chunkIndex);
       if (keepAllChunksLoadedRef.current) {
         const totalChunks = chunkEntriesRef.current.length;
@@ -450,9 +438,15 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
       return;
     }
     setFullLoadProgress(Math.max(0.01, loadedChunksRef.current.size / totalChunks));
-    for (const entry of chunkEntriesRef.current) {
-      void ensureChunkLoaded(entry.index);
-    }
+    const missingChunkIndexes = chunkEntriesRef.current
+      .filter((entry) => !loadedChunksRef.current.has(entry.index))
+      .map((entry) => entry.index);
+    void loadReplayChunkQueue(
+      missingChunkIndexes,
+      ensureChunkLoaded,
+      undefined,
+      () => requestedChunksRef.current.size,
+    );
   }, [ensureChunkLoaded]);
 
   useEffect(() => {
