@@ -233,7 +233,7 @@ Public model paths:
 - `NETLIFY_SITE_ID` may be stale if the target Netlify site has been recreated.
 - The static frontend does not require Appwrite runtime variables.
 - Deployment environment owns any public API origin.
-- Netlify Git builds are skipped because generated season packs are not stored in Git; production uses the verified `apps/web/out` artifact.
+- Automatic Netlify source builds are disabled because generated season packs are not stored in Git; production uses the verified `apps/web/out` artifact.
 - Rotate any credential exposed in a local `.env` before using the related service.
 
 ## Recommended next steps

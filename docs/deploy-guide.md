@@ -94,7 +94,7 @@ Do not use credentials found in repository `.env` files. Revoke and rotate any e
 
 ## Production deploy
 
-Netlify Git builds are intentionally skipped because `data/packs/seasons/` and its public mirror are generated, gitignored release inputs. A source-only Netlify checkout cannot pass `check:featured`; do not weaken that gate or ingest remote telemetry during deployment.
+Automatic Netlify source builds are intentionally disabled because `data/packs/seasons/` and its public mirror are generated, gitignored release inputs. Keep GitHub push webhooks and Netlify build hooks unconfigured; `[build].ignore` does not stop build-hook deploys. A source-only Netlify checkout cannot pass `check:featured`; do not weaken that gate or ingest remote telemetry during deployment.
 
 After authentication, linkage, build, and smoke tests pass:
 
