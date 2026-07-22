@@ -94,13 +94,15 @@ Do not use credentials found in repository `.env` files. Revoke and rotate any e
 
 ## Production deploy
 
+Netlify Git builds are intentionally skipped because `data/packs/seasons/` and its public mirror are generated, gitignored release inputs. A source-only Netlify checkout cannot pass `check:featured`; do not weaken that gate or ingest remote telemetry during deployment.
+
 After authentication, linkage, build, and smoke tests pass:
 
 ```bash
 npx netlify deploy --prod --no-build --dir apps/web/out
 ```
 
-The deploy must publish `apps/web/out`, not `.next`.
+The deploy must publish the locally verified `apps/web/out` artifact, not `.next`.
 
 ## Production smoke test
 
