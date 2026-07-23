@@ -6858,7 +6858,9 @@ code {
   bottom: 16px;
   left: 16px;
   z-index: 70;
-  max-width: 340px;
+  width: min(420px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  overflow: auto;
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -6867,7 +6869,6 @@ code {
   font-family: "IBM Plex Mono", Consolas, monospace;
   font-size: 11px;
   line-height: 1.5;
-  pointer-events: none;
 }
 
 .replay-debug-panel__title {
@@ -6914,6 +6915,26 @@ code {
 .replay-debug-panel__empty {
   margin: 6px 0 0;
   opacity: 0.7;
+}
+
+.replay-debug-panel__raw {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+}
+
+.replay-debug-panel__raw summary {
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.replay-debug-panel__raw pre {
+  max-height: 40vh;
+  margin: 6px 0 0;
+  overflow: auto;
+  color: var(--ink);
+  font: inherit;
+  white-space: pre-wrap;
 }
 
 /* Replay 3D view (R3F scene host) */

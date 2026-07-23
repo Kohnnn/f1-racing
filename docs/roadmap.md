@@ -14,6 +14,28 @@ report. Each pass touches one or more of these surfaces:
 - OCI FastAPI backend (live socket + replay chunk delivery)
 - Pipelines under `pipeline/export/` and `pipeline/ingest/`
 
+## Current milestone (2026-07-23)
+
+### Source CI and replay diagnostics
+
+#### Plan and progress
+
+- [x] Reproduce source-only verification from a clean Git archive without generated season packs.
+- [x] Separate `quality:source` from the pack-backed local `quality` release gate.
+- [x] Add GitHub Actions source verification for pushes and pull requests targeting `main`.
+- [x] Extend the existing Replay debug overlay into a raw frame and chunk inspector without adding a duplicate data-loading route.
+- [x] Add static-bundle regression coverage for the raw Replay inspector.
+- [x] Audit Modelview navigation and SEO discovery; the scroll-spy, generated sitemap, robots metadata, Open Graph defaults, and dynamic route metadata already ship.
+- [ ] Pass source verification, pack-backed quality, production build, static smoke, browser acceptance, GitHub Actions, and Netlify production acceptance.
+
+#### Acceptance criteria
+
+- A clean checkout passes `npm run quality:source` without generated season packs or Git LFS assets.
+- `npm run quality` remains the stricter local release gate and continues to validate generated replay data.
+- `?debug=1` or the backtick shortcut exposes frame timing, active chunk bounds, interpolation blend, track state, driver state, and expandable raw frame JSON.
+- A Git push creates a GitHub Actions source-verification result but no Netlify source-build deploy.
+- The verified `apps/web/out` artifact remains the only production deployment input.
+
 ## Completed milestone (2026-07-20)
 
 ### Replay 3D broadcast reconstruction

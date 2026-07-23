@@ -109,6 +109,14 @@ Example:
 npm run build:openf1:session -- --grandPrixSlug australian-grand-prix --sessionSlug qualifying
 ```
 
+### Source-only CI verification
+
+```bash
+npm run quality:source
+```
+
+This pack-free check runs in GitHub Actions for pushes and pull requests targeting `main`. Generated season packs and Git LFS model assets are not required.
+
 ### Production build and verification
 
 ```bash
@@ -116,6 +124,8 @@ npm run quality
 npm run build
 npm run smoke:static
 ```
+
+The production gate requires the generated, gitignored season packs. Replay diagnostics are available on any replay URL with `?debug=1` or the backtick shortcut.
 
 ### Manual Netlify production deploy
 

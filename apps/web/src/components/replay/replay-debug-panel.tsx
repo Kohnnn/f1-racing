@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import type { ReplayFrame, ReplayFrameDriver, ReplayPack } from "@/lib/data";
 
 interface ReplayDebugPanelProps {
@@ -64,6 +65,14 @@ export function ReplayDebugPanel({
   const nextFrameDeltaMs = frame && nextFrameT !== null
     ? Math.round((nextFrameT - frame.t) * 1000)
     : null;
+  const blend = frame && nextFrameT !== null && nextFrameT > frame.t
+    ? Math.max(0, Math.min(1, (currentTime - frame.t) / (nextFrameT - frame.t)))
+    : null;
+  const activeChunk = chunkIndex?.find((chunk) => (
+    chunk.fromTime <= currentTime && chunk.toTime >= currentTime
+  ));
+  const driverCount = frame ? Object.keys(frame.drivers).length : 0;
+  const rawFrameJson = useMemo(() => (frame ? JSON.stringify(frame, null, 2) : "null"), [frame]);
 
   const driverRows: Array<[string, string]> = driver
     ? [
@@ -94,8 +103,20 @@ export function ReplayDebugPanel({
         <dd>{playbackSpeed}x</dd>
         <dt>chunks</dt>
         <dd>{totalChunks > 0 ? `${loadedChunks} / ${totalChunks}` : "monolithic"}</dd>
+        <dt>active chunk</dt>
+        <dd>{activeChunk ? `${activeChunk.index} (${activeChunk.fromTime.toFixed(1)}–${activeChunk.toTime.toFixed(1)}s)` : "–"}</dd>
         <dt>next dt</dt>
         <dd>{nextFrameDeltaMs !== null ? `${nextFrameDeltaMs}ms` : "–"}</dd>
+        <dt>blend</dt>
+        <dd>{blend !== null ? blend.toFixed(3) : "–"}</dd>
+        <dt>drivers</dt>
+        <dd>{driverCount}</dd>
+        <dt>lap</dt>
+        <dd>{formatValue(frame?.lap)}</dd>
+        <dt>track status</dt>
+        <dd>{frame?.trackStatus || "–"}</dd>
+        <dt>safety car</dt>
+        <dd>{frame?.safetyCar.phase || "–"}</dd>
       </dl>
       {driverRows.length > 0 ? (
         <dl className="replay-debug-panel__grid replay-debug-panel__grid--driver">
@@ -109,6 +130,10 @@ export function ReplayDebugPanel({
       ) : (
         <p className="replay-debug-panel__empty">no frame driver</p>
       )}
+      <details className="replay-debug-panel__raw">
+        <summary>raw frame JSON</summary>
+        <pre>{rawFrameJson}</pre>
+      </details>
     </aside>
   );
 }
