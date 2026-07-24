@@ -178,6 +178,8 @@ interface FluidFrameState {
   bodyInfluenceRadius: number;
   drag: number;
   lift: number;
+  modeDragFactor: number;
+  modeDragFactorStatic: number;
   ready: boolean;
   lastFrameAt: number;
   frameIndex: number;
@@ -214,6 +216,8 @@ function createEmptyFluidFrame(): FluidFrameState {
     bodyInfluenceRadius: 46,
     drag: 0,
     lift: 0,
+    modeDragFactor: 1,
+    modeDragFactorStatic: 1,
     ready: false,
     lastFrameAt: 0,
     frameIndex: 0,
@@ -269,7 +273,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
   const cpRangeRef = useRef<{ min: number; max: number } | null>(null);
 
   const [controls, setControls] = useState<WindTunnelControls>(() => initialControls);
-  const [readout, setReadout] = useState<{ drag: number; lift: number; reynolds: number; live: boolean; fps: number; solverState: SolverState } | null>(null);
+  const [readout, setReadout] = useState<{ drag: number; lift: number; reynolds: number; live: boolean; fps: number; solverState: SolverState; modeDragDelta: number; modeDeltaNoise: boolean } | null>(null);
   const [forceBaseline, setForceBaseline] = useState<{ drag: number; lift: number } | null>(null);
   const [hoverData, setHoverData] = useState<{
     speed: number;
@@ -593,6 +597,8 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
         bodyInfluenceRadius: Number.isFinite(data.bodyInfluenceRadius) ? data.bodyInfluenceRadius : 46,
         drag: data.drag ?? 0,
         lift: data.lift ?? 0,
+        modeDragFactor: Number.isFinite(data.modeDragFactor) ? data.modeDragFactor : 1,
+        modeDragFactorStatic: Number.isFinite(data.modeDragFactorStatic) ? data.modeDragFactorStatic : 1,
         ready: true,
         lastFrameAt: performance.now(),
         frameIndex: data.frameIndex ?? 0,
@@ -1710,7 +1716,11 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
           forceBaselineRef.current = baseline;
           setForceBaseline(baseline);
         }
-        setReadout({ drag: f.drag, lift: f.lift, reynolds, live, fps: measuredFps, solverState });
+        const modeDragDelta = f.modeDragFactorStatic > 0
+          ? (f.modeDragFactor / f.modeDragFactorStatic - 1)
+          : 0;
+        const modeDeltaNoise = Math.abs(modeDragDelta) < 0.008;
+        setReadout({ drag: f.drag, lift: f.lift, reynolds, live, fps: measuredFps, solverState, modeDragDelta, modeDeltaNoise });
       }
       if (now - lastHoverRead > 80) {
         lastHoverRead = now;
@@ -1792,6 +1802,14 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
     ? 0.12 * controls.airfoilAngleDeg
     : aeroProfile.cl * (controls.drsOpen ? 0.92 : 1) * (1 + Math.abs(controls.yawDeg) * 0.006);
   const estimatedCy = Math.sin((controls.yawDeg * Math.PI) / 180) * (controls.silhouetteMode === "airfoil" ? 0.7 : 1.4);
+  // Isolated rolling-road + rotating-wheel drag treatment relative to an
+  // all-fixed tunnel (fixed floor + stationary wheels). The solver applies
+  // these multipliers inside the blockage-dominated raw drag, where the swing
+  // is invisible; here we surface the analytic % so the toggles read clearly.
+  // Guarded against the convergence residual (~0.6% drag tolerance): anything
+  // under the noise floor is labelled instead of shown as a misleading number.
+  const floorDeltaPct = readout ? readout.modeDragDelta * 100 : 0;
+  const floorDeltaBelowNoise = readout ? readout.modeDeltaNoise : true;
   const activeFlowView = FLOW_VIEW_META[controls.overlayMode];
 
   return (
@@ -1924,6 +1942,12 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
           <span>Cy est <strong>{estimatedCy.toFixed(2)}</strong></span>
           <span>ΔD est <strong>{readout ? signed(dragDelta) : "-"}</strong></span>
           <span>ΔL est <strong>{readout ? signed(liftDelta) : "-"}</strong></span>
+          <span
+            className={`wind-tunnel__floor-delta${floorDeltaBelowNoise ? " wind-tunnel__floor-delta--noise" : floorDeltaPct < 0 ? " wind-tunnel__floor-delta--gain" : " wind-tunnel__floor-delta--loss"}`}
+            title={`Isolated drag change from ${controls.groundMode === "rolling" ? "rolling road" : "fixed floor"} + ${controls.wheelMode === "rotating" ? "rotating wheels" : "stationary wheels"} vs an all-fixed reference. Estimate, not validated CFD.`}
+          >
+            Floor Δ <strong>{readout ? (floorDeltaBelowNoise ? "within noise" : `${floorDeltaPct > 0 ? "+" : ""}${floorDeltaPct.toFixed(1)}%`) : "-"}</strong>
+          </span>
           <span>Re <strong>{readout?.reynolds ? `${(readout.reynolds / 1e6).toFixed(2)}M` : "-"}</strong></span>
           <span>FPS <strong>{readout?.fps ? readout.fps.toFixed(0) : "-"}</strong></span>
         </div>

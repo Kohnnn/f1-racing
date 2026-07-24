@@ -67,3 +67,4 @@ for (const slug of constructors) {
 
 await browser.close();
 console.log(anyFail ? "\nSOME PROBES FAILED" : "\nALL SVG-ART PROBES OK");
+process.exitCode = anyFail ? 1 : 0;

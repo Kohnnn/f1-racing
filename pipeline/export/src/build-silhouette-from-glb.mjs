@@ -47,6 +47,7 @@ import {
   normalizePolygonToCanvas,
   detectWheelsFromPolygon,
   fallbackWheelArches,
+  resampleClosedByArcLength,
 } from "./build-wind-profiles.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
@@ -137,39 +138,6 @@ function orientToCuratedConvention(polygon) {
     flipX ? maxX + minX - x : x,
     flipY ? maxY + minY - y : y,
   ]);
-}
-
-// --- Arc-length resample of a closed loop to N even points. ---
-
-function resampleClosedByArcLength(points, targetCount) {
-  let loop = points;
-  const first = loop[0];
-  const last = loop[loop.length - 1];
-  if (Math.hypot(first[0] - last[0], first[1] - last[1]) < 1e-9) {
-    loop = loop.slice(0, -1);
-  }
-  const n = loop.length;
-  if (n < 3) return loop;
-  const cumulative = new Float64Array(n + 1);
-  for (let i = 0; i < n; i += 1) {
-    const [x1, y1] = loop[i];
-    const [x2, y2] = loop[(i + 1) % n];
-    cumulative[i + 1] = cumulative[i] + Math.hypot(x2 - x1, y2 - y1);
-  }
-  const total = cumulative[n];
-  if (total <= 0) throw new Error("outline has zero length");
-  const out = [];
-  let seg = 0;
-  for (let i = 0; i < targetCount; i += 1) {
-    const target = (i / targetCount) * total;
-    while (seg < n - 1 && cumulative[seg + 1] < target) seg += 1;
-    const segLen = cumulative[seg + 1] - cumulative[seg] || 1;
-    const t = (target - cumulative[seg]) / segLen;
-    const [x1, y1] = loop[seg];
-    const [x2, y2] = loop[(seg + 1) % n];
-    out.push([x1 + (x2 - x1) * t, y1 + (y2 - y1) * t]);
-  }
-  return out;
 }
 
 // --- Top/bottom envelope sampling from the oriented outline. ---

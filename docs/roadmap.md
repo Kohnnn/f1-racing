@@ -157,6 +157,16 @@ report. Each pass touches one or more of these surfaces:
 - **Airflow UX (roadmap UX-08)** — keyboard shortcuts (Space pause, ↑↓ airspeed, ←→ yaw, R reset), Pause/Resume + Reset buttons, on-panel shortcut hint, and a Paused overlay.
 - **Long-tail triage** — annotated remaining items as BLOCKED (external assets/feeds) vs feasible-future; confirmed driver photo grid already resolved.
 
+## Shipped in this pass (2026-07-24) — wind-tunnel A+B+C+D
+
+Scope confirmed A+B+C+D; solver stays an illustrative geometry field (not validated CFD), Cd/Cl remain labeled estimates.
+
+- **A — rolling-road / wheel legibility (`V5-RW-01`)**: the solver already applied `groundDragFactor` (0.95 rolling / 1.05 fixed) × `wheelDragFactor` (0.96 rotating / 1.04 stationary), but the swing was invisible inside the blockage-dominated raw drag and had no guard. The worker now emits `modeDragFactor` + `modeDragFactorStatic`; the UI surfaces an isolated **Floor Δ** chip (rolling+rotating vs all-fixed reference) with a convergence-noise guard ("within noise" under 0.8%). Verified live at **−16.5%** with a green gain badge, zero console errors.
+- **B — GLB-hull smoothing (`V5-WT-03`)**: root cause was uneven RDP+Chaikin vertex density (dense on curves, sparse on straights) rasterizing to edge speckle. Added the same arc-length resample the SVG-art builder uses to the GLB-hull profile (shared `resampleClosedByArcLength`, 120 even points), rebuilt all 7 constructor profiles to even outlines and mirrored to `apps/web/public/data/wind-profiles/`.
+- **C — regression coverage**: `smoke-static.mjs` now asserts the wind-tunnel bundle carries the mode switcher (`GLB hull` / `SVG art`), the Floor Δ chip, and the "not validated CFD" disclaimer. `probe-svg-art.mjs` now sets a non-zero exit code on failure and is exposed as `npm run probe:svg-art` (browser+server acceptance; the CI-safe regression is the smoke chunk assertion). Added `npm run build:wind-profiles`.
+- **D — coefficient calibration**: reviewed the 7 constructor constants (Cd 0.82–0.88, Cl −2.58 to −2.85) against F1-order magnitudes; already plausible and labeled estimates, so kept inline (lean D1) rather than fabricate precision without a CFD reference.
+- **Verification**: `quality` (typecheck + replay tests + check:data), 339-page `build`, `smoke:static`, all 6 SVG-art probes, and a targeted Playwright check of the Floor Δ chip + GLB-hull mode all green.
+
 ## Operational notes
 
 - Frontend deploys via `npx netlify deploy --prod --no-build --dir

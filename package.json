@@ -41,7 +41,9 @@
     "typecheck": "npm run typecheck -w @f1-racing/web",
     "quality:source": "npm run typecheck && npm run test:replay-director && npm run test:replay-chunks",
     "quality": "npm run quality:source && npm run check:data",
-    "smoke:static": "node tools/smoke-static.mjs"
+    "smoke:static": "node tools/smoke-static.mjs",
+    "build:wind-profiles": "node pipeline/export/src/build-wind-profiles.mjs",
+    "probe:svg-art": "node pipeline/export/probe-svg-art.mjs"
   },
   "devDependencies": {
     "@gltf-transform/core": "^4.3.0",

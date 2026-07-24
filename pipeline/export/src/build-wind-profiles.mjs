@@ -477,6 +477,44 @@ export function simplifyPolygon(polygon, tolerance = 1.4) {
   return simplified;
 }
 
+/**
+ * Resample a closed loop to N points evenly spaced by arc length. RDP +
+ * Chaikin leave uneven vertex density (dense on curves, sparse on straights);
+ * when that polygon is rasterized to the solver mask the sparse spans read as
+ * speckle along the hull edge. Even spacing removes it, matching the SVG-art
+ * silhouette cleanliness (which already resamples).
+ */
+export function resampleClosedByArcLength(points, targetCount) {
+  let loop = points;
+  const first = loop[0];
+  const last = loop[loop.length - 1];
+  if (first && last && Math.hypot(first[0] - last[0], first[1] - last[1]) < 1e-9) {
+    loop = loop.slice(0, -1);
+  }
+  const n = loop.length;
+  if (n < 3) return loop;
+  const cumulative = new Float64Array(n + 1);
+  for (let i = 0; i < n; i += 1) {
+    const [x1, y1] = loop[i];
+    const [x2, y2] = loop[(i + 1) % n];
+    cumulative[i + 1] = cumulative[i] + Math.hypot(x2 - x1, y2 - y1);
+  }
+  const total = cumulative[n];
+  if (total <= 0) return loop;
+  const out = [];
+  let seg = 0;
+  for (let i = 0; i < targetCount; i += 1) {
+    const target = (i / targetCount) * total;
+    while (seg < n - 1 && cumulative[seg + 1] < target) seg += 1;
+    const segLen = cumulative[seg + 1] - cumulative[seg] || 1;
+    const t = (target - cumulative[seg]) / segLen;
+    const [x1, y1] = loop[seg];
+    const [x2, y2] = loop[(seg + 1) % n];
+    out.push([x1 + (x2 - x1) * t, y1 + (y2 - y1) * t]);
+  }
+  return out;
+}
+
 export function smoothPolygon(polygon, passes = 2) {
   let current = polygon;
   for (let p = 0; p < passes; p += 1) {
@@ -623,7 +661,11 @@ async function processModel(entry, glbPath, outDir) {
   const simplified = simplifyPolygon(rawContour, 2.8);
   const smoothed = smoothPolygon(simplified, 2);
   const polished = simplifyPolygon(smoothed, 1.0);
-  const { polygon, aspect: polyAspect } = normalizePolygonToCanvas(polished);
+  // Even arc-length spacing before normalize: RDP+Chaikin leave uneven vertex
+  // density that rasterizes to speckle on the hull edge (QA V5-WT-03). This is
+  // the same resample the SVG-art silhouette applies.
+  const resampled = resampleClosedByArcLength(polished, 120);
+  const { polygon, aspect: polyAspect } = normalizePolygonToCanvas(resampled);
   let wheelArches = detectWheelsFromPolygon(polygon);
   if (wheelArches.length < 2) {
     wheelArches = fallbackWheelArches();

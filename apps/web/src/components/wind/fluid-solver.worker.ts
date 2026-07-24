@@ -13,7 +13,7 @@
  *
  *   OUT { type: "frame", nx, ny,
  *         u: ArrayBuffer, v: ArrayBuffer, speed: ArrayBuffer, pressure: ArrayBuffer,
- *         drag, lift, frameIndex,
+ *         drag, lift, modeDragFactor, modeDragFactorStatic, frameIndex,
  *         bodyDistance?, bodyNormalX?, bodyNormalY?, bodyMask?, wheelMask?, wake?, ground?, components? }
  */
 
@@ -634,7 +634,7 @@ function enforceNoPenetration() {
 }
 
 function computeForces() {
-  if (!bodyBounds.hasMask) return { drag: 0, lift: 0 };
+  if (!bodyBounds.hasMask) return { drag: 0, lift: 0, modeDragFactor: 1, modeDragFactorStatic: 1 };
 
   let pressureDrag = 0;
   let lift = 0;
@@ -701,8 +701,19 @@ function computeForces() {
   // model both as a legible drag reduction (and downforce gain) so the toggles
   // produce a clearly measurable response instead of a sub-1% wobble that the
   // convergence detector reads as noise.
-  const groundDragFactor = groundMode === "rolling" ? 0.95 : 1.05;
-  const wheelDragFactor = wheelMode === "rotating" ? 0.96 : 1.04;
+  const ROLLING_GROUND_DRAG = 0.95;
+  const FIXED_GROUND_DRAG = 1.05;
+  const ROTATING_WHEEL_DRAG = 0.96;
+  const STATIONARY_WHEEL_DRAG = 1.04;
+  const groundDragFactor = groundMode === "rolling" ? ROLLING_GROUND_DRAG : FIXED_GROUND_DRAG;
+  const wheelDragFactor = wheelMode === "rotating" ? ROTATING_WHEEL_DRAG : STATIONARY_WHEEL_DRAG;
+  // Analytic isolation of the rolling-road + rotating-wheel drag treatment so
+  // the UI can surface a legible fixed-vs-rolling delta that does not drown in
+  // the blockage-dominated raw drag term (which barely moves on toggle). These
+  // are the exact multipliers applied above, exposed as the current combined
+  // factor and the all-fixed reference so the panel can render an isolated %.
+  const modeDragFactor = groundDragFactor * wheelDragFactor;
+  const modeDragFactorStatic = FIXED_GROUND_DRAG * STATIONARY_WHEEL_DRAG;
   // The pressure/wake terms are normalized by dynamic pressure (coefficient
   // form), so re-scale the displayed force by q relative to the default
   // 80 mph inlet. Without this, raising airspeed *lowered* the drag readout,
@@ -720,7 +731,12 @@ function computeForces() {
     : 0;
   const groundLift = groundMode === "rolling" ? -0.055 : 0.020;
   const wheelLift = wheelMode === "rotating" ? -0.012 : 0.004;
-  return { drag, lift: (normalizedLift * 0.32 + groundLift + wheelLift) * forceScale };
+  return {
+    drag,
+    lift: (normalizedLift * 0.32 + groundLift + wheelLift) * forceScale,
+    modeDragFactor,
+    modeDragFactorStatic,
+  };
 }
 
 function columnTopAt(x: number) {
@@ -882,6 +898,8 @@ self.addEventListener("message", (event) => {
       pressure: p.slice().buffer,
       drag: forces.drag,
       lift: forces.lift,
+      modeDragFactor: forces.modeDragFactor,
+      modeDragFactorStatic: forces.modeDragFactorStatic,
       frameIndex,
       ...(diagnostic ? {
         bodyDistance: bodyDistance.slice().buffer,

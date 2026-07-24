@@ -3338,6 +3338,26 @@ code {
   color: #fecaca;
 }
 
+.wind-tunnel__floor-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: rgba(248, 113, 113, 0.14);
+  color: #fecaca;
+}
+
+.wind-tunnel__floor-delta--gain {
+  background: rgba(52, 211, 153, 0.16);
+  color: #bbf7d0;
+}
+
+.wind-tunnel__floor-delta--noise {
+  background: rgba(148, 163, 184, 0.14);
+  color: rgba(203, 213, 225, 0.86);
+}
+
 @keyframes wind-tunnel-live-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }

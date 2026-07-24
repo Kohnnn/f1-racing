@@ -137,6 +137,14 @@ const pitCycleChunk = await findFile(path.join(outRoot, "_next", "static", "chun
   if (!filePath.endsWith(".js")) return false;
   return (await readFile(filePath, "utf-8")).includes("Pit-cycle outcomes");
 });
+const windTunnelChunk = await findFile(path.join(outRoot, "_next", "static", "chunks"), async (filePath) => {
+  if (!filePath.endsWith(".js")) return false;
+  const source = await readFile(filePath, "utf-8");
+  return source.includes("GLB hull")
+    && source.includes("SVG art")
+    && source.includes("Floor \u0394")
+    && source.includes("not validated CFD");
+});
 const replay3dChunk = await findFile(path.join(outRoot, "_next", "static", "chunks"), async (filePath) => {
   if (!filePath.endsWith(".js")) return false;
   const source = await readFile(filePath, "utf-8");
@@ -161,6 +169,7 @@ assert.ok(modelviewChunk, "Modelview retry control is missing from the static bu
 assert.ok(replayShareChunk, "Replay evidence-link control is missing from the static bundle.");
 assert.ok(replayDebugChunk, "Replay raw frame inspector is missing from the static bundle.");
 assert.ok(pitCycleChunk, "Replay pit-cycle control is missing from the static bundle.");
+assert.ok(windTunnelChunk, "Wind-tunnel controls (mode switcher, Floor \u0394 chip, or CFD disclaimer) are missing from the static bundle.");
 assert.ok(replay3dChunk, "Replay 3D controls or lazy scene chunk are missing from the static bundle.");
 assert.ok(replay3dBytes <= 2_100_000, `Replay 3D assets exceed the 2.1 MB budget (${replay3dBytes} bytes).`);
 const replayMetaPath = `/${path.relative(publicRoot, replayMetaSource).split(path.sep).join("/")}`;
