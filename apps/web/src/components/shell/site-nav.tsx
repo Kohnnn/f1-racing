@@ -10,15 +10,14 @@ interface NavLink {
 }
 
 const PRIMARY_LINKS: NavLink[] = [
-  { href: "/race-desk", label: "Race Desk", prefixes: ["/race-desk", "/live"] },
-  { href: "/replay", label: "Replay", prefixes: ["/replay"] },
-  { href: "/compare", label: "Compare", prefixes: ["/compare"] },
-  { href: "/stints", label: "Stints", prefixes: ["/stints"] },
+  { href: "/", label: "Dashboard", prefixes: ["/"] },
+  { href: "/replay", label: "Replay", prefixes: ["/replay", "/compare", "/stints", "/sessions"] },
+  { href: "/learn", label: "Learn", prefixes: ["/learn"] },
+  { href: "/cars/current-spec", label: "Modelview", prefixes: ["/cars"] },
 ];
 
 const SECONDARY_LINKS: NavLink[] = [
-  { href: "/cars/current-spec", label: "Modelview", prefixes: ["/cars"] },
-  { href: "/learn", label: "Learn", prefixes: ["/learn"] },
+  { href: "/race-desk", label: "Historical Race Desk", prefixes: ["/race-desk", "/live"] },
 ];
 
 function matches(pathname: string | null, link: NavLink) {
