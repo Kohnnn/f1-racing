@@ -6,7 +6,9 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const outRoot = path.join(root, "apps", "web", "out");
-const publicRoot = path.join(root, "apps", "web", "public");
+const publicRoot = process.env.F1_CANDIDATE_ROOT
+  ? path.join(path.resolve(process.env.F1_CANDIDATE_ROOT), "public")
+  : path.join(root, "apps", "web", "public");
 const replay3dAssetPaths = [
   "/replay-3d/formula-car.glb",
   "/replay-3d/kloofendal-pure-sky-1k.hdr",

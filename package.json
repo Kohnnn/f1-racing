@@ -8,7 +8,7 @@
   ],
   "scripts": {
     "dev": "npm run sync:models && npm run generate:sample && npm run refresh:showcase:replay && npm run dev -w @f1-racing/web",
-    "build": "npm run check:featured && npm run next:build -w @f1-racing/web",
+    "build": "npm run check:featured && node tools/build-static.mjs",
     "build:pages": "npm run check:featured && npm run next:build -w @f1-racing/web",
     "generate:sample": "node pipeline/export/src/generate-sample-data.mjs",
     "sync:models": "node pipeline/export/src/sync-web-models.mjs",
@@ -42,6 +42,9 @@
     "quality:source": "npm run typecheck && npm run test:replay-director && npm run test:replay-chunks",
     "quality": "npm run quality:source && npm run check:data",
     "smoke:static": "node tools/smoke-static.mjs",
+    "test:release-data": "node tools/release-data.test.mjs",
+    "release:artifact": "node tools/release-artifact.mjs",
+    "release:data": "node tools/release-data.mjs",
     "build:wind-profiles": "node pipeline/export/src/build-wind-profiles.mjs",
     "probe:svg-art": "node pipeline/export/probe-svg-art.mjs"
   },

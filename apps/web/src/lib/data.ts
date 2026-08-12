@@ -397,7 +397,9 @@ export interface OpenFoamStarterCase {
   notes: string[];
 }
 
-const dataRoot = path.join(process.cwd(), "public", "data");
+const dataRoot = process.env.F1_DATA_ROOT
+  ? path.resolve(process.env.F1_DATA_ROOT)
+  : path.join(process.cwd(), "public", "data");
 const workspaceRoot = path.join(process.cwd(), "..", "..");
 
 async function readJson<T>(relativePath: string): Promise<T> {

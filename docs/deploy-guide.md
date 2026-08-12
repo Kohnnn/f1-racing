@@ -34,6 +34,20 @@ npm run smoke:static
 
 `npm run build` validates the deterministic newest-complete-race manifests before creating `apps/web/out`; it does not fetch or rewrite OpenF1 packs.
 
+## Candidate release gate
+
+Build candidates outside `data/`, `apps/web/public/`, and `apps/web/out`. The artifact command copies the canonical and public projections into the candidate, writes a deterministic sorted SHA-256 manifest and release ID, then stops before promotion. The data command audits that candidate without modifying the promoted tree.
+
+```bash
+set F1_CANDIDATE_ROOT=%TEMP%\f1-release-candidate
+npm run release:artifact
+npm run release:data
+set F1_CANDIDATE_ROOT=
+npm run test:release-data
+```
+
+Current production packs predate the complete-pack provenance contract. `release:artifact` therefore fails until each publicly indexed session has `release/provenance-ledger.json` coverage with terminal completion, UTC source/retrieval/generated fields, source response digest, rights reference, and SHA-256 entries for required files. Missing values remain missing; the gate does not synthesize them. With `F1_CANDIDATE_ROOT` set, `check:featured`, `build`, and `smoke:static` read the candidate data tree while leaving public assets untouched.
+
 ## Preview locally
 
 ```bash

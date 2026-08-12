@@ -3,12 +3,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const dataDir = path.join(root, "data");
+const candidateRoot = process.env.F1_CANDIDATE_ROOT ? path.resolve(process.env.F1_CANDIDATE_ROOT) : null;
+const dataDir = candidateRoot ? path.join(candidateRoot, "canonical", "data") : path.join(root, "data");
 const manifestsDir = path.join(dataDir, "manifests");
 const packsDir = path.join(dataDir, "packs", "seasons");
 const dataSeasonsPath = path.join(manifestsDir, "seasons.json");
 const dataLatestPath = path.join(manifestsDir, "latest.json");
-const publicManifestsDir = path.join(root, "apps", "web", "public", "data", "manifests");
+const publicManifestsDir = candidateRoot
+  ? path.join(candidateRoot, "public", "data", "manifests")
+  : path.join(root, "apps", "web", "public", "data", "manifests");
 const publicSeasonsPath = path.join(publicManifestsDir, "seasons.json");
 const publicLatestPath = path.join(publicManifestsDir, "latest.json");
 
