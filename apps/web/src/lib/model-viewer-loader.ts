@@ -27,8 +27,19 @@ async function loadWithRetry(retries: number): Promise<void> {
   let lastError: unknown = null;
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
+      const configWindow = window as typeof window & {
+        ModelViewerElement?: { dracoDecoderLocation?: string };
+      };
+      configWindow.ModelViewerElement = {
+        ...configWindow.ModelViewerElement,
+        dracoDecoderLocation: "/draco/",
+      };
       await import("@google/model-viewer");
-      if (typeof window !== "undefined" && window.customElements?.get("model-viewer")) {
+      const ModelViewerElement = window.customElements?.get("model-viewer") as {
+        dracoDecoderLocation?: string;
+      } | undefined;
+      if (ModelViewerElement) {
+        ModelViewerElement.dracoDecoderLocation = "/draco/";
         return;
       }
       throw new Error("model-viewer custom element was not registered");

@@ -287,6 +287,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
   } | null>(null);
   const [profile, setProfile] = useState<WindProfileData | null>(null);
   const [profileMissing, setProfileMissing] = useState(false);
+  const [reducedMotion, setReducedMotion] = useState(false);
   const [paused, setPaused] = useState(false);
   const [modelViewerReady, setModelViewerReady] = useState(false);
   const hasCuratedSvg = Boolean(constructorSlug && CURATED_SVG_SILHOUETTES.has(constructorSlug));
@@ -317,13 +318,18 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
   }, [controls]);
 
   useEffect(() => {
-    pausedRef.current = paused;
-  }, [paused]);
+    pausedRef.current = paused || reducedMotion;
+  }, [paused, reducedMotion]);
 
   useEffect(() => {
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      setPaused(true);
-    }
+    const query = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => {
+      setReducedMotion(query.matches);
+      setPaused(query.matches);
+    };
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
   }, []);
 
   // Keyboard shortcuts for the wind tunnel (focus-scoped to the panel root).
@@ -334,8 +340,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
     if (!node) return;
     function onKey(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
-      // Don't hijack typing in form fields other than our range sliders.
-      if (target && target.tagName === "INPUT" && (target as HTMLInputElement).type !== "range") return;
+      if (target?.closest("button, input, select, textarea")) return;
       switch (event.key) {
         case " ":
         case "Spacebar":
@@ -969,6 +974,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
     }
 
     function drawSmokeFlow() {
+      if (pausedRef.current) return;
       const target = modelFile && modelViewerReady && overlayCtx ? overlayCtx : ctx;
       if (!target || controls.overlayMode !== "smoke") return;
       const particles = particlesRef.current;
@@ -1680,7 +1686,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
         return;
       }
       const now = performance.now();
-      const elapsed = now - animationStartedAt;
+      const elapsed = pausedRef.current ? 0 : now - animationStartedAt;
       frameTickCount += 1;
       if (now - lastFpsRead > 500) {
         measuredFps = (frameTickCount * 1000) / (now - lastFpsRead);
@@ -1825,10 +1831,11 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
           <button
             type="button"
             className="wind-tunnel__action-button"
-            aria-pressed={paused}
+            aria-pressed={paused || reducedMotion}
+            disabled={reducedMotion}
             onClick={() => setPaused((prev) => !prev)}
           >
-            {paused ? "Resume" : "Pause"}
+            {paused || reducedMotion ? "Paused" : "Pause"}
           </button>
           <button
             type="button"
@@ -1898,10 +1905,10 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
             <p>Solver warming up...</p>
           </div>
         ) : null}
-        {paused ? (
+        {paused || reducedMotion ? (
           <div className="wind-tunnel__overlay wind-tunnel__overlay--soft">
-            <p>Paused</p>
-            <p className="wind-tunnel__overlay-sub">Press Space or Resume to continue the solver.</p>
+            <p>{reducedMotion ? "Motion reduced" : "Paused"}</p>
+            <p className="wind-tunnel__overlay-sub">{reducedMotion ? "The solver is paused while reduced motion is enabled." : "Press Space or Resume to continue the solver."}</p>
           </div>
         ) : null}
         <div className="wind-tunnel__stage-hint">
@@ -1958,15 +1965,13 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
         </div>
       </div>
 
-      <div className="wind-tunnel__mode" role="tablist" aria-label="Silhouette source">
+      <div className="wind-tunnel__mode" aria-label="Silhouette source">
         {(["procedural", "airfoil", "svg", "glb"] as const).map((mode) => (
           <button
             key={mode}
             type="button"
-            role="tab"
             disabled={mode === "svg" && !hasCuratedSvg}
-            aria-selected={controls.silhouetteMode === mode}
-            aria-disabled={mode === "svg" && !hasCuratedSvg}
+            aria-pressed={controls.silhouetteMode === mode}
             className={`wind-tunnel__mode-button${mode === "glb" ? " wind-tunnel__mode-button--subtle" : ""}${controls.silhouetteMode === mode ? " wind-tunnel__mode-button--active" : ""}`}
             onClick={() => {
               if (mode === "svg" && !hasCuratedSvg) return;
@@ -2071,13 +2076,12 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
           </label>
           <div className="wind-tunnel__flow-view">
             <span>Flow view</span>
-            <div className="wind-tunnel__flow-buttons" role="tablist" aria-label="Flow view">
+            <div className="wind-tunnel__flow-buttons" aria-label="Flow view">
               {(["ribbon", "technical", "diagnostic", "smoke"] as const).map((mode) => (
                 <button
                   key={mode}
                   type="button"
-                  role="tab"
-                  aria-selected={controls.overlayMode === mode}
+                  aria-pressed={controls.overlayMode === mode}
                   className={`wind-tunnel__flow-button${controls.overlayMode === mode ? " wind-tunnel__flow-button--active" : ""}`}
                   onClick={() => setControls((prev) => ({ ...prev, overlayMode: mode }))}
                 >
@@ -2119,13 +2123,12 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
           </label>
           <div className="wind-tunnel__flow-view">
             <span>Quality</span>
-            <div className="wind-tunnel__flow-buttons" role="tablist" aria-label="Quality preset">
+            <div className="wind-tunnel__flow-buttons" aria-label="Quality preset">
               {(["low", "medium", "high"] as const).map((preset) => (
                 <button
                   key={preset}
                   type="button"
-                  role="tab"
-                  aria-selected={controls.quality === preset}
+                  aria-pressed={controls.quality === preset}
                   className={`wind-tunnel__flow-button${controls.quality === preset ? " wind-tunnel__flow-button--active" : ""}`}
                   onClick={() => setControls((prev) => ({
                     ...prev,

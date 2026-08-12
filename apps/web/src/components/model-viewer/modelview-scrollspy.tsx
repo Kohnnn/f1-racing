@@ -68,7 +68,10 @@ export function ModelviewScrollSpy({ sections }: ModelviewScrollSpyProps) {
       return;
     }
     event.preventDefault();
-    element.scrollIntoView({ behavior: "smooth", block: "start" });
+    element.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      block: "start",
+    });
     setActiveId(id);
   }
 

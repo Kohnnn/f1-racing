@@ -7315,6 +7315,9 @@ code {
   .wind-tunnel__live,
   .learn-model-embed__spinner,
   .car-model-hotspot--active,
+  .car-model-hotspot--inspect,
+  .car-viewer-drag-hint,
+  .car-viewer-loading__spinner,
   .fastest-lap-banner,
   .replay3d__loading {
     animation: none;

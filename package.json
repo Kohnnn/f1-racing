@@ -40,6 +40,7 @@
     "worker:deploy": "npm run deploy -w @f1-racing/metadata-api",
     "typecheck": "npm run typecheck -w @f1-racing/web",
     "quality:source": "npm run typecheck && npm run test:replay-director && npm run test:replay-chunks",
+    "check:modelview": "node tools/modelview-accessibility.test.mjs",
     "quality": "npm run quality:source && npm run check:data",
     "smoke:static": "node tools/smoke-static.mjs",
     "test:release-data": "node tools/release-data.test.mjs",

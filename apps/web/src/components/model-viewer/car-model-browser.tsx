@@ -233,7 +233,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
       if (!viewer) return;
       // Skip when focus is in an input.
       const target = event.target as HTMLElement | null;
-      if (target && (target.tagName === "INPUT" || target.tagName === "SELECT" || target.tagName === "TEXTAREA")) {
+      if (!target?.closest("model-viewer")) {
         return;
       }
       const orbit = viewer.cameraOrbit ?? currentView.orbit;
@@ -330,6 +330,9 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
   function retryModel() {
     setModelReady(false);
     setModelLoadFailed(false);
+    ensureModelViewerLoaded()
+      .then(() => setViewerBootFailed(false))
+      .catch(() => setViewerBootFailed(true));
     setModelRetryKey((key) => key + 1);
   }
 
@@ -446,6 +449,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
               key={preset.id}
               type="button"
               className={`camera-preset${preset.id === activeCameraId ? " camera-preset--active" : ""}`}
+              aria-pressed={preset.id === activeCameraId}
               onClick={() => {
                 setActiveCameraId(preset.id);
                 handleFocusChange(null);
@@ -455,11 +459,10 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
             </button>
           ))}
           <span className="camera-preset-row__divider" aria-hidden="true" />
-          <div className="camera-preset-row__group" role="tablist" aria-label="Interaction mode">
+          <div className="camera-preset-row__group" aria-label="Interaction mode">
             <button
               type="button"
-              role="tab"
-              aria-selected={interactionMode === "orbit"}
+              aria-pressed={interactionMode === "orbit"}
               className={`camera-preset${interactionMode === "orbit" ? " camera-preset--active" : ""}`}
               onClick={() => setInteractionMode("orbit")}
               title="Drag to orbit, click to set focus"
@@ -468,8 +471,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
             </button>
             <button
               type="button"
-              role="tab"
-              aria-selected={interactionMode === "inspect"}
+              aria-pressed={interactionMode === "inspect"}
               className={`camera-preset${interactionMode === "inspect" ? " camera-preset--active" : ""}`}
               onClick={() => setInteractionMode("inspect")}
               title="Click hotspots without orbiting"
@@ -478,11 +480,10 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
             </button>
           </div>
           <span className="camera-preset-row__divider" aria-hidden="true" />
-          <div className="camera-preset-row__group" role="tablist" aria-label="Studio quality">
+          <div className="camera-preset-row__group" aria-label="Studio quality">
             <button
               type="button"
-              role="tab"
-              aria-selected={studioQuality === "clean"}
+              aria-pressed={studioQuality === "clean"}
               className={`camera-preset${studioQuality === "clean" ? " camera-preset--active" : ""}`}
               onClick={() => setStudioQuality("clean")}
               title="Neutral lighting"
@@ -491,8 +492,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
             </button>
             <button
               type="button"
-              role="tab"
-              aria-selected={studioQuality === "studio"}
+              aria-pressed={studioQuality === "studio"}
               className={`camera-preset${studioQuality === "studio" ? " camera-preset--active" : ""}`}
               onClick={() => setStudioQuality("studio")}
               title="Commerce-style HDR with softer shadows"
@@ -504,6 +504,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
           <button
             type="button"
             className={`camera-preset${compareSlug ? " camera-preset--active" : ""}`}
+            aria-pressed={Boolean(compareSlug)}
             onClick={() => {
               if (compareSlug) {
                 setCompareSlug(null);
@@ -597,7 +598,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
 
             {/* Floating zoom controls. */}
             {modelReady && !modelLoadFailed ? (
-              <div className="car-viewer-zoom-controls" aria-hidden="true">
+              <div className="car-viewer-zoom-controls" role="group" aria-label="Camera zoom controls">
                 <button type="button" onClick={() => handleZoomButton(-0.18)} aria-label="Zoom in">+</button>
                 <button type="button" onClick={() => handleZoomButton(0.18)} aria-label="Zoom out">-</button>
                 <button type="button" onClick={() => { handleFocusChange(null); setActiveCameraId("studio"); }} aria-label="Reset view" title="Reset (R)">R</button>
@@ -624,9 +625,12 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
             {!modelReady ? (
               <div className="car-viewer-loading" role="status" aria-live="polite">
                 <span className="car-viewer-loading__spinner" aria-hidden="true" />
-                {viewerBootFailed
-                  ? "3D viewer could not start. Use the page controls or reload."
-                  : `Loading ${selected.displayName} · ${selected.sizeLabel}`}
+                {viewerBootFailed ? (
+                  <>
+                    <span>3D viewer could not start. Model details and the wind tunnel remain available below.</span>
+                    <button type="button" className="button button--secondary" onClick={retryModel}>Retry 3D viewer</button>
+                  </>
+                ) : `Loading ${selected.displayName} · ${selected.sizeLabel}`}
               </div>
             ) : null}
             {modelLoadFailed ? (
@@ -743,8 +747,9 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
                 <button
                   key={point.id}
                   type="button"
-                  className={`car-focus-item${point.id === activeFocusId ? " car-focus-item--active" : ""}`}
-                  onClick={() => handleFocusChange(point.id === activeFocusId ? null : point.id)}
+                   className={`car-focus-item${point.id === activeFocusId ? " car-focus-item--active" : ""}`}
+                   aria-pressed={point.id === activeFocusId}
+                   onClick={() => handleFocusChange(point.id === activeFocusId ? null : point.id)}
                 >
                   <strong>{point.shortLabel}</strong>
                   <span>{point.title}</span>
