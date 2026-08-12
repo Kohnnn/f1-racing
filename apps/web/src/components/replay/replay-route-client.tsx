@@ -196,6 +196,8 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
   const [fullLoadProgress, setFullLoadProgress] = useState(0);
   const [fullRaceLoaded, setFullRaceLoaded] = useState(() => hasCompleteReplayFrames(initialReplay));
   const [reloadKey, setReloadKey] = useState(0);
+  const [retryingChunkIndex, setRetryingChunkIndex] = useState<number | null>(null);
+  const retryChunkButtonRef = useRef<HTMLButtonElement>(null);
   const chunkEntriesRef = useRef<NonNullable<ReplayPack["frameChunkIndex"]>>([]);
   const loadedChunksRef = useRef<Set<number>>(new Set());
   const requestedChunksRef = useRef<Set<number>>(new Set());
@@ -206,6 +208,14 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
     reject: (error: Error) => void;
     timeout: ReturnType<typeof setTimeout>;
   }>>(new Map());
+
+  useEffect(() => {
+    if (state.status !== "ready" || !state.chunkFailure) {
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => retryChunkButtonRef.current?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [state]);
 
   const rejectSocketChunkRequests = useCallback((message: string) => {
     for (const pending of socketChunkResolversRef.current.values()) {
@@ -548,11 +558,27 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
     return (
       <>
         {state.chunkFailure ? (
-          <section className="panel replay-error-panel" role="alert">
-            <p>Replay chunk {state.chunkFailure.chunkIndex} ({state.chunkFailure.fromTime.toFixed(1)}s–{state.chunkFailure.toTime.toFixed(1)}s) could not load.</p>
+          <section className="panel replay-error-panel" role="alert" aria-live="assertive">
+            <p>Replay chunk {state.chunkFailure.chunkIndex} ({state.chunkFailure.fromTime.toFixed(1)}s–{state.chunkFailure.toTime.toFixed(1)}s) could not load. Playback remains on the cached window.</p>
             <p>{state.chunkFailure.message}</p>
-            <button className="button" type="button" onClick={() => void ensureChunkLoaded(state.chunkFailure?.chunkIndex ?? -1)}>
-              Retry chunk
+            <button
+              ref={retryChunkButtonRef}
+              className="button"
+              type="button"
+              aria-busy={retryingChunkIndex === state.chunkFailure.chunkIndex}
+              disabled={retryingChunkIndex === state.chunkFailure.chunkIndex}
+              onClick={async () => {
+                const chunkIndex = state.chunkFailure?.chunkIndex;
+                if (chunkIndex === undefined) {
+                  return;
+                }
+                setRetryingChunkIndex(chunkIndex);
+                await ensureChunkLoaded(chunkIndex);
+                setRetryingChunkIndex(null);
+                retryChunkButtonRef.current?.focus();
+              }}
+            >
+              {retryingChunkIndex === state.chunkFailure.chunkIndex ? "Retrying chunk" : "Retry chunk"}
             </button>
           </section>
         ) : null}
@@ -562,6 +588,7 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
           summary={summary}
           compare={insights.compare}
           insightsReady={insights.status !== "loading"}
+          insightsStatus={insights.status}
           route={route}
           stintPack={insights.stintPack}
           driverSummaries={insights.driverSummaries}

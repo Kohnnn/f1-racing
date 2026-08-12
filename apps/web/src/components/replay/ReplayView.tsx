@@ -53,6 +53,7 @@ interface ReplayViewProps {
   summary: SessionSummary;
   compare: ComparePack | null;
   insightsReady: boolean;
+  insightsStatus?: "loading" | "ready" | "unavailable";
   route: {
     season: string;
     grandPrix: string;
@@ -327,7 +328,7 @@ function findLastIndexBeforeOrAt(time: number, values: number[]) {
   return result;
 }
 
-export function ReplayView({ replay, manifest, summary, compare, insightsReady, route, stintPack, driverSummaries, lapRecords, strategy, fullLoadProgress = 0, fullRaceLoaded = false, onEnsureTimeLoaded, onLoadFullRace }: ReplayViewProps) {
+export function ReplayView({ replay, manifest, summary, compare, insightsReady, insightsStatus = insightsReady ? "ready" : "loading", route, stintPack, driverSummaries, lapRecords, strategy, fullLoadProgress = 0, fullRaceLoaded = false, onEnsureTimeLoaded, onLoadFullRace }: ReplayViewProps) {
   const initialTime = replay.frames[0]?.t || 0;
   const defaultAnalysisTab = Object.keys(manifest.compare ?? {}).length ? "compare" as const : manifest.stints ? "stints" as const : "telemetry" as const;
   const [playbackState, setPlaybackState] = useState(() => ({
@@ -353,6 +354,7 @@ export function ReplayView({ replay, manifest, summary, compare, insightsReady, 
   const [loopBounds, setLoopBounds] = useState<{ from: number | null; to: number | null }>({ from: null, to: null });
   const [loopActive, setLoopActive] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [focusedDriver, setFocusedDriver] = useState<string | null>(null);
   const [fastestLapToast, setFastestLapToast] = useState<{ driver: string; time: number; key: number } | null>(null);
   const lastFastestRef = useRef<number | null>(null);
   const [leaderboardLayout, setLeaderboardLayout] = useState<"vertical" | "horizontal">("vertical");
@@ -1336,6 +1338,10 @@ export function ReplayView({ replay, manifest, summary, compare, insightsReady, 
     });
   }, []);
 
+  const handleDriverPickerSelect = useCallback((driverCode: string) => {
+    handleDriverSelect(driverCode, false);
+  }, [handleDriverSelect]);
+
   const activateStoryStep = useCallback((step: StoryStep) => {
     setIsPlaying(false);
     if (typeof step.time === "number") {
@@ -1789,9 +1795,43 @@ export function ReplayView({ replay, manifest, summary, compare, insightsReady, 
             {heatmapChannel !== "off" && !selectedDrivers.length && !focusId ? (
               <span className="replay-heatmap-control__hint">Select a driver to colour their lap</span>
             ) : null}
-          </div>
-          {trackViewNotice ? <p className="replay-track-panel__notice" role="status">{trackViewNotice}</p> : null}
-          <div className="replay-track-panel__canvas">
+           </div>
+           <div className="replay-driver-picker" role="group" aria-labelledby="replay-driver-picker-label">
+             <div>
+               <span className="replay-driver-picker__label" id="replay-driver-picker-label">Driver picker</span>
+               <p id="replay-driver-picker-help">Keyboard equivalent for track-marker selection. Choose any available driver; selection updates the leaderboard, telemetry, and evidence link.</p>
+             </div>
+             <select
+               aria-describedby="replay-driver-picker-help replay-driver-picker-status"
+               aria-label="Select a replay driver"
+               value={selectedDrivers.length === 1 ? selectedDrivers[0] : ""}
+               onChange={(event) => {
+                 setFocusedDriver(event.target.value || null);
+                 if (event.target.value) {
+                   handleDriverPickerSelect(event.target.value);
+                 } else {
+                   handleDriverSelect(null, false);
+                 }
+               }}
+               onFocus={(event) => setFocusedDriver(event.currentTarget.value || null)}
+               onBlur={() => setFocusedDriver(null)}
+             >
+               <option value="">{selectedDrivers.length > 1 ? `${selectedDrivers.length} drivers selected` : "No driver selected"}</option>
+               {replay.drivers.map((driver) => {
+                 const currentDriver = displayedDrivers.find((entry) => entry.abbr === driver.driverCode);
+                 return (
+                   <option key={driver.driverCode} value={driver.driverCode}>
+                     P{currentDriver?.position ?? "-"} · {driver.driverCode} · {driver.fullName}
+                   </option>
+                 );
+               })}
+             </select>
+             <p className="replay-driver-picker__status" id="replay-driver-picker-status" role="status">
+               {focusedDriver ? `Focused ${focusedDriver}. ` : ""}{selectedDrivers.length ? `Selected ${selectedDriverLabel}.` : "No driver selected."}
+             </p>
+           </div>
+           {trackViewNotice ? <p className="replay-track-panel__notice" role="status">{trackViewNotice}</p> : null}
+           <div className="replay-track-panel__canvas">
             {fastestLapToast ? (
               <div key={fastestLapToast.key} className="fastest-lap-banner">
                 ⚡ Fastest lap · {fastestLapToast.driver} · {formatLapTime(fastestLapToast.time)}
@@ -2064,6 +2104,9 @@ export function ReplayView({ replay, manifest, summary, compare, insightsReady, 
         <div id="analysis-panel" role="tabpanel" aria-labelledby={`analysis-tab-${analysisTab}`} tabIndex={0}>
         {!insightsReady && ["compare", "stints", "strategy", "pitcycles"].includes(analysisTab) ? (
           <p className="replay-empty-copy" role="status">Loading this analysis pack...</p>
+        ) : null}
+        {insightsStatus === "unavailable" ? (
+          <p className="replay-empty-copy" role="status">Some optional analysis packs are unavailable. Playback, driver selection, and loaded telemetry remain available.</p>
         ) : null}
 
         {analysisTab === "telemetry" ? (

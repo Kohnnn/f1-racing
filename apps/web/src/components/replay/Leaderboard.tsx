@@ -227,6 +227,8 @@ export function Leaderboard({ drivers, selectedDrivers, onDriverSelect, layout =
               type="button"
               className={`replay-leaderboard__row${isSelected ? " replay-leaderboard__row--selected" : ""}${retired ? " replay-leaderboard__row--retired" : ""}${fastest ? " replay-leaderboard__row--fastest" : ""}`}
               title={`${driver.fullName} · ${driver.team}${retired ? ` · ${driver.status}` : ` · ${formatSpeed(driver.speed)}`}`}
+              aria-pressed={isSelected}
+              aria-label={`${driver.fullName}, ${driver.abbr}, position ${driver.position ?? "unavailable"}, ${isSelected ? "selected" : "not selected"}. ${selectedDrivers.length ? "Use Shift plus Enter or Space to add or remove this driver." : "Press Enter or Space to select."}`}
               onClick={(event) => onDriverSelect(driver.abbr, event.shiftKey || event.metaKey || event.ctrlKey)}
             >
               <span className="replay-leaderboard__position" style={{ borderLeft: `4px solid ${driver.color}` }}>

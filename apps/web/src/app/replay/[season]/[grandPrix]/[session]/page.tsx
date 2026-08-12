@@ -1,4 +1,3 @@
-import { notFound } from "next/navigation";
 import { ReplayRouteClient } from "@/components/replay/replay-route-client";
 import { getReplayFrameChunk, getReplayMetaPack, getReplayPack, getSeasonIndex, getSessionManifest, getSessionSummary } from "@/lib/data";
 
@@ -75,6 +74,15 @@ export default async function ReplayPage({ params }: ReplayPageProps) {
       />
     );
   } catch {
-    notFound();
+    return (
+      <main className="replay-view replay-view--workspace">
+        <section className="panel replay-error-panel" role="alert">
+          <p className="eyebrow">Replay unavailable</p>
+          <h1>{grandPrix} replay could not be opened</h1>
+          <p>This static export cannot retry route data in place. Return to the replay library and open another available session.</p>
+          <a className="button" href="/replay">Replay library</a>
+        </section>
+      </main>
+    );
   }
 }

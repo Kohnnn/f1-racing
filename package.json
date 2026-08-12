@@ -20,6 +20,7 @@
     "test:pit-cycles": "node packages/telemetry-utils/src/pit-cycle.test.mjs",
     "test:replay-director": "node tools/replay-director.test.mjs",
     "test:replay-chunks": "node tools/replay-chunks.test.mjs",
+    "test:replay-keyboard": "node tools/replay-keyboard-probe.mjs",
     "check:featured": "npm run test:featured && node pipeline/export/src/refresh-seasons-index.mjs --check",
     "init:openfoam:local": "node pipeline/openfoam/src/init-openfoam-local.mjs",
     "build:openfoam:overlay": "node pipeline/openfoam/src/build-openfoam-overlay-pack.mjs",
