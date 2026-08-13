@@ -10,6 +10,18 @@ export const metadata = {
 export default async function RaceDeskPage() {
   try {
     const latest = (await getLatestManifest()).latest;
+    if (!latest) {
+      return (
+        <div className="page-stack">
+          <section className="hero hero--compact">
+            <p className="eyebrow">Historical Race Desk</p>
+            <h1>No current featured race pack.</h1>
+            <p className="lead">Race Desk needs a verified featured race. Historical sessions remain available in Replay.</p>
+            <a className="button" href="/replay">Browse historical Replay</a>
+          </section>
+        </div>
+      );
+    }
     const initialSession: LiveSessionRef = {
       season: latest.season,
       grandPrix: latest.grandPrixSlug,

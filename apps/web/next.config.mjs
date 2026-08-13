@@ -3,7 +3,12 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+const releaseDistDir = process.env.F1_NEXT_DIST_DIR;
+const releaseBuildId = process.env.F1_RELEASE_BUILD_ID;
+
 const nextConfig = {
+  ...(releaseDistDir ? { distDir: releaseDistDir } : {}),
+  ...(releaseBuildId ? { generateBuildId: async () => releaseBuildId } : {}),
   transpilePackages: ["@f1-racing/schemas", "@f1-racing/telemetry-utils"],
   outputFileTracingRoot: path.resolve(__dirname, "../.."),
   output: "export",

@@ -5,10 +5,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const outRoot = path.join(root, "apps", "web", "out");
-const publicRoot = process.env.F1_CANDIDATE_ROOT
-  ? path.join(path.resolve(process.env.F1_CANDIDATE_ROOT), "public")
-  : path.join(root, "apps", "web", "public");
+const candidateRoot = process.env.F1_CANDIDATE_ROOT ? path.resolve(process.env.F1_CANDIDATE_ROOT) : null;
+const outRoot = candidateRoot
+  ? path.join(candidateRoot, "apps", "web", "out")
+  : path.join(root, "apps", "web", "out");
+const publicRoot = candidateRoot ? outRoot : path.join(root, "apps", "web", "public");
 const replay3dAssetPaths = [
   "/replay-3d/formula-car.glb",
   "/replay-3d/kloofendal-pure-sky-1k.hdr",
@@ -91,33 +92,41 @@ const liveRedirectOutput = await readFile(path.join(outRoot, "live", "index.html
 assert.match(liveRedirectOutput, /race-desk/, "Static /live output does not redirect to /race-desk.");
 const latestManifestPath = path.join(publicRoot, "data", "manifests", "latest.json");
 const latestManifest = await readJson(latestManifestPath);
-const latestReplayPath = latestManifest.latest.path.replace(/^\/sessions\//, "/replay/");
-const latestDataBasePath = latestManifest.latest.path.replace(/^\/sessions\//, "/data/packs/seasons/");
-const latestReplayMetaPath = `${latestDataBasePath}/replay.meta.json`;
-const latestReplayPathFallback = `${latestDataBasePath}/replay.json`;
-const latestReplayMetaFilePath = path.join(publicRoot, latestReplayMetaPath);
-let latestReplayDataPaths = [latestReplayPathFallback];
-try {
-  const latestReplayMeta = await readJson(latestReplayMetaFilePath);
-  const chunkEntries = latestReplayMeta.frameChunkIndex ?? [];
-  const chunkFrames = [];
-  for (const entry of chunkEntries) {
-    const chunk = await readJson(path.join(publicRoot, latestDataBasePath, entry.path));
-    chunkFrames.push(...(chunk.frames ?? []));
+const latestReplayPath = latestManifest.latest?.path.replace(/^\/sessions\//, "/replay/") ?? null;
+let latestReplayDataPaths = [];
+if (latestManifest.latest) {
+  const latestDataBasePath = latestManifest.latest.path.replace(/^\/sessions\//, "/data/packs/seasons/");
+  const latestReplayMetaPath = `${latestDataBasePath}/replay.meta.json`;
+  const latestReplayPathFallback = `${latestDataBasePath}/replay.json`;
+  const latestReplayMetaFilePath = path.join(publicRoot, latestReplayMetaPath);
+  latestReplayDataPaths = [latestReplayPathFallback];
+  try {
+    const latestReplayMeta = await readJson(latestReplayMetaFilePath);
+    const chunkEntries = latestReplayMeta.frameChunkIndex ?? [];
+    const chunkFrames = [];
+    for (const entry of chunkEntries) {
+      const chunk = await readJson(path.join(publicRoot, latestDataBasePath, entry.path));
+      chunkFrames.push(...(chunk.frames ?? []));
+    }
+    const raceControl = await readJson(path.join(publicRoot, `${latestDataBasePath}/replay.race-control.json`));
+    const stints = await readJson(path.join(publicRoot, `${latestDataBasePath}/stints.json`));
+    const laps = await readJson(path.join(publicRoot, `${latestDataBasePath}/laps.json`));
+    assert.equal(new Set(chunkFrames.map((frame) => frame.t)).size, latestReplayMeta.frameCount, "Featured replay chunks do not cover every published frame.");
+    assert.ok(chunkFrames.at(-1)?.t >= latestReplayMeta.totalTime, "Featured replay chunks do not reach the published end time.");
+    assert.ok(raceControl.some((message) => /chequered|checkered/i.test(`${message.flag ?? ""} ${message.message ?? ""}`)), "Featured replay lacks chequered-flag evidence.");
+    assert.ok(stints.drivers?.some((driver) => driver.stints?.length > 1), "Featured replay lacks a recorded pit cycle.");
+    assert.ok(Array.isArray(laps) && laps.length, "Featured replay lacks lap records.");
+    if (typeof chunkEntries[0]?.path === "string" && chunkEntries[0].path.length) {
+      latestReplayDataPaths = [latestReplayMetaPath, `${latestDataBasePath}/${chunkEntries[0].path}`];
+    }
+  } catch (error) {
+    assert.fail(`Featured replay acceptance failed: ${error instanceof Error ? error.message : String(error)}`);
   }
-  const raceControl = await readJson(path.join(publicRoot, `${latestDataBasePath}/replay.race-control.json`));
-  const stints = await readJson(path.join(publicRoot, `${latestDataBasePath}/stints.json`));
-  const laps = await readJson(path.join(publicRoot, `${latestDataBasePath}/laps.json`));
-  assert.equal(new Set(chunkFrames.map((frame) => frame.t)).size, latestReplayMeta.frameCount, "Featured replay chunks do not cover every published frame.");
-  assert.ok(chunkFrames.at(-1)?.t >= latestReplayMeta.totalTime, "Featured replay chunks do not reach the published end time.");
-  assert.ok(raceControl.some((message) => /chequered|checkered/i.test(`${message.flag ?? ""} ${message.message ?? ""}`)), "Featured replay lacks chequered-flag evidence.");
-  assert.ok(stints.drivers?.some((driver) => driver.stints?.length > 1), "Featured replay lacks a recorded pit cycle.");
-  assert.ok(Array.isArray(laps) && laps.length, "Featured replay lacks lap records.");
-  if (typeof chunkEntries[0]?.path === "string" && chunkEntries[0].path.length) {
-    latestReplayDataPaths = [latestReplayMetaPath, `${latestDataBasePath}/${chunkEntries[0].path}`];
+} else {
+  for (const relativePath of ["index.html", path.join("replay", "index.html"), path.join("race-desk", "index.html")]) {
+    const output = await readFile(path.join(outRoot, relativePath), "utf-8");
+    assert.match(output, /No current featured race pack/i, `${relativePath} lacks the no-featured state.`);
   }
-} catch (error) {
-  assert.fail(`Featured replay acceptance failed: ${error instanceof Error ? error.message : String(error)}`);
 }
 const replayMetaSource = await findFile(publicRoot, (filePath) => filePath.endsWith("replay.meta.json"));
 const modelSource = await findFile(publicRoot, (filePath) => filePath.endsWith(".glb"));
@@ -200,7 +209,7 @@ try {
     replayMetaPath,
     modelPath,
     ...replay3dAssetPaths,
-  ]) {
+  ].filter(Boolean)) {
     await probe(baseUrl, requestPath);
   }
 } finally {

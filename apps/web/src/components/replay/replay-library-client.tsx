@@ -82,7 +82,9 @@ function buildCoverageNote(label: string, names: string[]) {
 }
 
 export function ReplayLibraryClient({ aliasMode, latestManifest, index }: ReplayLibraryClientProps) {
-  const latestReplayHref = latestManifest.latest.path.replace(/^\/sessions\//, "/replay/");
+  const latestReplayHref = latestManifest.latest
+    ? latestManifest.latest.path.replace(/^\/sessions\//, "/replay/")
+    : null;
   const [search, setSearch] = useState("");
   const [order, setOrder] = useState<"newest" | "oldest">("newest");
 
@@ -115,11 +117,19 @@ export function ReplayLibraryClient({ aliasMode, latestManifest, index }: Replay
             : "Choose a session pack, open the replay workspace, and keep the track map, leaderboard, telemetry, race-control context, and driver analysis in one place."}
         </p>
         <div className="discover-action-grid" aria-label="Discover shortcuts">
-          <a className="discover-action-card" href={latestReplayHref}>
-            <span>Featured Replay</span>
-            <strong>{latestManifest.latest.grandPrixName}</strong>
-            <small>{latestManifest.latest.sessionName} replay workspace</small>
-          </a>
+          {latestManifest.latest && latestReplayHref ? (
+            <a className="discover-action-card" href={latestReplayHref}>
+              <span>Featured Replay</span>
+              <strong>{latestManifest.latest.grandPrixName}</strong>
+              <small>{latestManifest.latest.sessionName} replay workspace</small>
+            </a>
+          ) : (
+            <div className="discover-action-card">
+              <span>Featured Replay</span>
+              <strong>Unavailable</strong>
+              <small>No current featured race pack. Browse verified historical sessions below.</small>
+            </div>
+          )}
           <a className="discover-action-card" href="/compare">
             <span>Lap Compare</span>
             <strong>Driver vs driver</strong>
@@ -142,11 +152,17 @@ export function ReplayLibraryClient({ aliasMode, latestManifest, index }: Replay
           </a>
         </div>
         <div className="replay-meta-row">
-          <span className="replay-meta-pill">{latestManifest.latest.season} season pack</span>
-          <span className="replay-meta-pill">
-            {latestManifest.latest.grandPrixName} · {latestManifest.latest.sessionName}
-          </span>
-          <span className="replay-meta-pill">Featured selection · browse all seasons below</span>
+          {latestManifest.latest ? (
+            <>
+              <span className="replay-meta-pill">{latestManifest.latest.season} season pack</span>
+              <span className="replay-meta-pill">
+                {latestManifest.latest.grandPrixName} · {latestManifest.latest.sessionName}
+              </span>
+              <span className="replay-meta-pill">Featured selection · browse all seasons below</span>
+            </>
+          ) : (
+            <span className="replay-meta-pill">Historical library · no current featured race pack</span>
+          )}
         </div>
       </section>
 

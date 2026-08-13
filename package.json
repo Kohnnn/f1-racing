@@ -43,6 +43,7 @@
     "quality": "npm run quality:source && npm run check:data",
     "smoke:static": "node tools/smoke-static.mjs",
     "test:release-data": "node tools/release-data.test.mjs",
+    "test:release-data:e2e": "node tools/release-data.test.mjs --e2e",
     "release:artifact": "node tools/release-artifact.mjs",
     "release:data": "node tools/release-data.mjs",
     "build:wind-profiles": "node pipeline/export/src/build-wind-profiles.mjs",

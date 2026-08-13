@@ -15,7 +15,7 @@ export interface SessionRef {
 export interface LatestManifest {
   version: number;
   seasons: number[];
-  latest: SessionRef;
+  latest: SessionRef | null;
 }
 
 export interface SeasonIndex {

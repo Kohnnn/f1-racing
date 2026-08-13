@@ -15,12 +15,14 @@ import {
   SessionManifestSchema,
   SessionSummarySchema,
   StintPackSchema,
+  StrategyPackSchema,
   WindOverlayPackSchema,
 } from "../../../packages/schemas/src/index.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const dataRoot = path.join(root, "data");
-const publicRoot = path.join(root, "apps", "web", "public", "data");
+const candidateRoot = process.env.F1_CANDIDATE_ROOT ? path.resolve(process.env.F1_CANDIDATE_ROOT) : null;
+const dataRoot = candidateRoot ? path.join(candidateRoot, "canonical", "data") : path.join(root, "data");
+const publicRoot = candidateRoot ? path.join(candidateRoot, "public", "data") : path.join(root, "apps", "web", "public", "data");
 
 const sample = {
   ref: {
@@ -420,6 +422,7 @@ function ensureValid() {
   sample.laps.forEach((lap) => LapRecordSchema.parse(lap));
   ComparePackSchema.parse(sample.compare);
   StintPackSchema.parse(sample.stints);
+  StrategyPackSchema.parse(sample.strategy);
   ReplayPackSchema.parse(sample.replay);
   SessionManifestSchema.parse({
     sessionKey: sample.ref.sessionKey,

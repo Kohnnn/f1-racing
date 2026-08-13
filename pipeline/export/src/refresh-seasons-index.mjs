@@ -9,6 +9,7 @@ const manifestsDir = path.join(dataDir, "manifests");
 const packsDir = path.join(dataDir, "packs", "seasons");
 const dataSeasonsPath = path.join(manifestsDir, "seasons.json");
 const dataLatestPath = path.join(manifestsDir, "latest.json");
+const provenanceLedgerPath = path.join(dataDir, "release", "provenance-ledger.json");
 const publicManifestsDir = candidateRoot
   ? path.join(candidateRoot, "public", "data", "manifests")
   : path.join(root, "apps", "web", "public", "data", "manifests");
@@ -98,8 +99,14 @@ async function hasCompleteReplay(sessionDir, session) {
   return Boolean(replay && matchesReplay(replay, session) && Array.isArray(replay.frames) && replay.frames.length);
 }
 
-async function toAvailableSession(session) {
+async function toAvailableSession(session, provenance, { legacy = false } = {}) {
   if (!isCanonicalSession(session) || session.grandPrixSlug === "demo-weekend") return null;
+
+  const canonicalPath = `/sessions/${session.season}/${session.grandPrixSlug}/${session.sessionSlug}`;
+  if (!legacy && (!isRecord(provenance) || provenance.path !== canonicalPath
+    || !new Set(["historical", "featured"]).has(provenance.publicationState)
+    || !Number.isFinite(Date.parse(provenance.sourceEventEndAt))
+    || !Number.isFinite(Date.parse(provenance.generatedAt)))) return null;
 
   const sessionDir = path.join(packsDir, String(session.season), session.grandPrixSlug, session.sessionSlug);
   const [manifest, summary] = await Promise.all([
@@ -117,8 +124,10 @@ async function toAvailableSession(session) {
     sessionName: session.sessionName,
     sessionKey: session.sessionKey,
     trackId: session.trackId,
-    path: `/sessions/${session.season}/${session.grandPrixSlug}/${session.sessionSlug}`,
-    startDate: session.startDate,
+    path: canonicalPath,
+    sourceEventEndAt: legacy ? session.startDate : provenance.sourceEventEndAt,
+    generatedAt: legacy ? session.startDate : provenance.generatedAt,
+    publicationState: legacy ? "historical" : provenance.publicationState,
   };
 }
 
@@ -126,9 +135,9 @@ function compareSessionPath(left, right) {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
-function compareByStartDate(left, right) {
-  const startDifference = Date.parse(right.startDate) - Date.parse(left.startDate);
-  if (startDifference) return startDifference;
+function compareBySourceEnd(left, right) {
+  const endDifference = Date.parse(right.sourceEventEndAt) - Date.parse(left.sourceEventEndAt);
+  if (endDifference) return endDifference;
   if (left.sessionKey !== right.sessionKey) return right.sessionKey - left.sessionKey;
   return compareSessionPath(left.path, right.path);
 }
@@ -137,18 +146,18 @@ function compareForIndex(left, right) {
   if (left.season !== right.season) return right.season - left.season;
   const grandPrixDifference = compareSessionPath(left.grandPrixSlug, right.grandPrixSlug);
   if (grandPrixDifference) return grandPrixDifference;
-  const startDifference = Date.parse(left.startDate) - Date.parse(right.startDate);
-  if (startDifference) return startDifference;
+  const endDifference = Date.parse(left.sourceEventEndAt) - Date.parse(right.sourceEventEndAt);
+  if (endDifference) return endDifference;
   if (left.sessionKey !== right.sessionKey) return left.sessionKey - right.sessionKey;
   return compareSessionPath(left.sessionSlug, right.sessionSlug);
 }
 
 function toSessionRef(session) {
-  const { startDate, ...ref } = session;
+  const { sourceEventEndAt, generatedAt, publicationState, ...ref } = session;
   return ref;
 }
 
-export function buildPayloads(sessions) {
+export function buildPayloads(sessions, { selectHistoricalLatest = false } = {}) {
   if (!sessions.length) throw new Error("No complete non-demo OpenF1 session packs found.");
 
   const sortedSessions = [...sessions].sort(compareForIndex);
@@ -167,33 +176,40 @@ export function buildPayloads(sessions) {
     seasons.push({ season, grandsPrix });
   }
 
-  const latest = [...sessions]
-    .filter((session) => session.sessionSlug === "race")
-    .sort(compareByStartDate)[0];
-  if (!latest) throw new Error("No complete non-demo OpenF1 race packs found.");
+  const featuredRaces = sessions
+    .filter((session) => session.sessionSlug === "race" && session.publicationState === "featured")
+    .sort(compareBySourceEnd);
+  if (featuredRaces.length > 1) throw new Error("More than one OpenF1 race pack is marked featured.");
+  const selected = featuredRaces[0]
+    || (selectHistoricalLatest ? sessions.filter((session) => session.sessionSlug === "race").sort(compareBySourceEnd)[0] : null);
 
-  const generatedAt = new Date(Math.max(...sessions.map((session) => Date.parse(session.startDate)))).toISOString();
+  const generatedAt = new Date(Math.max(...sessions.map((session) => Date.parse(session.generatedAt)))).toISOString();
   return {
     seasons: { generatedAt, seasons },
     latest: {
       version: 1,
       seasons: seasons.map((season) => season.season),
-      latest: toSessionRef(latest),
+      latest: selected ? toSessionRef(selected) : null,
     },
   };
 }
 
 async function collectPayloads() {
+  const ledger = await readJson(provenanceLedgerPath);
+  const legacy = !candidateRoot && (!ledger || !Array.isArray(ledger.sessions));
+  if (!legacy && (!ledger || !Array.isArray(ledger.sessions))) throw new Error("Missing release/provenance-ledger.json.");
+  const provenance = new Map(ledger?.sessions?.filter(isRecord).map((entry) => [entry.path, entry]) ?? []);
   const sessions = [];
   for (const manifestPath of await listSeasonManifestPaths()) {
     const seasonManifest = await readJson(manifestPath);
     if (!seasonManifest) continue;
     for (const session of readCanonicalSessions(seasonManifest)) {
-      const availableSession = await toAvailableSession(session);
+      const canonicalPath = `/sessions/${session.season}/${session.grandPrixSlug}/${session.sessionSlug}`;
+      const availableSession = await toAvailableSession(session, provenance.get(canonicalPath), { legacy });
       if (availableSession) sessions.push(availableSession);
     }
   }
-  return buildPayloads(sessions);
+  return buildPayloads(sessions, { selectHistoricalLatest: legacy });
 }
 
 async function assertMatches(filePath, expected) {
@@ -245,7 +261,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     .then((payloads) => {
       process.stdout.write(process.argv.includes("--check")
         ? "Featured race and season mirrors are current.\n"
-        : `Featured race: ${payloads.latest.latest.path}\n`);
+        : payloads.latest.latest
+          ? `Featured race: ${payloads.latest.latest.path}\n`
+          : "No featured race; historical season index refreshed.\n");
     })
     .catch((error) => {
       process.stderr.write(`${error instanceof Error ? error.stack || error.message : error}\n`);

@@ -5,6 +5,7 @@ coverage/
 apps/web/.next/
 apps/web/node_modules/
 apps/web/out/
+apps/web/.release-builds/
 *.log
 pipeline/openfoam/config/*.local.json
 pipeline/openfoam/cases/*/constant/triSurface/*.stl

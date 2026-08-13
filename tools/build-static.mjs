@@ -1,8 +1,8 @@
-import { cp, rm } from "node:fs/promises";
+import { cp, mkdir, readdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { candidatePaths, workspaceRoot } from "./release-data.mjs";
+import { assertCandidateRoot, workspaceRoot } from "./release-data.mjs";
 
 function run(command, args, env) {
   return new Promise((resolve, reject) => {
@@ -16,18 +16,45 @@ function run(command, args, env) {
   });
 }
 
+async function replacePublicProjection(sourcePublicRoot, candidatePublicRoot, artifactRoot) {
+  for (const entry of await readdir(sourcePublicRoot, { withFileTypes: true })) {
+    await rm(path.join(artifactRoot, entry.name), { recursive: true, force: true });
+  }
+  for (const entry of await readdir(candidatePublicRoot, { withFileTypes: true })) {
+    const source = path.join(candidatePublicRoot, entry.name);
+    const destination = path.join(artifactRoot, entry.name);
+    await rm(destination, { recursive: true, force: true });
+    await cp(source, destination, { recursive: entry.isDirectory(), force: true });
+  }
+}
+
 async function main() {
   const candidateRoot = process.env.F1_CANDIDATE_ROOT;
   if (!candidateRoot) {
     await run("npm", ["run", "next:build", "-w", "@f1-racing/web"], process.env);
     return;
   }
-  const paths = candidatePaths(path.resolve(candidateRoot));
-  const outRoot = path.join(workspaceRoot, "apps", "web", "out");
-  await run("npm", ["run", "next:build", "-w", "@f1-racing/web"], { ...process.env, F1_DATA_ROOT: paths.publicData });
-  for (const name of ["data", "models", "posters", "release-manifest.json"]) {
-    await rm(path.join(outRoot, name), { recursive: true, force: true });
-    await cp(path.join(paths.publicRoot, name), path.join(outRoot, name), { recursive: true, force: true });
+  const paths = await assertCandidateRoot(candidateRoot);
+  const releaseBuildId = process.env.F1_RELEASE_BUILD_ID;
+  if (!/^[a-f0-9]{40}$/.test(releaseBuildId ?? "")) throw new Error("Candidate build requires F1_RELEASE_BUILD_ID with the clean source commit.");
+  const appRoot = path.join(workspaceRoot, "apps", "web");
+  const relativeBuildRoot = path.join(".release-builds", path.basename(paths.root));
+  const buildRoot = path.join(appRoot, relativeBuildRoot);
+  await rm(buildRoot, { recursive: true, force: true });
+  await rm(paths.artifactRoot, { recursive: true, force: true });
+  try {
+    await run("npm", ["run", "next:build", "-w", "@f1-racing/web"], {
+      ...process.env,
+      F1_DATA_ROOT: paths.publicData,
+      F1_NEXT_DIST_DIR: relativeBuildRoot,
+      F1_RELEASE_BUILD_ID: releaseBuildId,
+    });
+    await mkdir(path.dirname(paths.artifactRoot), { recursive: true });
+    await cp(buildRoot, paths.artifactRoot, { recursive: true, force: true });
+    await replacePublicProjection(path.join(appRoot, "public"), paths.publicRoot, paths.artifactRoot);
+    await rm(paths.releaseManifest, { force: true });
+  } finally {
+    await rm(buildRoot, { recursive: true, force: true });
   }
 }
 

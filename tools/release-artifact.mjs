@@ -1,12 +1,23 @@
 import { createHash } from "node:crypto";
-import { cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
+import { cp, mkdir, mkdtemp, stat, writeFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { auditCandidate, candidatePaths, candidateRootFrom, sha256, workspaceRoot } from "./release-data.mjs";
-
-const execFileAsync = promisify(execFile);
+import {
+  artifactBudgetErrors,
+  assertCandidateRoot,
+  cachePolicy,
+  candidateMarker,
+  candidatePaths,
+  candidatesRoot,
+  mimeType,
+  sha256,
+  summarizeArtifactEntries,
+  summarizeReleaseData,
+  utcTimestamp,
+  walk,
+  workspaceRoot,
+} from "./release-data.mjs";
 
 function parseArgs(argv) {
   const options = {};
@@ -21,117 +32,158 @@ function parseArgs(argv) {
   return options;
 }
 
-async function walk(directory, prefix = "") {
-  const { readdir } = await import("node:fs/promises");
-  const entries = await readdir(directory, { withFileTypes: true });
-  const files = [];
-  for (const entry of entries.sort((left, right) => left.name.localeCompare(right.name))) {
-    const relativePath = path.join(prefix, entry.name);
-    if (entry.isDirectory()) files.push(...await walk(path.join(directory, entry.name), relativePath));
-    else if (entry.isFile()) files.push(relativePath.split(path.sep).join("/"));
-  }
-  return files;
-}
-
-function mimeType(relativePath) {
-  if (relativePath.endsWith(".html")) return "text/html; charset=utf-8";
-  if (relativePath.endsWith(".json")) return "application/json; charset=utf-8";
-  if (relativePath.endsWith(".js")) return "application/javascript; charset=utf-8";
-  if (relativePath.endsWith(".css")) return "text/css; charset=utf-8";
-  if (relativePath.endsWith(".svg")) return "image/svg+xml";
-  if (relativePath.endsWith(".glb")) return "model/gltf-binary";
-  if (relativePath.endsWith(".webp")) return "image/webp";
-  if (relativePath.endsWith(".woff") || relativePath.endsWith(".woff2")) return "font/woff2";
-  return "application/octet-stream";
-}
-
-function cachePolicy(relativePath) {
-  return relativePath === "release-manifest.json" || relativePath.endsWith(".html")
-    ? "no-cache"
-    : "public, max-age=31536000, immutable";
-}
-
 function digest(value) {
   return createHash("sha256").update(value).digest("hex");
 }
 
-async function sourceCommit() {
-  const { stdout } = await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: workspaceRoot });
-  return stdout.trim();
+export function normalizeReleaseTime(value, fallbackNow = Date.now()) {
+  const now = value === undefined ? fallbackNow : Date.parse(value);
+  if (!Number.isFinite(now) || (value !== undefined && !utcTimestamp(value))) {
+    throw new Error(`Invalid --now timestamp: ${value}`);
+  }
+  return { now, generatedAt: new Date(now).toISOString() };
 }
 
-function isInside(target, parent) {
-  const relative = path.relative(parent, target);
-  return !relative || (!relative.startsWith("..") && !path.isAbsolute(relative));
+function runNpm(script, env) {
+  const npmCli = process.env.npm_execpath || path.join(path.dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js");
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [npmCli, "run", script], {
+      cwd: workspaceRoot,
+      env,
+      stdio: "inherit",
+    });
+    child.once("error", reject);
+    child.once("exit", (code) => code === 0 ? resolve() : reject(new Error(`npm run ${script} exited ${code}`)));
+  });
 }
 
-async function buildManifest(paths) {
-  const entries = await Promise.all((await walk(paths.publicRoot))
-    .filter((relativePath) => relativePath !== "release-manifest.json")
-    .sort()
-    .map(async (relativePath) => ({
+function gitOutput(args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn("git", args, { cwd: workspaceRoot, stdio: ["ignore", "pipe", "inherit"] });
+    let stdout = "";
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => { stdout += chunk; });
+    child.once("error", reject);
+    child.once("exit", (code) => code === 0 ? resolve(stdout.trim()) : reject(new Error(`git ${args.join(" ")} exited ${code}`)));
+  });
+}
+
+async function assertCleanSource(expectedCommit) {
+  const [commit, status] = await Promise.all([
+    gitOutput(["rev-parse", "HEAD"]),
+    gitOutput(["status", "--porcelain", "--untracked-files=all"]),
+  ]);
+  if (status) throw new Error("Release artifact requires a clean source revision.");
+  if (expectedCommit && commit !== expectedCommit) throw new Error("Source revision changed while building the release candidate.");
+  return commit;
+}
+
+async function buildEntries(artifactRoot) {
+  const entries = [];
+  for (const relativePath of (await walk(artifactRoot)).filter((entry) => entry !== "release-manifest.json").sort()) {
+    const filePath = path.join(artifactRoot, relativePath);
+    entries.push({
       path: relativePath,
-      bytes: (await stat(path.join(paths.publicRoot, relativePath))).size,
+      bytes: (await stat(filePath)).size,
       mimeType: mimeType(relativePath),
       cachePolicy: cachePolicy(relativePath),
-      sha256: await sha256(path.join(paths.publicRoot, relativePath)),
-    })));
-  const manifestSha256 = digest(`${JSON.stringify(entries)}\n`);
+      sha256: await sha256(filePath),
+    });
+  }
+  return entries;
+}
+
+export async function finalizeCandidate(candidateRoot, options = {}) {
+  const paths = await assertCandidateRoot(candidateRoot);
+  const entries = await buildEntries(paths.artifactRoot);
+  if (!entries.length) throw new Error(`Candidate has no built release unit: ${paths.artifactRoot}`);
+  const budgetErrors = artifactBudgetErrors(entries);
+  if (budgetErrors.length) throw new Error(`Release artifact budget failed:\n${budgetErrors.map((error) => `- ${error}`).join("\n")}`);
+  const generatedAt = options.generatedAt || new Date().toISOString();
+  const sourceCommitValue = options.sourceCommitValue || await gitOutput(["rev-parse", "HEAD"]);
+  const assetManifestSha256 = digest(`${JSON.stringify(entries)}\n`);
+  const assetReleaseId = `sha256-${assetManifestSha256}`;
+  const manifestSha256 = digest(`${sourceCommitValue}\n${JSON.stringify(entries)}\n`);
   const releaseId = `sha256-${manifestSha256}`;
+  const measurements = summarizeArtifactEntries(entries);
+  const data = await summarizeReleaseData(paths.artifactRoot);
   const manifest = {
     schemaVersion: 1,
     releaseId,
-    sourceCommit: await sourceCommit(),
-    generatedAt: new Date().toISOString(),
+    assetReleaseId,
+    sourceCommit: sourceCommitValue,
+    generatedAt,
     manifestSha256,
+    assetManifestSha256,
     fileCount: entries.length,
-    totalBytes: entries.reduce((total, entry) => total + entry.bytes, 0),
+    totalBytes: measurements.outputBytes,
+    measurements,
+    data,
     entries,
   };
   await writeFile(paths.releaseManifest, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
-  return manifest;
-}
-
-export async function finalizeCandidate(candidateRoot) {
-  const paths = candidatePaths(candidateRoot);
-  const manifest = await buildManifest(paths);
-  const sourceCommitValue = await sourceCommit();
-  await writeFile(paths.releaseRecord, `${JSON.stringify({
+  const releaseRecord = {
     schemaVersion: 1,
-    releaseId: manifest.releaseId,
-    assetReleaseId: manifest.releaseId,
+    releaseId,
+    assetReleaseId,
     sourceCommit: sourceCommitValue,
-    generatedAt: new Date().toISOString(),
+    generatedAt,
     publishedAt: null,
     previousReleaseId: null,
     promotion: null,
-    featured: { status: "none", path: null, selectedBy: ["sourceEventEndAt desc", "sessionKey desc", "path asc"] },
-    manifestSha256: manifest.manifestSha256,
-    gateEvidence: null,
-  }, null, 2)}\n`, "utf8");
-  return { paths, manifest };
+    featured: {
+      status: data.latestPath ? "featured" : "none",
+      path: data.latestPath,
+      selectedBy: ["sourceEventEndAt desc", "sessionKey desc", "path asc"],
+    },
+    manifestSha256,
+    gateEvidence: options.gateEvidence || null,
+  };
+  await writeFile(paths.releaseRecord, `${JSON.stringify(releaseRecord, null, 2)}\n`, "utf8");
+  return { paths, manifest, releaseRecord };
 }
 
-export async function stageCandidate(candidateRoot) {
+export async function createCandidate() {
+  await mkdir(candidatesRoot, { recursive: true });
+  const candidateRoot = await mkdtemp(path.join(candidatesRoot, "candidate-"));
   const paths = candidatePaths(candidateRoot);
-  const canonicalSource = path.join(workspaceRoot, "data");
-  const publicSource = path.join(workspaceRoot, "apps", "web", "public");
-  if (isInside(candidateRoot, canonicalSource) || isInside(candidateRoot, publicSource)) {
-    throw new Error("Candidate root must be outside data and apps/web/public.");
-  }
-  await rm(candidateRoot, { recursive: true, force: true });
-  await mkdir(candidateRoot, { recursive: true });
-  await cp(canonicalSource, paths.canonicalData, { recursive: true, force: true });
-  await cp(publicSource, paths.publicRoot, { recursive: true, force: true });
-  return finalizeCandidate(candidateRoot);
+  await writeFile(paths.marker, `${JSON.stringify(candidateMarker, null, 2)}\n`, "utf8");
+  await mkdir(path.dirname(paths.canonicalData), { recursive: true });
+  await cp(path.join(workspaceRoot, "data"), paths.canonicalData, { recursive: true, force: true });
+  await cp(path.join(workspaceRoot, "apps", "web", "public"), paths.publicRoot, { recursive: true, force: true });
+  return paths;
 }
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
-  const candidateRoot = candidateRootFrom(options);
-  await stageCandidate(candidateRoot);
-  await auditCandidate(candidateRoot, { now: options.now ? Date.parse(options.now) : Date.now() });
-  process.stdout.write(`Release artifact candidate passed: ${candidateRoot}\n`);
+  if (options["candidate-root"] || process.env.F1_CANDIDATE_ROOT) {
+    throw new Error("release:artifact creates a fresh candidate path; use release:data to audit an existing candidate.");
+  }
+  const { now, generatedAt } = normalizeReleaseTime(options.now);
+  const sourceCommitValue = await assertCleanSource();
+  const paths = await createCandidate();
+  const env = { ...process.env, F1_CANDIDATE_ROOT: paths.root, F1_RELEASE_BUILD_ID: sourceCommitValue };
+  const commands = ["quality", "check:featured", "build", "smoke:static"];
+  try {
+    const { auditCandidate } = await import("./release-data.mjs");
+    await auditCandidate(paths.root, { requireReleaseRecord: false, now });
+    for (const command of commands) await runNpm(command, env);
+    await assertCleanSource(sourceCommitValue);
+    const result = await finalizeCandidate(paths.root, {
+      sourceCommitValue,
+      generatedAt,
+      gateEvidence: {
+        node: process.version,
+        platform: `${process.platform}-${process.arch}`,
+        commands: commands.map((command) => ({ command: `npm run ${command}`, status: "passed" })),
+      },
+    });
+    await auditCandidate(paths.root, { now });
+    process.stdout.write(`Release artifact candidate passed: ${paths.root}\nRelease ID: ${result.manifest.releaseId}\n`);
+  } catch (error) {
+    process.stderr.write(`Candidate retained for inspection: ${paths.root}\n`);
+    throw error;
+  }
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

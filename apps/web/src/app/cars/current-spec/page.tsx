@@ -20,7 +20,9 @@ export default async function CarModelPage() {
     getCarModelCatalog(),
     getLatestManifest(),
   ]);
-  const latestReplayHref = latestManifest.latest.path.replace(/^\/sessions\//, "/replay/");
+  const latestReplayHref = latestManifest.latest
+    ? latestManifest.latest.path.replace(/^\/sessions\//, "/replay/")
+    : "/replay";
 
   return (
     <div className="page-stack">

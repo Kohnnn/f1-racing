@@ -34,7 +34,9 @@ const nextBriefs = [
 export default async function HomePage() {
   const manifest = await getLatestManifest();
   const monzaArt = getCircuitArt("monza");
-  const latestReplayHref = manifest.latest.path.replace(/^\/sessions\//, "/replay/");
+  const latestReplayHref = manifest.latest
+    ? manifest.latest.path.replace(/^\/sessions\//, "/replay/")
+    : "/replay";
 
   return (
     <div className="dashboard">
@@ -118,8 +120,11 @@ export default async function HomePage() {
           <p className="eyebrow">Keep the roles distinct</p>
           <h2>One journey, separate workspaces.</h2>
         </div>
+        {!manifest.latest ? (
+          <p className="dashboard-feature__question">No current featured race pack. Browse the verified historical Replay library.</p>
+        ) : null}
         <div className="dashboard-surface-links">
-          <a href={latestReplayHref}><span>Replay</span><strong>Recorded session workspace</strong></a>
+          <a href={latestReplayHref}><span>Replay</span><strong>{manifest.latest ? "Recorded session workspace" : "Historical Replay library"}</strong></a>
           <a href="/learn"><span>Learn</span><strong>Engineering explanations</strong></a>
           <a href="/cars/current-spec"><span>Modelview</span><strong>Current-car orientation</strong></a>
           <a className="dashboard-surface-links__historical" href="/race-desk"><span>Historical Race Desk</span><strong>Replay simulation, not live timing</strong></a>

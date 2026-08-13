@@ -14,7 +14,48 @@ export const SessionRefSchema = z.object({
 export const LatestManifestSchema = z.object({
   version: z.number().int(),
   seasons: z.array(z.number().int()),
-  latest: SessionRefSchema,
+  latest: SessionRefSchema.nullable(),
+});
+
+export const OpenF1SessionSchema = SessionRefSchema.extend({
+  startDate: z.string(),
+  endDate: z.string(),
+  countryName: z.string(),
+  location: z.string(),
+  source: z.literal("openf1"),
+  buildReady: z.boolean(),
+});
+
+export const OpenF1SeasonManifestSchema = z.object({
+  schemaVersion: z.number().int().optional(),
+  season: z.number().int().optional(),
+  year: z.number().int().optional(),
+  generatedAt: z.string(),
+  source: z.literal("openf1"),
+  grandsPrix: z.array(z.object({
+    grandPrixSlug: z.string(),
+    grandPrixName: z.string(),
+    countryName: z.string(),
+    circuitShortName: z.string(),
+    meetingKey: z.number().int(),
+    sessions: z.array(OpenF1SessionSchema),
+  })),
+  latest: OpenF1SessionSchema.nullable().optional(),
+}).superRefine((manifest, context) => {
+  if (manifest.season === undefined && manifest.year === undefined) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "season or year is required",
+      path: ["season"],
+    });
+  }
+  if (manifest.season !== undefined && manifest.year !== undefined && manifest.season !== manifest.year) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "season and year must match",
+      path: ["year"],
+    });
+  }
 });
 
 export const SeasonIndexSchema = z.object({
@@ -159,6 +200,21 @@ export const StintPackSchema = z.object({
       ),
     })
   ),
+});
+
+export const StrategyPackSchema = z.object({
+  trackId: z.string(),
+  pitLossS: z.number().nonnegative(),
+  safetyCarPitLossS: z.number().nonnegative(),
+  recommendedWindows: z.array(z.object({
+    lapStart: z.number().int().positive(),
+    lapEnd: z.number().int().positive(),
+    reason: z.string(),
+  }).refine((window) => window.lapEnd >= window.lapStart, "lapEnd must not precede lapStart")),
+  weatherCrossover: z.object({
+    toIntermediate: z.number().min(0).max(1),
+    toWet: z.number().min(0).max(1),
+  }),
 });
 
 export const CarModelCatalogSchema = z.object({
