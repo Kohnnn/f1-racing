@@ -1007,8 +1007,8 @@ export function ReplayView({ replay, manifest, summary, compare, insightsReady, 
     : summary.weatherSummary.rainRiskPct !== null
       ? `Rain risk ${summary.weatherSummary.rainRiskPct}%`
       : "Unavailable";
-  const selectedDriverLabel = selectedTelemetryDrivers.length
-    ? selectedTelemetryDrivers.map((driver) => driver.abbr).join(" · ")
+  const selectedDriverLabel = selectedDrivers.length
+    ? selectedDrivers.join(" · ")
     : "No drivers selected";
   const leadDriver = displayedDrivers[0] || null;
   const stageDrivers = displayedDrivers.slice(0, 3);
@@ -1338,10 +1338,6 @@ export function ReplayView({ replay, manifest, summary, compare, insightsReady, 
     });
   }, []);
 
-  const handleDriverPickerSelect = useCallback((driverCode: string) => {
-    handleDriverSelect(driverCode, false);
-  }, [handleDriverSelect]);
-
   const activateStoryStep = useCallback((step: StoryStep) => {
     setIsPlaying(false);
     if (typeof step.time === "number") {
@@ -1582,7 +1578,7 @@ export function ReplayView({ replay, manifest, summary, compare, insightsReady, 
               </button>
             ))}
           </div>
-          <h1>{replay.grandPrix}</h1>
+          <h1 id="replay-session-title" tabIndex={-1}>{replay.grandPrix}</h1>
           <p>
             {replay.session} replay at {trackLabel}. One dense control surface for order, track state, telemetry, and comparison work.
           </p>
@@ -1796,37 +1792,34 @@ export function ReplayView({ replay, manifest, summary, compare, insightsReady, 
               <span className="replay-heatmap-control__hint">Select a driver to colour their lap</span>
             ) : null}
            </div>
-           <div className="replay-driver-picker" role="group" aria-labelledby="replay-driver-picker-label">
+           <div className="replay-driver-picker" role="group" aria-labelledby="replay-driver-picker-label" aria-describedby="replay-driver-picker-help replay-driver-picker-status">
              <div>
                <span className="replay-driver-picker__label" id="replay-driver-picker-label">Driver picker</span>
-               <p id="replay-driver-picker-help">Keyboard equivalent for track-marker selection. Choose any available driver; selection updates the leaderboard, telemetry, and evidence link.</p>
+               <p id="replay-driver-picker-help">Keyboard equivalent for track-marker selection. Press a driver to select or remove them; hold Shift, Control, or Command to compare up to four.</p>
              </div>
-             <select
-               aria-describedby="replay-driver-picker-help replay-driver-picker-status"
-               aria-label="Select a replay driver"
-               value={selectedDrivers.length === 1 ? selectedDrivers[0] : ""}
-               onChange={(event) => {
-                 setFocusedDriver(event.target.value || null);
-                 if (event.target.value) {
-                   handleDriverPickerSelect(event.target.value);
-                 } else {
-                   handleDriverSelect(null, false);
-                 }
-               }}
-               onFocus={(event) => setFocusedDriver(event.currentTarget.value || null)}
-               onBlur={() => setFocusedDriver(null)}
-             >
-               <option value="">{selectedDrivers.length > 1 ? `${selectedDrivers.length} drivers selected` : "No driver selected"}</option>
+             <div className="replay-driver-picker__options">
                {replay.drivers.map((driver) => {
                  const currentDriver = displayedDrivers.find((entry) => entry.abbr === driver.driverCode);
+                 const isSelected = selectedDrivers.includes(driver.driverCode);
                  return (
-                   <option key={driver.driverCode} value={driver.driverCode}>
-                     P{currentDriver?.position ?? "-"} · {driver.driverCode} · {driver.fullName}
-                   </option>
+                   <button
+                     key={driver.driverCode}
+                     type="button"
+                     className={`replay-driver-picker__option${isSelected ? " replay-driver-picker__option--selected" : ""}`}
+                     data-driver-code={driver.driverCode}
+                     aria-pressed={isSelected}
+                     aria-label={`${driver.fullName}, ${driver.driverCode}, position ${currentDriver?.position ?? "unavailable"}, ${isSelected ? "selected" : "not selected"}.`}
+                     onClick={(event) => handleDriverSelect(driver.driverCode, event.shiftKey || event.metaKey || event.ctrlKey)}
+                     onFocus={() => setFocusedDriver(driver.driverCode)}
+                     onBlur={() => setFocusedDriver(null)}
+                   >
+                     <strong>{driver.driverCode}</strong>
+                     <span>P{currentDriver?.position ?? "-"}</span>
+                   </button>
                  );
                })}
-             </select>
-             <p className="replay-driver-picker__status" id="replay-driver-picker-status" role="status">
+             </div>
+             <p className="replay-driver-picker__status" id="replay-driver-picker-status" role="status" aria-live="polite">
                {focusedDriver ? `Focused ${focusedDriver}. ` : ""}{selectedDrivers.length ? `Selected ${selectedDriverLabel}.` : "No driver selected."}
              </p>
            </div>

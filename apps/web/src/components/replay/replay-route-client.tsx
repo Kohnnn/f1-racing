@@ -31,7 +31,7 @@ type ReplayRouteState =
   | {
       status: "ready";
       replay: ReplayPack;
-      chunkFailure: ChunkFailure | null;
+      chunkFailures: ChunkFailure[];
     }
   | {
       status: "error";
@@ -190,14 +190,16 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
   const [state, setState] = useState<ReplayRouteState>({
     status: "ready",
     replay: normalizeReplayRaceControl(initialReplay),
-    chunkFailure: null,
+    chunkFailures: [],
   });
   const [insights, setInsights] = useState<ReplayInsightsState>({ status: "loading", compare: null, stintPack: null, driverSummaries: null, lapRecords: null, strategy: null });
   const [fullLoadProgress, setFullLoadProgress] = useState(0);
   const [fullRaceLoaded, setFullRaceLoaded] = useState(() => hasCompleteReplayFrames(initialReplay));
   const [reloadKey, setReloadKey] = useState(0);
   const [retryingChunkIndex, setRetryingChunkIndex] = useState<number | null>(null);
-  const retryChunkButtonRef = useRef<HTMLButtonElement>(null);
+  const retryingChunkIndexRef = useRef<number | null>(null);
+  const pendingRetryFocusRef = useRef<{ chunkIndex: number; recovered: boolean } | null>(null);
+  const retryChunkButtonRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
   const chunkEntriesRef = useRef<NonNullable<ReplayPack["frameChunkIndex"]>>([]);
   const loadedChunksRef = useRef<Set<number>>(new Set());
   const requestedChunksRef = useRef<Set<number>>(new Set());
@@ -210,12 +212,25 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
   }>>(new Map());
 
   useEffect(() => {
-    if (state.status !== "ready" || !state.chunkFailure) {
+    const pendingFocus = pendingRetryFocusRef.current;
+    if (!pendingFocus || retryingChunkIndex !== null || state.status !== "ready") {
       return;
     }
-    const frame = window.requestAnimationFrame(() => retryChunkButtonRef.current?.focus());
-    return () => window.cancelAnimationFrame(frame);
-  }, [state]);
+    pendingRetryFocusRef.current = null;
+    const retryButton = retryChunkButtonRefs.current.get(pendingFocus.chunkIndex);
+    if (retryButton) {
+      retryButton.focus();
+      return;
+    }
+    const nextRetryButton = retryChunkButtonRefs.current.values().next().value;
+    if (nextRetryButton) {
+      nextRetryButton.focus();
+      return;
+    }
+    if (pendingFocus.recovered) {
+      document.getElementById("replay-session-title")?.focus();
+    }
+  }, [retryingChunkIndex, state]);
 
   const rejectSocketChunkRequests = useCallback((message: string) => {
     for (const pending of socketChunkResolversRef.current.values()) {
@@ -363,7 +378,7 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
             ...previous.replay,
             frames: mergeReplayFrames(previous.replay.frames, chunk.frames),
           },
-          chunkFailure: null,
+          chunkFailures: previous.chunkFailures.filter((failure) => failure.chunkIndex !== chunkIndex),
         };
       });
     } catch (error) {
@@ -371,14 +386,18 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
         if (previous.status !== "ready") {
           return previous;
         }
+        const failure = {
+          chunkIndex,
+          fromTime: chunkEntry.fromTime,
+          toTime: chunkEntry.toTime,
+          message: error instanceof Error ? error.message : "Replay chunk request failed",
+        };
         return {
           ...previous,
-          chunkFailure: {
-            chunkIndex,
-            fromTime: chunkEntry.fromTime,
-            toTime: chunkEntry.toTime,
-            message: error instanceof Error ? error.message : "Replay chunk request failed",
-          },
+          chunkFailures: [
+            ...previous.chunkFailures.filter((entry) => entry.chunkIndex !== chunkIndex),
+            failure,
+          ].sort((left, right) => left.chunkIndex - right.chunkIndex),
         };
       });
     } finally {
@@ -413,7 +432,7 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
           ...previous.replay,
           frames: pruneReplayFrames(previous.replay.frames, chunkEntriesRef.current, nextLoadedChunks),
         },
-        chunkFailure: previous.chunkFailure,
+        chunkFailures: previous.chunkFailures,
       };
     });
   }, []);
@@ -470,7 +489,7 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
     setState({
       status: "ready",
       replay: normalizeReplayRaceControl(initialReplay),
-      chunkFailure: null,
+      chunkFailures: [],
     });
     setInsights({ status: "loading", compare: null, stintPack: null, driverSummaries: null, lapRecords: null, strategy: null });
 
@@ -531,7 +550,7 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
                   previous.replay.totalTime ?? previous.replay.frames.at(-1)?.t ?? 0,
                 ),
               },
-              chunkFailure: previous.chunkFailure,
+              chunkFailures: previous.chunkFailures,
             };
           });
         });
@@ -540,7 +559,7 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
           setState({
             status: "ready",
             replay: normalizeReplayRaceControl(initialReplay),
-            chunkFailure: null,
+            chunkFailures: [],
           });
         }
       }
@@ -557,31 +576,44 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
   if (state.status === "ready") {
     return (
       <>
-        {state.chunkFailure ? (
-          <section className="panel replay-error-panel" role="alert" aria-live="assertive">
-            <p>Replay chunk {state.chunkFailure.chunkIndex} ({state.chunkFailure.fromTime.toFixed(1)}s–{state.chunkFailure.toTime.toFixed(1)}s) could not load. Playback remains on the cached window.</p>
-            <p>{state.chunkFailure.message}</p>
+        {state.chunkFailures.map((failure) => (
+          <section key={failure.chunkIndex} className="panel replay-error-panel" role="alert" aria-live="assertive">
+            <p>Replay chunk {failure.chunkIndex} ({failure.fromTime.toFixed(1)}s–{failure.toTime.toFixed(1)}s) could not load. Playback remains on the cached window.</p>
+            <p>{failure.message}</p>
             <button
-              ref={retryChunkButtonRef}
+              ref={(node) => {
+                if (node) {
+                  retryChunkButtonRefs.current.set(failure.chunkIndex, node);
+                } else {
+                  retryChunkButtonRefs.current.delete(failure.chunkIndex);
+                }
+              }}
               className="button"
               type="button"
-              aria-busy={retryingChunkIndex === state.chunkFailure.chunkIndex}
-              disabled={retryingChunkIndex === state.chunkFailure.chunkIndex}
+              aria-busy={retryingChunkIndex === failure.chunkIndex}
+              aria-disabled={retryingChunkIndex !== null}
               onClick={async () => {
-                const chunkIndex = state.chunkFailure?.chunkIndex;
-                if (chunkIndex === undefined) {
+                if (retryingChunkIndexRef.current !== null) {
                   return;
                 }
+                const chunkIndex = failure.chunkIndex;
+                retryingChunkIndexRef.current = chunkIndex;
                 setRetryingChunkIndex(chunkIndex);
-                await ensureChunkLoaded(chunkIndex);
-                setRetryingChunkIndex(null);
-                retryChunkButtonRef.current?.focus();
+                let recovered = false;
+                try {
+                  await ensureChunkLoaded(chunkIndex);
+                  recovered = loadedChunksRef.current.has(chunkIndex);
+                } finally {
+                  pendingRetryFocusRef.current = { chunkIndex, recovered };
+                  retryingChunkIndexRef.current = null;
+                  setRetryingChunkIndex(null);
+                }
               }}
             >
-              {retryingChunkIndex === state.chunkFailure.chunkIndex ? "Retrying chunk" : "Retry chunk"}
+              {retryingChunkIndex === failure.chunkIndex ? `Retrying chunk ${failure.chunkIndex}` : `Retry chunk ${failure.chunkIndex}`}
             </button>
           </section>
-        ) : null}
+        ))}
         <ReplayView
           replay={state.replay}
           manifest={manifest}

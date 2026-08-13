@@ -5638,7 +5638,6 @@ code {
 
   .replay-session-banner__facts,
   .replay-track-panel__stats,
-  .replay-driver-picker,
   .replay-telemetry-strip__metrics {
     grid-template-columns: 1fr;
   }
@@ -6598,18 +6597,39 @@ code {
   line-height: 1.45;
 }
 
-.replay-driver-picker select {
+.replay-driver-picker__options {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(72px, 1fr));
+  gap: 8px;
+  max-height: 156px;
+  overflow-y: auto;
+}
+
+.replay-driver-picker__option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   min-height: 44px;
-  width: 100%;
-  padding: 9px 38px 9px 12px;
+  padding: 8px 10px;
   border: 1px solid rgba(167, 189, 219, 0.24);
   border-radius: 12px;
   background: #111827;
   color: #ffffff;
   font: inherit;
+  cursor: pointer;
 }
 
-.replay-driver-picker select:focus-visible,
+.replay-driver-picker__option span {
+  color: rgba(231, 237, 247, 0.62);
+  font-size: 0.72rem;
+}
+
+.replay-driver-picker__option--selected {
+  border-color: rgba(255, 122, 26, 0.72);
+  background: rgba(255, 122, 26, 0.18);
+}
+
+.replay-driver-picker__option:focus-visible,
 .replay-leaderboard__row:focus-visible {
   outline: 2px solid #ff8a3d;
   outline-offset: 2px;
@@ -6617,6 +6637,17 @@ code {
 
 .replay-driver-picker__status {
   grid-column: 1 / -1;
+}
+
+#replay-session-title:focus {
+  outline: 2px solid #ff8a3d;
+  outline-offset: 4px;
+}
+
+@media (max-width: 800px) {
+  .replay-driver-picker {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Replay battle map / gap-to-leader graph (P4.3) */
