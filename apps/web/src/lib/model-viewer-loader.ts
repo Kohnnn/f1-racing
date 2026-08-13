@@ -23,6 +23,13 @@ export function ensureModelViewerLoaded(retries = DEFAULT_RETRIES): Promise<void
   return loadPromise;
 }
 
+function decoderLocation() {
+  const nextScript = Array.from(document.scripts).find((script) => script.src.includes("/_next/static/"));
+  const scriptUrl = nextScript ? new URL(nextScript.src) : new URL("/_next/", window.location.origin);
+  const basePath = scriptUrl.pathname.split("/_next/")[0];
+  return new URL(`${basePath}/draco/`, scriptUrl.origin).href;
+}
+
 async function loadWithRetry(retries: number): Promise<void> {
   let lastError: unknown = null;
   for (let attempt = 0; attempt <= retries; attempt += 1) {
@@ -32,14 +39,14 @@ async function loadWithRetry(retries: number): Promise<void> {
       };
       configWindow.ModelViewerElement = {
         ...configWindow.ModelViewerElement,
-        dracoDecoderLocation: "/draco/",
+        dracoDecoderLocation: decoderLocation(),
       };
       await import("@google/model-viewer");
       const ModelViewerElement = window.customElements?.get("model-viewer") as {
         dracoDecoderLocation?: string;
       } | undefined;
       if (ModelViewerElement) {
-        ModelViewerElement.dracoDecoderLocation = "/draco/";
+        ModelViewerElement.dracoDecoderLocation = decoderLocation();
         return;
       }
       throw new Error("model-viewer custom element was not registered");

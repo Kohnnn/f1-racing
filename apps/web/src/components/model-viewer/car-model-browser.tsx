@@ -217,6 +217,16 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
     writeSelectionToUrl(season, constructorSlug, nextFocus.id);
   }
 
+  function resetView() {
+    handleFocusChange(null);
+    setActiveCameraId("studio");
+    const viewer = viewerRef.current;
+    if (!viewer) return;
+    viewer.cameraOrbit = CAMERA_PRESETS[0].orbit;
+    viewer.cameraTarget = CAMERA_PRESETS[0].target;
+    viewer.jumpCameraToGoal?.();
+  }
+
   useEffect(() => {
     if (!viewerRef.current) {
       return;
@@ -280,10 +290,9 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
           break;
         case "r":
         case "R":
-          handleFocusChange(null);
-          setActiveCameraId("studio");
-          handled = true;
-          break;
+          event.preventDefault();
+          resetView();
+          return;
         default:
           break;
       }
@@ -601,7 +610,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
               <div className="car-viewer-zoom-controls" role="group" aria-label="Camera zoom controls">
                 <button type="button" onClick={() => handleZoomButton(-0.18)} aria-label="Zoom in">+</button>
                 <button type="button" onClick={() => handleZoomButton(0.18)} aria-label="Zoom out">-</button>
-                <button type="button" onClick={() => { handleFocusChange(null); setActiveCameraId("studio"); }} aria-label="Reset view" title="Reset (R)">R</button>
+                <button type="button" onClick={resetView} aria-label="Reset view" title="Reset (R)">R</button>
                 {zoomHint ? <span className="car-viewer-zoom-controls__hint">{zoomHint}</span> : null}
               </div>
             ) : null}

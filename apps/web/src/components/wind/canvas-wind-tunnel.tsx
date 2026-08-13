@@ -1424,7 +1424,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
       ctx.restore();
     }
 
-    function drawSilhouette() {
+    function drawSilhouette(elapsedMs: number) {
       if (!ctx || !profile) return;
       const polygon = profile.polygon;
       if (!polygon.length) return;
@@ -1642,7 +1642,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
         if (controls.wheelMode === "rotating") {
           ctx.strokeStyle = "rgba(220, 232, 255, 0.45)";
           ctx.lineWidth = 1;
-          const phase = (performance.now() * controls.airspeed * 0.00012) % (Math.PI * 2);
+          const phase = (elapsedMs * controls.airspeed * 0.00012) % (Math.PI * 2);
           for (let i = 0; i < 5; i += 1) {
             const angle = phase + (i / 5) * Math.PI * 2;
             ctx.beginPath();
@@ -1703,7 +1703,7 @@ export function CanvasWindTunnel({ modelTitle, accentColor = "#ff7a1a", construc
         drawVorticityField();
         drawRibbonFlow(elapsed);
         drawSmokeFlow();
-        drawSilhouette();
+        drawSilhouette(elapsed);
         drawVectorField();
         drawSeparationMarkers();
         drawDiagnosticOverlay();

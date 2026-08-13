@@ -7316,6 +7316,7 @@ code {
   .learn-model-embed__spinner,
   .car-model-hotspot--active,
   .car-model-hotspot--inspect,
+  .car-viewer-canvas--mode-inspect .car-model-hotspot--rear-wing,
   .car-viewer-drag-hint,
   .car-viewer-loading__spinner,
   .fastest-lap-banner,
