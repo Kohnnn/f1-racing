@@ -2,6 +2,7 @@ import { copyFile, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promi
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { refreshFeaturedIndexes } from "./refresh-seasons-index.mjs";
+import { writeSplitReplayPack } from "./split-replay-packs.mjs";
 import {
   CarModelCatalogSchema,
   CfdOverlaySchemaExampleSchema,
@@ -429,7 +430,6 @@ function ensureValid() {
     summary: "summary.json",
     drivers: "drivers.json",
     laps: "laps.json",
-    replay: "replay.json",
     compare: {
       "VER-NOR": "compare/ver-nor.json",
     },
@@ -446,6 +446,33 @@ async function writeJson(filePath, payload) {
 async function writeMirrored(relativePath, payload) {
   await writeJson(path.join(dataRoot, relativePath), payload);
   await writeJson(path.join(publicRoot, relativePath), payload);
+}
+
+async function findReplayInputs(directory, files = []) {
+  let entries;
+  try {
+    entries = await readdir(directory, { withFileTypes: true });
+  } catch (error) {
+    if (error?.code === "ENOENT") return files;
+    throw error;
+  }
+  for (const entry of entries) {
+    const filePath = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      await findReplayInputs(filePath, files);
+    } else if (entry.isFile() && entry.name === "replay.json") {
+      files.push(filePath);
+    }
+  }
+  return files;
+}
+
+async function assertNoReplayInputs() {
+  const replayInputs = await Promise.all([findReplayInputs(dataRoot), findReplayInputs(publicRoot)]);
+  const stalePaths = replayInputs.flat();
+  if (stalePaths.length) {
+    throw new Error(`Stale replay.json input(s): ${stalePaths.map((filePath) => path.relative(root, filePath)).join(", ")}`);
+  }
 }
 
 async function syncDirectory(sourceDir, destinationDir) {
@@ -470,13 +497,13 @@ async function syncDirectory(sourceDir, destinationDir) {
 
 async function generate() {
   ensureValid();
+  await assertNoReplayInputs();
 
   const sessionManifest = {
     sessionKey: sample.ref.sessionKey,
     summary: "summary.json",
     drivers: "drivers.json",
     laps: "laps.json",
-    replay: "replay.json",
     compare: {
       "VER-NOR": "compare/ver-nor.json",
     },
@@ -489,7 +516,10 @@ async function generate() {
   await writeMirrored(path.join(base, "summary.json"), sample.summary);
   await writeMirrored(path.join(base, "drivers.json"), sample.drivers);
   await writeMirrored(path.join(base, "laps.json"), sample.laps);
-  await writeMirrored(path.join(base, "replay.json"), sample.replay);
+  await Promise.all([
+    writeSplitReplayPack(path.join(dataRoot, base), sample.replay),
+    writeSplitReplayPack(path.join(publicRoot, base), sample.replay),
+  ]);
   await writeMirrored(path.join(base, "compare", "ver-nor.json"), sample.compare);
   await writeMirrored(path.join(base, "strategy.json"), sample.strategy);
   await writeMirrored(path.join(base, "stints.json"), sample.stints);
@@ -497,6 +527,7 @@ async function generate() {
 }
 
 async function check() {
+  await assertNoReplayInputs();
   await refreshFeaturedIndexes({ check: true });
   const filePath = path.join(dataRoot, "manifests", "latest.json");
   const content = JSON.parse(await readFile(filePath, "utf-8"));

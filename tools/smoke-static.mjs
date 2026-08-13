@@ -97,9 +97,8 @@ let latestReplayDataPaths = [];
 if (latestManifest.latest) {
   const latestDataBasePath = latestManifest.latest.path.replace(/^\/sessions\//, "/data/packs/seasons/");
   const latestReplayMetaPath = `${latestDataBasePath}/replay.meta.json`;
-  const latestReplayPathFallback = `${latestDataBasePath}/replay.json`;
   const latestReplayMetaFilePath = path.join(publicRoot, latestReplayMetaPath);
-  latestReplayDataPaths = [latestReplayPathFallback];
+  latestReplayDataPaths = [latestReplayMetaPath];
   try {
     const latestReplayMeta = await readJson(latestReplayMetaFilePath);
     const chunkEntries = latestReplayMeta.frameChunkIndex ?? [];
@@ -116,9 +115,8 @@ if (latestManifest.latest) {
     assert.ok(raceControl.some((message) => /chequered|checkered/i.test(`${message.flag ?? ""} ${message.message ?? ""}`)), "Featured replay lacks chequered-flag evidence.");
     assert.ok(stints.drivers?.some((driver) => driver.stints?.length > 1), "Featured replay lacks a recorded pit cycle.");
     assert.ok(Array.isArray(laps) && laps.length, "Featured replay lacks lap records.");
-    if (typeof chunkEntries[0]?.path === "string" && chunkEntries[0].path.length) {
-      latestReplayDataPaths = [latestReplayMetaPath, `${latestDataBasePath}/${chunkEntries[0].path}`];
-    }
+    assert.ok(chunkEntries.length, "Featured replay metadata has no frame chunks.");
+    latestReplayDataPaths.push(...chunkEntries.map((entry) => `${latestDataBasePath}/${entry.path}`));
   } catch (error) {
     assert.fail(`Featured replay acceptance failed: ${error instanceof Error ? error.message : String(error)}`);
   }
@@ -129,6 +127,7 @@ if (latestManifest.latest) {
   }
 }
 const replayMetaSource = await findFile(publicRoot, (filePath) => filePath.endsWith("replay.meta.json"));
+const staleReplaySource = await findFile(publicRoot, (filePath) => filePath.endsWith("replay.json"));
 const modelSource = await findFile(publicRoot, (filePath) => filePath.endsWith(".glb"));
 const modelviewChunk = await findFile(path.join(outRoot, "_next", "static", "chunks"), async (filePath) => {
   if (!filePath.endsWith(".js")) return false;
@@ -175,6 +174,7 @@ for (const requiredAttribution of ["OpenGameArt", "Kenney", "ambientCG", "Poly H
   assert.ok(attributionSource.includes(requiredAttribution), `Replay 3D attribution is missing ${requiredAttribution}.`);
 }
 assert.ok(replayMetaSource, "No replay metadata found in apps/web/public.");
+assert.equal(staleReplaySource, null, "Static output retains forbidden replay.json.");
 assert.ok(modelSource, "No GLB model found in apps/web/public.");
 assert.ok(modelviewChunk, "Modelview retry control is missing from the static bundle.");
 assert.ok(replayShareChunk, "Replay evidence-link control is missing from the static bundle.");

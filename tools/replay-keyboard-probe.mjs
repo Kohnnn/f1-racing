@@ -8,10 +8,12 @@ const candidateRoot = process.env.F1_CANDIDATE_ROOT ? path.resolve(process.env.F
 const outRoot = candidateRoot ? path.join(candidateRoot, "apps", "web", "out") : path.join(root, "apps", "web", "out");
 const source = (relativePath) => readFile(path.join(root, relativePath), "utf-8");
 
-const [routeClientSource, replayViewSource, replayPageSource, styles, packageSource] = await Promise.all([
+const [routeClientSource, replayViewSource, replayPageSource, raceDeskPageSource, liveRouteSource, styles, packageSource] = await Promise.all([
   source("apps/web/src/components/replay/replay-route-client.tsx"),
   source("apps/web/src/components/replay/ReplayView.tsx"),
   source("apps/web/src/app/replay/[season]/[grandPrix]/[session]/page.tsx"),
+  source("apps/web/src/app/race-desk/page.tsx"),
+  source("apps/web/src/components/live/live-route-client.tsx"),
   source("apps/web/src/app/globals.css"),
   source("package.json"),
 ]);
@@ -26,7 +28,11 @@ assert.match(replayViewSource, /data-driver-code=\{driver\.driverCode\}/);
 assert.match(replayViewSource, /event\.shiftKey \|\| event\.metaKey \|\| event\.ctrlKey/);
 assert.match(replayViewSource, /aria-pressed=\{isSelected\}/);
 assert.match(replayViewSource, /aria-live="polite"/);
-assert.match(replayPageSource, /This static export cannot retry route data in place/);
+assert.match(replayPageSource, /href=\{`\/replay\/\$\{season\}\/\$\{grandPrix\}\/\$\{session\}`\}>Retry replay/);
+assert.doesNotMatch(raceDeskPageSource, /notFound\(\)/);
+assert.match(raceDeskPageSource, /href="\/race-desk">Retry historical replay/);
+assert.match(liveRouteSource, /\[activeSession, apiOrigin, closeTimer, delaySeconds, isRaceDesk, reloadKey, speed\]/);
+assert.doesNotMatch(`${routeClientSource}\n${raceDeskPageSource}\n${liveRouteSource}`, /replay\.json/);
 assert.ok(styles.lastIndexOf("@media (max-width: 800px)") > styles.indexOf(".replay-driver-picker {"));
 assert.match(styles, /#replay-session-title:focus/);
 assert.ok(JSON.parse(packageSource).scripts["quality:source"].includes("check:replay-keyboard"));
@@ -76,6 +82,15 @@ async function findReplayFixture() {
   throw new Error("No exported replay route with at least three chunks and two drivers was found.");
 }
 
+async function findRaceDeskFixture() {
+  const latestManifest = JSON.parse(await readFile(path.join(outRoot, "data", "manifests", "latest.json"), "utf-8"));
+  assert.ok(latestManifest.latest, "Race Desk browser acceptance requires a featured replay.");
+  const dataBasePath = latestManifest.latest.path.replace(/^\/sessions\//, "/data/packs/seasons/");
+  const replay = JSON.parse(await readFile(path.join(outRoot, dataBasePath.slice(1), "replay.meta.json"), "utf-8"));
+  assert.ok(replay.frameChunkIndex?.length, "The featured Race Desk replay has no frame chunks.");
+  return { dataBasePath, replay };
+}
+
 function contentType(filePath) {
   const extension = path.extname(filePath).toLowerCase();
   return {
@@ -112,6 +127,7 @@ async function waitUntil(predicate, message, timeout = 15_000) {
 }
 
 const fixture = await findReplayFixture();
+const raceDeskFixture = await findRaceDeskFixture();
 const headers = await readFile(path.join(outRoot, "_headers"), "utf-8");
 const csp = headers.match(/^\s*Content-Security-Policy:\s*(.+)$/m)?.[1];
 assert.ok(csp, "Static CSP is missing from the artifact.");
@@ -146,15 +162,60 @@ const firstRetryReleased = new Promise((resolve) => {
   releaseFirstRetry = resolve;
 });
 let latestManifestRequests = 0;
+const raceDeskMetaPath = `${raceDeskFixture.dataBasePath}/replay.meta.json`;
+const raceDeskChunkPaths = new Set(raceDeskFixture.replay.frameChunkIndex.map((entry) => `${raceDeskFixture.dataBasePath}/${entry.path}`));
+const raceDeskChunkRequests = new Set();
+let raceDeskMetaRequests = 0;
+let allowRaceDeskMeta = false;
 
-async function fulfillArtifact(route) {
-  let pathname;
-  try {
-    pathname = decodeURIComponent(new URL(route.request().url()).pathname);
-  } catch {
-    await route.fulfill({ status: 400 });
+async function fulfillStaticArtifact(route, pathname) {
+  const requested = path.resolve(outRoot, `.${pathname}`);
+  if (requested !== outRoot && !requested.startsWith(`${outRoot}${path.sep}`)) {
+    await route.fulfill({ status: 403 });
     return;
   }
+
+  try {
+    const filePath = (await stat(requested)).isDirectory() ? path.join(requested, "index.html") : requested;
+    await route.fulfill({
+      status: 200,
+      headers: {
+        "Content-Type": contentType(filePath),
+        "Content-Security-Policy": csp,
+      },
+      body: route.request().method() === "HEAD" ? undefined : await readFile(filePath),
+    });
+  } catch {
+    await route.fulfill({ status: 404 });
+  }
+}
+
+async function requestPathname(route) {
+  try {
+    return decodeURIComponent(new URL(route.request().url()).pathname);
+  } catch {
+    await route.fulfill({ status: 400 });
+    return null;
+  }
+}
+
+async function fulfillRaceDeskArtifact(route) {
+  const pathname = await requestPathname(route);
+  if (pathname === null) return;
+  if (pathname === raceDeskMetaPath) {
+    raceDeskMetaRequests += 1;
+    if (!allowRaceDeskMeta) {
+      await route.fulfill({ status: 503, contentType: "application/json; charset=utf-8", body: "{}" });
+      return;
+    }
+  }
+  if (raceDeskChunkPaths.has(pathname)) raceDeskChunkRequests.add(pathname);
+  await fulfillStaticArtifact(route, pathname);
+}
+
+async function fulfillArtifact(route) {
+  const pathname = await requestPathname(route);
+  if (pathname === null) return;
 
   if (pathname === "/data/manifests/latest.json") {
     latestManifestRequests += 1;
@@ -191,42 +252,26 @@ async function fulfillArtifact(route) {
     await delayedChunkReleased;
   }
 
-  const requested = path.resolve(outRoot, `.${pathname}`);
-  if (requested !== outRoot && !requested.startsWith(`${outRoot}${path.sep}`)) {
-    await route.fulfill({ status: 403 });
-    return;
-  }
-
-  try {
-    const filePath = (await stat(requested)).isDirectory() ? path.join(requested, "index.html") : requested;
-    await route.fulfill({
-      status: 200,
-      headers: {
-        "Content-Type": contentType(filePath),
-        "Content-Security-Policy": csp,
-      },
-      body: route.request().method() === "HEAD" ? undefined : await readFile(filePath),
-    });
-    if (chunkEntries.some((entry) => `${fixture.dataBasePath}/${entry.path}` === pathname)) {
-      completedChunks.add(pathname);
-    }
-  } catch {
-    await route.fulfill({ status: 404 });
+  await fulfillStaticArtifact(route, pathname);
+  if (chunkEntries.some((entry) => `${fixture.dataBasePath}/${entry.path}` === pathname)) {
+    completedChunks.add(pathname);
   }
 }
 
-function diagnostics(page) {
+function diagnostics(page, label = "Replay", allowedFailures = expectedFailures) {
   const external = [];
   const failed = [];
+  const forbiddenReplayRequests = [];
   const consoleErrors = [];
   const pageErrors = [];
   page.on("request", (request) => {
     const url = new URL(request.url());
     if ((url.protocol === "http:" || url.protocol === "https:") && url.origin !== origin) external.push(request.url());
+    if (url.pathname.endsWith("/replay.json")) forbiddenReplayRequests.push(request.url());
   });
   page.on("response", (response) => {
     const pathname = new URL(response.url()).pathname;
-    if (response.status() >= 400 && !expectedFailures.has(pathname)) failed.push(`${response.status()} ${response.url()}`);
+    if (response.status() >= 400 && !allowedFailures.has(pathname)) failed.push(`${response.status()} ${response.url()}`);
   });
   page.on("requestfailed", (request) => failed.push(`${request.method()} ${request.url()}`));
   page.on("console", (message) => {
@@ -236,10 +281,11 @@ function diagnostics(page) {
   });
   page.on("pageerror", (error) => pageErrors.push(error.message));
   return () => {
-    assert.deepEqual(external, [], `Replay made external requests:\n${external.join("\n")}`);
-    assert.deepEqual(failed, [], `Replay had unexpected failed requests:\n${failed.join("\n")}`);
-    assert.deepEqual(consoleErrors, [], `Replay logged unexpected console errors:\n${consoleErrors.join("\n")}`);
-    assert.deepEqual(pageErrors, [], `Replay raised page errors:\n${pageErrors.join("\n")}`);
+    assert.deepEqual(external, [], `${label} made external requests:\n${external.join("\n")}`);
+    assert.deepEqual(failed, [], `${label} had unexpected failed requests:\n${failed.join("\n")}`);
+    assert.deepEqual(forbiddenReplayRequests, [], `${label} requested forbidden replay.json:\n${forbiddenReplayRequests.join("\n")}`);
+    assert.deepEqual(consoleErrors, [], `${label} logged unexpected console errors:\n${consoleErrors.join("\n")}`);
+    assert.deepEqual(pageErrors, [], `${label} raised page errors:\n${pageErrors.join("\n")}`);
   };
 }
 
@@ -363,6 +409,29 @@ try {
   assert.notEqual(await firstOption.evaluate((node) => getComputedStyle(node).outlineStyle), "none");
   assert.ok(latestManifestRequests <= 1, "Replay repeatedly requested the no-featured manifest.");
   assertClean();
+  await page.close();
+
+  await context.unroute(`${origin}/**`, fulfillArtifact);
+  await context.route(`${origin}/**`, fulfillRaceDeskArtifact);
+  const raceDeskPage = await context.newPage();
+  const raceDeskSockets = [];
+  raceDeskPage.on("websocket", (socket) => raceDeskSockets.push(socket.url()));
+  const assertRaceDeskClean = diagnostics(raceDeskPage, "Race Desk", new Set([raceDeskMetaPath]));
+  await raceDeskPage.goto(`${origin}/race-desk/`, { waitUntil: "domcontentloaded" });
+  await raceDeskPage.getByRole("heading", { name: "Historical replay unavailable" }).waitFor({ timeout: 30_000 });
+  assert.equal(raceDeskMetaRequests, 1, "Race Desk did not fail on its initial metadata request.");
+  allowRaceDeskMeta = true;
+  await raceDeskPage.getByRole("button", { name: "Retry historical replay" }).click();
+  await waitUntil(
+    () => raceDeskChunkRequests.size === raceDeskChunkPaths.size,
+    "Race Desk did not request every declared frame chunk after Retry.",
+    30_000,
+  );
+  await raceDeskPage.getByRole("heading", { name: "Historical replay unavailable" }).waitFor({ state: "detached", timeout: 30_000 });
+  await raceDeskPage.getByText("Historical replay simulation · static data pack", { exact: true }).waitFor({ timeout: 30_000 });
+  assert.ok(raceDeskMetaRequests >= 2, "Race Desk Retry did not reload replay metadata.");
+  assert.deepEqual(raceDeskSockets, [], "Historical Race Desk opened a WebSocket.");
+  assertRaceDeskClean();
   await context.close();
 } finally {
   await browser?.close();

@@ -17,7 +17,7 @@ npm run api:dev
 
 ## Frontend wiring
 
-Historical replay metadata, laps, race control, and the initial frame load directly from static CDN assets. Set this at frontend build time to enable the optional OCI-backed live feed, session insights, WebSocket replay chunks, and HTTP chunk fallback:
+Historical replay metadata, laps, race control, and frame chunks load directly from static CDN assets. Set this at frontend build time to enable the optional OCI-backed live feed, session insights, WebSocket replay chunks, and HTTP chunk fallback:
 
 ```bash
 NEXT_PUBLIC_F1_API_ORIGIN=https://your-oci-api.example.com
@@ -51,7 +51,6 @@ VLEGAL_CORS_ALLOWED_ORIGINS=https://your-netlify-site.netlify.app,http://localho
 - `GET /api/sessions/{season}/{grand_prix}/{session}/stints`
 - `GET /api/sessions/{season}/{grand_prix}/{session}/compare/{compare_key}`
 - `GET /api/replay/{season}/{grand_prix}/{session}/meta`
-- `GET /api/replay/{season}/{grand_prix}/{session}/full`
 - `GET /api/replay/{season}/{grand_prix}/{session}/chunk/{chunk_index}`
 - `GET /api/live/status`
 - `WS /ws/replay/{season}/{grand_prix}/{session}`

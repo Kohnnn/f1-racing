@@ -25,4 +25,3 @@ export const ReplayChunkIndexEntrySchema: z.ZodObject<any>;
 export const ReplayPackSchema: z.ZodObject<any>;
 export const ReplayMetaSchema: z.ZodObject<any>;
 export const ReplayFrameChunkSchema: z.ZodObject<any>;
-export const ReplayManifestSchema: z.ZodObject<any>;

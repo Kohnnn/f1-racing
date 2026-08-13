@@ -8,7 +8,6 @@ const seasonRoots = [
   path.join(root, "data", "packs", "seasons"),
   path.join(root, "apps", "web", "public", "data", "packs", "seasons"),
 ];
-
 const sectorsBySession = new Map();
 
 async function walk(directory, files = []) {
@@ -23,18 +22,15 @@ async function walk(directory, files = []) {
     const fullPath = path.join(directory, entry.name);
     if (entry.isDirectory()) {
       await walk(fullPath, files);
-    } else if (entry.isFile() && entry.name === "replay.json") {
+    } else if (entry.isFile() && entry.name === "replay.laps.json") {
       files.push(fullPath);
     }
   }
-
   return files;
 }
 
 async function getSessionSectors(sessionKey) {
-  if (sectorsBySession.has(sessionKey)) {
-    return sectorsBySession.get(sessionKey);
-  }
+  if (sectorsBySession.has(sessionKey)) return sectorsBySession.get(sessionKey);
 
   let lapsRaw = [];
   try {
@@ -51,27 +47,27 @@ async function getSessionSectors(sessionKey) {
       sector3: Number.isFinite(lap.duration_sector_3) ? Number(lap.duration_sector_3) : null,
     });
   }
-
   sectorsBySession.set(sessionKey, byDriverLap);
   return byDriverLap;
 }
 
 async function backfillPack(filePath) {
   const relative = path.relative(root, filePath);
-  const replay = JSON.parse(await readFile(filePath, "utf8"));
-  const laps = Array.isArray(replay.laps) ? replay.laps : [];
-
-  if (!laps.length) {
+  const baseDir = path.dirname(filePath);
+  const [laps, replayMeta] = await Promise.all([
+    JSON.parse(await readFile(filePath, "utf8")),
+    JSON.parse(await readFile(path.join(baseDir, "replay.meta.json"), "utf8")),
+  ]);
+  if (!Array.isArray(laps) || !laps.length) {
     process.stdout.write(`SKIP (no laps) ${relative}\n`);
     return;
   }
-
   if (laps.every((lap) => "sector1" in lap)) {
     process.stdout.write(`SKIP (already has sectors) ${relative}\n`);
     return;
   }
 
-  const sessionKey = Number(replay.sessionKey);
+  const sessionKey = Number(replayMeta.sessionKey);
   if (!Number.isFinite(sessionKey)) {
     process.stdout.write(`SKIP (no sessionKey) ${relative}\n`);
     return;
@@ -79,16 +75,13 @@ async function backfillPack(filePath) {
 
   const sectors = await getSessionSectors(sessionKey);
   const driverNumberByCode = new Map(
-    (replay.drivers ?? []).map((driver) => [driver.driverCode, Number(driver.driverNumber)]),
+    (replayMeta.drivers ?? []).map((driver) => [driver.driverCode, Number(driver.driverNumber)]),
   );
-
   let matched = 0;
   const nextLaps = laps.map((lap) => {
     const driverNumber = driverNumberByCode.get(lap.driverCode) ?? Number(lap.driverCode);
     const sector = sectors.get(`${driverNumber}|${Number(lap.lapNumber)}`) ?? null;
-    if (sector && (sector.sector1 != null || sector.sector2 != null || sector.sector3 != null)) {
-      matched += 1;
-    }
+    if (sector && (sector.sector1 != null || sector.sector2 != null || sector.sector3 != null)) matched += 1;
     return {
       driverCode: lap.driverCode,
       lapNumber: lap.lapNumber,
@@ -101,27 +94,15 @@ async function backfillPack(filePath) {
     };
   });
 
-  replay.laps = nextLaps;
-  await writeFile(filePath, `${JSON.stringify(replay, null, 2)}\n`, "utf8");
-  await writeFile(
-    filePath.replace(/replay\.json$/i, "replay.laps.json"),
-    `${JSON.stringify(nextLaps, null, 2)}\n`,
-    "utf8",
-  );
-
+  await writeFile(filePath, `${JSON.stringify(nextLaps, null, 2)}\n`, "utf8");
   process.stdout.write(`OK ${relative} - ${matched}/${nextLaps.length} laps with sector data\n`);
 }
 
 async function main() {
   const replayFiles = [];
-  for (const seasonRoot of seasonRoots) {
-    await walk(seasonRoot, replayFiles);
-  }
-
-  process.stdout.write(`Found ${replayFiles.length} replay packs\n`);
-  for (const replayFile of replayFiles) {
-    await backfillPack(replayFile);
-  }
+  for (const seasonRoot of seasonRoots) await walk(seasonRoot, replayFiles);
+  process.stdout.write(`Found ${replayFiles.length} split replay lap packs\n`);
+  for (const replayFile of replayFiles) await backfillPack(replayFile);
 }
 
 main().catch((error) => {

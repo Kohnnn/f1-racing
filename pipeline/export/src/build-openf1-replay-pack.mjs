@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { readFileSync, existsSync } from "node:fs";
 import path from "path";
 import { fileURLToPath } from "node:url";
@@ -14,6 +14,7 @@ import {
   fetchWeather,
 } from "../../ingest/src/openf1-client.mjs";
 import { slugify } from "../../normalize/src/normalize-session.mjs";
+import { writeSplitReplayPack } from "./split-replay-packs.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const dataRoot = path.join(root, "data");
@@ -1561,8 +1562,9 @@ async function main() {
   };
 
   const base = path.join("packs", "seasons", String(ref.season), ref.grandPrixSlug, ref.sessionSlug);
-
-  await writeJson(path.join(base, "replay.json"), replayPack);
+  const outputBases = [path.join(dataRoot, base), path.join(publicRoot, base)];
+  await Promise.all(outputBases.map((outputBase) => writeSplitReplayPack(outputBase, replayPack)));
+  await Promise.all(outputBases.map((outputBase) => rm(path.join(outputBase, "replay.json"), { force: true })));
 
   const manifestRelativePath = path.join(base, "manifest.json");
   const manifestPath = path.join(dataRoot, manifestRelativePath);
@@ -1570,7 +1572,7 @@ async function main() {
   try {
     manifest = await readJson(manifestPath);
   } catch {}
-  manifest.replay = "replay.json";
+  delete manifest.replay;
   await writeJson(manifestRelativePath, manifest);
 
   const summary = {
@@ -1586,7 +1588,7 @@ async function main() {
   };
   await writeJson(path.join(base, "summary.json"), summary);
 
-  process.stdout.write(`Built replay pack at ${base}/replay.json\n`);
+  process.stdout.write(`Built split replay pack at ${base}\n`);
 }
 
 main().catch((error) => {

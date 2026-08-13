@@ -517,10 +517,28 @@ def safety_car_state(track_status):
 
 
 def load_base_replay(base_dir: Path):
-    replay_path = base_dir / "replay.json"
-    if replay_path.exists():
-        return read_json(replay_path)
-    return None
+    meta_path = base_dir / "replay.meta.json"
+    laps_path = base_dir / "replay.laps.json"
+    race_control_path = base_dir / "replay.race-control.json"
+    if not meta_path.exists() or not laps_path.exists() or not race_control_path.exists():
+        return None
+
+    replay = read_json(meta_path)
+    replay["laps"] = read_json(laps_path)
+    replay["raceControlMessages"] = read_json(race_control_path)
+    frames = []
+    for entry in replay.get("frameChunkIndex", []):
+        chunk_path = entry.get("path")
+        if not isinstance(chunk_path, str):
+            return None
+        chunk_file = base_dir / chunk_path
+        if not chunk_file.exists():
+            return None
+        frames.extend(read_json(chunk_file).get("frames", []))
+    if len(frames) != replay.get("frameCount"):
+        return None
+    replay["frames"] = frames
+    return replay
 
 
 def determine_output_base(args, resolved, session):
@@ -837,7 +855,7 @@ def main():
     manifest = {"sessionKey": replay_pack["sessionKey"]}
     if manifest_path.exists():
         manifest = read_json(manifest_path)
-    manifest["replay"] = "replay.json"
+    manifest.pop("replay", None)
     write_mirrored(manifest_relative, manifest)
 
     subprocess.run(
@@ -855,7 +873,7 @@ def main():
         check=True,
     )
 
-    print(f"Wrote GPS-backed replay pack to {relative_base / 'replay.json'}")
+    print(f"Wrote split GPS-backed replay pack to {relative_base}")
 
 
 if __name__ == "__main__":

@@ -89,7 +89,7 @@ async function main() {
         String(options.year),
         grandPrix.grandPrixSlug,
         session.sessionSlug,
-        "replay.json",
+        "replay.meta.json",
       );
 
       let existingSource = null;

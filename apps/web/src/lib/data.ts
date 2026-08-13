@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
+import { ReplayFrameChunkSchema, ReplayMetaSchema } from "@f1-racing/schemas";
 
 export interface SessionRef {
   season: number;
@@ -181,7 +182,6 @@ export interface SessionManifest {
   summary: string;
   drivers: string;
   laps: string;
-  replay?: string;
   compare: Record<string, string>;
   strategy: string;
   stints?: string;
@@ -605,6 +605,24 @@ export interface ReplayPack {
   frames: ReplayFrame[];
 }
 
+export type ReplayMetaPack = Omit<
+  ReplayPack,
+  "frames" | "totalTime" | "totalLaps" | "frameCount" | "frameChunkSize" | "frameChunks" | "frameChunkIndex"
+> & {
+  totalTime: number;
+  totalLaps: number;
+  frameCount: number;
+  frameChunkSize: number;
+  frameChunks: string[];
+  frameChunkIndex: Array<{
+    index: number;
+    fromTime: number;
+    toTime: number;
+    path: string;
+  }>;
+  frames?: ReplayFrame[];
+};
+
 export interface ReplayFrameChunk {
   index: number;
   fromTime: number;
@@ -631,16 +649,31 @@ export interface TrackMetadata {
   pitExitDistance?: number;
 }
 
-export async function getReplayPack(season: number | string, grandPrix: string, session: string) {
-  return readJson<ReplayPack>(path.join(sessionBasePath(season, grandPrix, session), "replay.json"));
-}
-
 export async function getReplayMetaPack(season: number | string, grandPrix: string, session: string) {
-  return readJson<ReplayPack>(path.join(sessionBasePath(season, grandPrix, session), "replay.meta.json"));
+  const payload = await readJson<unknown>(path.join(sessionBasePath(season, grandPrix, session), "replay.meta.json"));
+  return ReplayMetaSchema.parse(payload) as ReplayMetaPack;
 }
 
-export async function getReplayFrameChunk(season: number | string, grandPrix: string, session: string, chunkPath: string) {
-  return readJson<ReplayFrameChunk>(path.join(sessionBasePath(season, grandPrix, session), chunkPath));
+export async function getReplayFrameChunk(
+  season: number | string,
+  grandPrix: string,
+  session: string,
+  chunkEntry: ReplayMetaPack["frameChunkIndex"][number],
+) {
+  const payload = await readJson<unknown>(path.join(sessionBasePath(season, grandPrix, session), chunkEntry.path));
+  const chunk = ReplayFrameChunkSchema.parse(payload) as ReplayFrameChunk;
+  const firstTime = chunk.frames[0]?.t;
+  const lastTime = chunk.frames.at(-1)?.t;
+  if (
+    chunk.index !== chunkEntry.index
+    || chunk.fromTime !== chunkEntry.fromTime
+    || chunk.toTime !== chunkEntry.toTime
+    || firstTime !== chunkEntry.fromTime
+    || lastTime !== chunkEntry.toTime
+  ) {
+    throw new Error(`Replay chunk ${chunkEntry.index} does not match its index metadata`);
+  }
+  return chunk;
 }
 
 export async function getReplayLaps(season: number | string, grandPrix: string, session: string) {

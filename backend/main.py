@@ -84,16 +84,18 @@ def safe_path(root: Path, *parts: str) -> Path:
     return resolved_path
 
 
-def read_json(path: Path, root: Path) -> Any:
+def read_json(path: Path, root: Path, label: str | None = None) -> Any:
     resolved_path = path.resolve()
     if not resolved_path.is_relative_to(root.resolve()):
         raise invalid_request("Invalid file path")
     try:
         return json.loads(resolved_path.read_text("utf-8"))
     except FileNotFoundError as error:
-        raise HTTPException(
-            status_code=404, detail=f"File not found: {path.name}"
-        ) from error
+        detail = f"{label} is missing" if label else f"File not found: {path.name}"
+        raise HTTPException(status_code=404, detail=detail) from error
+    except (json.JSONDecodeError, UnicodeDecodeError) as error:
+        detail = f"{label} is corrupt" if label else f"Invalid JSON: {path.name}"
+        raise HTTPException(status_code=500, detail=detail) from error
 
 
 def session_base_path(season: int | str, grand_prix: str, session: str) -> Path:
@@ -119,10 +121,6 @@ def replay_meta_path(season: int | str, grand_prix: str, session: str) -> Path:
     return safe_path(session_base_path(season, grand_prix, session), "replay.meta.json")
 
 
-def replay_full_path(season: int | str, grand_prix: str, session: str) -> Path:
-    return safe_path(session_base_path(season, grand_prix, session), "replay.json")
-
-
 def session_file_path(
     season: int | str, grand_prix: str, session: str, filename: str
 ) -> Path:
@@ -133,17 +131,15 @@ def read_replay_meta(
     season: int | str, grand_prix: str, session: str
 ) -> dict[str, Any]:
     base_path = session_base_path(season, grand_prix, session)
-    meta_path = replay_meta_path(season, grand_prix, session)
-    if meta_path.exists():
-        return read_json(meta_path, base_path)
-    return read_json(replay_full_path(season, grand_prix, session), base_path)
-
-
-def read_replay_full(
-    season: int | str, grand_prix: str, session: str
-) -> dict[str, Any]:
-    base_path = session_base_path(season, grand_prix, session)
-    return read_json(replay_full_path(season, grand_prix, session), base_path)
+    meta = read_json(
+        replay_meta_path(season, grand_prix, session),
+        base_path,
+        "Replay metadata",
+    )
+    if not isinstance(meta, dict):
+        raise HTTPException(status_code=500, detail="Replay metadata is corrupt")
+    replay_chunk_entries(meta)
+    return meta
 
 
 def read_latest_session_ref() -> dict[str, Any] | None:
@@ -155,20 +151,120 @@ def read_latest_session_ref() -> dict[str, Any] | None:
 
 
 def replay_chunk_entries(meta: dict[str, Any]) -> list[dict[str, Any]]:
-    entries = meta.get("frameChunkIndex") or []
-    if not isinstance(entries, list) or not all(isinstance(entry, dict) for entry in entries):
-        raise HTTPException(status_code=500, detail="Replay chunk index is invalid")
-    return entries
+    entries = meta.get("frameChunkIndex")
+    if not isinstance(entries, list) or not entries:
+        raise HTTPException(status_code=500, detail="Replay metadata has no chunk index")
+
+    if not all(isinstance(entry, dict) for entry in entries):
+        raise HTTPException(status_code=500, detail="Replay metadata chunk index is corrupt")
+    if any(
+        isinstance(entry.get("index"), bool) or not isinstance(entry.get("index"), int)
+        for entry in entries
+    ):
+        raise HTTPException(status_code=500, detail="Replay metadata chunk index is corrupt")
+    ordered_entries = sorted(entries, key=lambda entry: entry["index"])
+    previous_to_time = -math.inf
+    for expected_index, entry in enumerate(ordered_entries):
+        if entry["index"] != expected_index:
+            raise HTTPException(status_code=500, detail="Replay metadata chunk index is corrupt")
+        chunk_path = entry.get("path")
+        from_time = entry.get("fromTime")
+        to_time = entry.get("toTime")
+        if (
+            not isinstance(chunk_path, str)
+            or not chunk_path
+            or isinstance(from_time, bool)
+            or not isinstance(from_time, (int, float))
+            or not math.isfinite(from_time)
+            or isinstance(to_time, bool)
+            or not isinstance(to_time, (int, float))
+            or not math.isfinite(to_time)
+            or from_time > to_time
+            or from_time <= previous_to_time
+        ):
+            raise HTTPException(status_code=500, detail="Replay metadata chunk index is corrupt")
+        previous_to_time = to_time
+    return ordered_entries
 
 
 def read_replay_chunk_payload(
     season: int | str, grand_prix: str, session: str, entry: dict[str, Any]
 ) -> dict[str, Any]:
-    chunk_path = entry.get("path")
-    if not isinstance(chunk_path, str) or not chunk_path:
-        raise HTTPException(status_code=500, detail="Replay chunk path is invalid")
+    chunk_path = entry["path"]
     base_path = session_base_path(season, grand_prix, session)
-    return read_json(safe_path(base_path, chunk_path), base_path)
+    payload = read_json(
+        safe_path(base_path, chunk_path),
+        base_path,
+        f"Replay chunk {entry['index']}",
+    )
+    if (
+        not isinstance(payload, dict)
+        or payload.get("index") != entry["index"]
+        or payload.get("fromTime") != entry["fromTime"]
+        or payload.get("toTime") != entry["toTime"]
+    ):
+        raise HTTPException(status_code=500, detail=f"Replay chunk {entry['index']} is corrupt")
+    frames = payload.get("frames")
+    previous_time = -math.inf
+    if not isinstance(frames, list) or not frames:
+        raise HTTPException(status_code=500, detail=f"Replay chunk {entry['index']} is corrupt")
+    for frame in frames:
+        frame_time = frame.get("t") if isinstance(frame, dict) else None
+        if (
+            isinstance(frame_time, bool)
+            or not isinstance(frame_time, (int, float))
+            or not math.isfinite(frame_time)
+            or frame_time < entry["fromTime"]
+            or frame_time > entry["toTime"]
+            or frame_time <= previous_time
+        ):
+            raise HTTPException(status_code=500, detail=f"Replay chunk {entry['index']} is corrupt")
+        previous_time = frame_time
+    if frames[0]["t"] != entry["fromTime"] or frames[-1]["t"] != entry["toTime"]:
+        raise HTTPException(status_code=500, detail=f"Replay chunk {entry['index']} is corrupt")
+    return payload
+
+
+def read_replay_frames(
+    season: int | str, grand_prix: str, session: str, meta: dict[str, Any]
+) -> list[dict[str, Any]]:
+    frame_count = meta.get("frameCount")
+    if isinstance(frame_count, bool) or not isinstance(frame_count, int) or frame_count < 1:
+        raise HTTPException(status_code=500, detail="Replay metadata frame count is corrupt")
+
+    frames = []
+    previous_time = -math.inf
+    for entry in replay_chunk_entries(meta):
+        chunk_frames = read_replay_chunk_payload(season, grand_prix, session, entry)["frames"]
+        if chunk_frames[0]["t"] <= previous_time:
+            raise HTTPException(status_code=500, detail="Replay chunks are out of order")
+        previous_time = chunk_frames[-1]["t"]
+        frames.extend(chunk_frames)
+    if len(frames) != frame_count:
+        raise HTTPException(status_code=500, detail="Replay chunks do not match metadata")
+    return frames
+
+
+def read_replay_race_control(
+    season: int | str, grand_prix: str, session: str
+) -> list[dict[str, Any]]:
+    base_path = session_base_path(season, grand_prix, session)
+    messages = read_json(
+        session_file_path(season, grand_prix, session, "replay.race-control.json"),
+        base_path,
+        "Replay race control",
+    )
+    if not isinstance(messages, list):
+        raise HTTPException(status_code=500, detail="Replay race control is corrupt")
+    for message in messages:
+        message_time = message.get("t") if isinstance(message, dict) else None
+        if (
+            isinstance(message_time, bool)
+            or not isinstance(message_time, (int, float))
+            or not math.isfinite(message_time)
+        ):
+            raise HTTPException(status_code=500, detail="Replay race control is corrupt")
+    return messages
 
 
 def resolve_replay_chunk(
@@ -333,11 +429,6 @@ def replay_meta(season: int, grand_prix: str, session: str) -> Any:
     return read_replay_meta(season, grand_prix, session)
 
 
-@app.get("/api/replay/{season}/{grand_prix}/{session}/full")
-def replay_full(season: int, grand_prix: str, session: str) -> Any:
-    return read_replay_full(season, grand_prix, session)
-
-
 @app.get("/api/replay/{season}/{grand_prix}/{session}/chunk/{chunk_index}")
 def replay_chunk(season: int, grand_prix: str, session: str, chunk_index: int) -> Any:
     return resolve_replay_chunk(season, grand_prix, session, chunk_index)
@@ -420,23 +511,16 @@ async def live_socket(
     await websocket.accept()
 
     try:
-        replay = read_replay_full(season, grand_prix, session)
+        meta = read_replay_meta(season, grand_prix, session)
+        frames = read_replay_frames(season, grand_prix, session, meta)
+        race_control_messages = read_replay_race_control(season, grand_prix, session)
     except HTTPException as error:
         await websocket.send_json({"type": "error", "message": str(error.detail)})
         await websocket.close(code=4404)
         return
 
-    frames = replay.get("frames") or []
-    if not frames:
-        await websocket.send_json(
-            {"type": "error", "message": "Replay feed has no frames"}
-        )
-        await websocket.close(code=4404)
-        return
-
     speed_factor = max(0.25, min(speed, 64.0))
     delay_seconds = max(0.0, min(delay, 60.0))
-    race_control_messages = replay.get("raceControlMessages") or []
     visible_messages: list[dict[str, Any]] = []
     rc_index = 0
 
@@ -451,10 +535,10 @@ async def live_socket(
     await websocket.send_json(
         {
             "type": "ready",
-            "sessionKey": replay.get("sessionKey"),
-            "grandPrix": replay.get("grandPrix"),
-            "session": replay.get("session"),
-            "trackId": replay.get("trackId"),
+            "sessionKey": meta.get("sessionKey"),
+            "grandPrix": meta.get("grandPrix"),
+            "session": meta.get("session"),
+            "trackId": meta.get("trackId"),
             "speed": speed_factor,
             "delay": delay_seconds,
             "source": "simulated-replay",

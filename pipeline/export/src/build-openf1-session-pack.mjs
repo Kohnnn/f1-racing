@@ -1,4 +1,4 @@
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -638,30 +638,7 @@ async function main() {
     stints: "stints.json",
   };
 
-  // Preserve the replay manifest entry if a replay pack already exists for this session.
   const base = path.join("packs", "seasons", String(ref.season), ref.grandPrixSlug, ref.sessionSlug);
-  const existingManifestPath = path.join(dataRoot, base, "manifest.json");
-  let existingReplay = null;
-  try {
-    const existingRaw = await readFile(existingManifestPath, "utf-8");
-    const existing = JSON.parse(existingRaw);
-    if (existing.replay) {
-      existingReplay = existing.replay;
-    }
-  } catch {
-    // No previous manifest is fine.
-  }
-  if (!existingReplay) {
-    try {
-      await stat(path.join(dataRoot, base, "replay.json"));
-      existingReplay = "replay.json";
-    } catch {
-      // replay.json absent -- skip.
-    }
-  }
-  if (existingReplay) {
-    sessionManifest.replay = existingReplay;
-  }
   await writeJson(path.join(base, "manifest.json"), sessionManifest);
   await writeJson(path.join(base, "summary.json"), summary);
   await writeJson(path.join(base, "drivers.json"), drivers);

@@ -236,22 +236,33 @@ Add corner or sector-window annotations as a derived interpretation layer on top
 
 ### 9. Replay pack
 
+Replay releases use `replay.meta.json`, `replay.laps.json`, `replay.race-control.json`, and ordered `replay.frames/chunk-*.json` files. `replay.json` is not an allowed emitted artifact or session-manifest member.
+
 ```json
 {
-  "session_key": 9839,
-  "tick_hz": 5,
-  "drivers": ["VER", "NOR", "LEC"],
-  "track_id": "albert-park",
-  "frames": [
-    {
-      "t": 0,
-      "cars": [
-        { "driver": "VER", "x": 0.121, "y": 0.842, "heading": 1.93, "speed": 288 }
-      ]
-    }
+  "sessionKey": 9839,
+  "trackId": "albert-park",
+  "frameCount": 1200,
+  "frameChunkSize": 120,
+  "frameChunks": ["replay.frames/chunk-000.json"],
+  "frameChunkIndex": [
+    { "index": 0, "fromTime": 0, "toTime": 23.8, "path": "replay.frames/chunk-000.json" }
   ]
 }
 ```
+
+Each chunk contains the ordered frame payload:
+
+```json
+{
+  "index": 0,
+  "fromTime": 0,
+  "toTime": 23.8,
+  "frames": [{ "t": 0, "drivers": {} }]
+}
+```
+
+The release manifest reports `removedReplayFramePayloadBytes`: the deterministic UTF-8 byte length of `JSON.stringify` over all reconstructed chunk frames. It measures the eliminated duplicate frame payload only; it does not claim unavailable former-file formatting or metadata bytes.
 
 ### 10. Sim pack
 

@@ -87,16 +87,11 @@ function matchesReplay(payload, session) {
 
 async function hasCompleteReplay(sessionDir, session) {
   const replayMeta = await readJson(path.join(sessionDir, "replay.meta.json"));
-  if (replayMeta && matchesReplay(replayMeta, session)) {
-    const firstChunkPath = replayMeta.frameChunkIndex?.[0]?.path;
-    if (typeof firstChunkPath === "string" && firstChunkPath.length) {
-      const firstChunk = await readJson(path.join(sessionDir, firstChunkPath));
-      if (firstChunk && Array.isArray(firstChunk.frames) && firstChunk.frames.length) return true;
-    }
-  }
-
-  const replay = await readJson(path.join(sessionDir, "replay.json"));
-  return Boolean(replay && matchesReplay(replay, session) && Array.isArray(replay.frames) && replay.frames.length);
+  if (!replayMeta || !matchesReplay(replayMeta, session)) return false;
+  const firstChunkPath = replayMeta.frameChunkIndex?.[0]?.path;
+  if (typeof firstChunkPath !== "string" || !firstChunkPath.length) return false;
+  const firstChunk = await readJson(path.join(sessionDir, firstChunkPath));
+  return Boolean(firstChunk && Array.isArray(firstChunk.frames) && firstChunk.frames.length);
 }
 
 async function toAvailableSession(session, provenance, { legacy = false } = {}) {

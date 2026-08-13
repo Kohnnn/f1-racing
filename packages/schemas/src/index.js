@@ -384,7 +384,6 @@ export const SessionManifestSchema = z.object({
   summary: z.string(),
   drivers: z.string(),
   laps: z.string(),
-  replay: z.string().optional(),
   compare: z.record(z.string()),
   strategy: z.string(),
   stints: z.string().optional(),
@@ -528,8 +527,43 @@ export const ReplayMetaSchema = ReplayPackSchema.omit({ frames: true }).extend({
   totalLaps: z.number().int().nonnegative(),
   frameCount: z.number().int().positive(),
   frameChunkSize: z.number().int().positive(),
-  frameChunks: z.array(z.string().min(1)).min(1),
+  frameChunks: z.array(z.string().regex(/^replay\.frames\/chunk-\d{3,}\.json$/)).min(1),
   frameChunkIndex: z.array(ReplayChunkIndexEntrySchema).min(1),
+}).superRefine((replay, context) => {
+  const expectedChunkCount = Math.ceil(replay.frameCount / replay.frameChunkSize);
+  if (replay.frameChunks.length !== expectedChunkCount || replay.frameChunkIndex.length !== expectedChunkCount) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Replay chunk metadata does not cover the declared frame count",
+      path: ["frameChunkIndex"],
+    });
+    return;
+  }
+  let previousToTime = -1;
+  for (let position = 0; position < replay.frameChunkIndex.length; position += 1) {
+    const entry = replay.frameChunkIndex[position];
+    if (
+      entry.index !== position
+      || entry.path !== replay.frameChunks[position]
+      || entry.fromTime > entry.toTime
+      || entry.fromTime <= previousToTime
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `Replay chunk metadata is invalid at index ${position}`,
+        path: ["frameChunkIndex", position],
+      });
+      return;
+    }
+    previousToTime = entry.toTime;
+  }
+  if (previousToTime !== replay.totalTime) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Replay chunk metadata does not reach the declared total time",
+      path: ["totalTime"],
+    });
+  }
 });
 
 export const ReplayFrameChunkSchema = z.object({
@@ -552,7 +586,3 @@ export const ReplayFrameChunkSchema = z.object({
   }
 });
 
-export const ReplayManifestSchema = z.object({
-  sessionKey: z.number().int(),
-  replay: z.string(),
-});

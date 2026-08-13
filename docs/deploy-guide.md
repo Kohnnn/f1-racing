@@ -26,7 +26,7 @@ Run the repository quality checks before producing the artifact:
 ```bash
 npm run quality
 npm run check:featured
-python -m unittest backend.test_path_validation
+python -m unittest backend.test_path_validation backend.test_replay_chunks
 python -m py_compile backend/main.py
 npm run build
 npm run smoke:static

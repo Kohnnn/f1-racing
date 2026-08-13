@@ -12,7 +12,7 @@ import {
   candidatesRoot,
   mimeType,
   sha256,
-  summarizeArtifactEntries,
+  summarizeArtifactMeasurements,
   summarizeReleaseData,
   utcTimestamp,
   walk,
@@ -105,7 +105,7 @@ export async function finalizeCandidate(candidateRoot, options = {}) {
   const assetReleaseId = `sha256-${assetManifestSha256}`;
   const manifestSha256 = digest(`${sourceCommitValue}\n${JSON.stringify(entries)}\n`);
   const releaseId = `sha256-${manifestSha256}`;
-  const measurements = summarizeArtifactEntries(entries);
+  const measurements = await summarizeArtifactMeasurements(entries, paths.artifactRoot);
   const data = await summarizeReleaseData(paths.artifactRoot);
   const manifest = {
     schemaVersion: 1,

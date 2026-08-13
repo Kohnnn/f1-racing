@@ -1,6 +1,5 @@
-import { notFound } from "next/navigation";
 import { LiveRouteClient, type LiveSessionRef } from "@/components/live/live-route-client";
-import { getLatestManifest, getReplayFrameChunk, getReplayMetaPack, getReplayPack, getSessionSummary } from "@/lib/data";
+import { getLatestManifest, getReplayFrameChunk, getReplayMetaPack, getSessionSummary } from "@/lib/data";
 
 export const metadata = {
   title: "Race Desk",
@@ -35,24 +34,14 @@ export default async function RaceDeskPage() {
     };
     const initialSummary = await getSessionSummary(latest.season, latest.grandPrixSlug, latest.sessionSlug);
 
-    let initialReplayMeta;
-    let initialFrame = null;
-
-    try {
-      const replayMeta = await getReplayMetaPack(latest.season, latest.grandPrixSlug, latest.sessionSlug);
-      const firstChunkPath = replayMeta.frameChunkIndex?.[0]?.path;
-      if (!firstChunkPath) {
-        throw new Error("Missing replay frame chunk index");
-      }
-
-      const firstChunk = await getReplayFrameChunk(latest.season, latest.grandPrixSlug, latest.sessionSlug, firstChunkPath);
-      initialReplayMeta = replayMeta;
-      initialFrame = firstChunk.frames[0] ?? null;
-    } catch {
-      const replay = await getReplayPack(latest.season, latest.grandPrixSlug, latest.sessionSlug);
-      initialReplayMeta = replay;
-      initialFrame = replay.frames[0] ?? null;
-    }
+    const initialReplayMeta = await getReplayMetaPack(latest.season, latest.grandPrixSlug, latest.sessionSlug);
+    const firstChunk = await getReplayFrameChunk(
+      latest.season,
+      latest.grandPrixSlug,
+      latest.sessionSlug,
+      initialReplayMeta.frameChunkIndex[0],
+    );
+    const initialFrame = firstChunk.frames[0] ?? null;
 
     return (
       <LiveRouteClient
@@ -65,6 +54,18 @@ export default async function RaceDeskPage() {
       />
     );
   } catch {
-    notFound();
+    return (
+      <div className="page-stack">
+        <section className="hero hero--compact" role="alert">
+          <p className="eyebrow">Race Desk</p>
+          <h1>Historical replay unavailable</h1>
+          <p className="lead">The featured race pack could not be opened. Retry the page or browse another verified session.</p>
+          <div className="hero-actions">
+            <a className="button" href="/race-desk">Retry historical replay</a>
+            <a className="button button--secondary" href="/replay">Replay library</a>
+          </div>
+        </section>
+      </div>
+    );
   }
 }

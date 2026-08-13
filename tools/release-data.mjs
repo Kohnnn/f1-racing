@@ -31,7 +31,6 @@ export const candidateMarker = Object.freeze({ schemaVersion: 1, kind: "f1-relea
 export const artifactBudgets = Object.freeze({
   outputBytes: 1_950_000_000,
   glbBytes: 125_000_000,
-  fullReplayBytes: 12_000_000,
   frameChunkBytes: 1_600_000,
   replay3dBytes: 2_100_000,
 });
@@ -218,21 +217,48 @@ export function cachePolicy(relativePath) {
   return "no-cache";
 }
 
+function isReplayJsonPath(entryPath) {
+  return /(?:^|\/)replay\.json$/.test(entryPath);
+}
+
 export function summarizeArtifactEntries(entries) {
   const sum = (predicate) => entries.reduce((total, entry) => total + (predicate(entry.path) ? entry.bytes : 0), 0);
   const largest = (predicate) => entries.reduce((maximum, entry) => predicate(entry.path) ? Math.max(maximum, entry.bytes) : maximum, 0);
   return {
     outputBytes: sum(() => true),
     publicDataBytes: sum((entryPath) => entryPath.startsWith("data/")),
-    fullReplayBytes: sum((entryPath) => /(?:^|\/)replay\.json$/.test(entryPath)),
     frameChunkBytes: sum((entryPath) => entryPath.includes("/replay.frames/") && entryPath.endsWith(".json")),
     glbBytes: sum((entryPath) => entryPath.endsWith(".glb")),
     replay3dBytes: sum((entryPath) => entryPath.startsWith("replay-3d/")),
     nextStaticJsCssBytes: sum((entryPath) => entryPath.startsWith("_next/static/") && /\.(?:js|css)$/.test(entryPath)),
     largestGlbBytes: largest((entryPath) => entryPath.endsWith(".glb")),
-    largestFullReplayBytes: largest((entryPath) => /(?:^|\/)replay\.json$/.test(entryPath)),
     largestFrameChunkBytes: largest((entryPath) => entryPath.includes("/replay.frames/") && entryPath.endsWith(".json")),
   };
+}
+
+export async function summarizeArtifactMeasurements(entries, artifactRoot) {
+  const replayMetaPaths = entries
+    .map((entry) => entry.path)
+    .filter((entryPath) => /^data\/packs\/seasons\/.+\/replay\.meta\.json$/.test(entryPath))
+    .sort(compareCodeUnits);
+  let removedReplayFramePayloadBytes = 0;
+  for (const replayMetaPath of replayMetaPaths) {
+    const replayMeta = JSON.parse(await readFile(path.join(artifactRoot, replayMetaPath), "utf8"));
+    const frames = [];
+    for (const entry of replayMeta.frameChunkIndex ?? []) {
+      const chunkPath = path.join(path.dirname(path.join(artifactRoot, replayMetaPath)), entry.path);
+      let chunk;
+      try {
+        chunk = JSON.parse(await readFile(chunkPath, "utf8"));
+      } catch (error) {
+        if (error?.code === "ENOENT") throw new Error(`Artifact measurement: missing ${entry.path}.`);
+        throw error;
+      }
+      frames.push(...(chunk.frames ?? []));
+    }
+    removedReplayFramePayloadBytes += Buffer.byteLength(JSON.stringify(frames), "utf8");
+  }
+  return { ...summarizeArtifactEntries(entries), removedReplayFramePayloadBytes };
 }
 
 export function artifactBudgetErrors(entries) {
@@ -244,8 +270,8 @@ export function artifactBudgetErrors(entries) {
   if (measurements.largestGlbBytes > artifactBudgets.glbBytes) {
     errors.push(`GLB exceeds ${artifactBudgets.glbBytes} bytes (${measurements.largestGlbBytes}).`);
   }
-  if (measurements.largestFullReplayBytes > artifactBudgets.fullReplayBytes) {
-    errors.push(`full replay exceeds ${artifactBudgets.fullReplayBytes} bytes (${measurements.largestFullReplayBytes}).`);
+  for (const entry of entries.filter((entry) => isReplayJsonPath(entry.path))) {
+    errors.push(`replay.json is forbidden in release artifacts (${entry.path}).`);
   }
   if (measurements.largestFrameChunkBytes > artifactBudgets.frameChunkBytes) {
     errors.push(`replay frame chunk exceeds ${artifactBudgets.frameChunkBytes} bytes (${measurements.largestFrameChunkBytes}).`);
@@ -385,6 +411,15 @@ function sameUniqueStrings(left, right) {
 function requireUnique(values, errors, label) {
   const duplicates = duplicateValues(values);
   if (duplicates.length) fail(errors, `${label}: duplicate identifiers ${duplicates.join(", ")}.`);
+}
+
+function requireOrdered(values, compare, errors, label) {
+  for (let index = 1; index < values.length; index += 1) {
+    if (compare(values[index - 1], values[index]) > 0) {
+      fail(errors, `${label}: entries must use canonical order.`);
+      return;
+    }
+  }
 }
 
 async function assertMirrors(paths, errors) {
@@ -589,10 +624,11 @@ function validateProvenance(ref, sourceSession, provenance, requiredPaths, facts
 async function auditSession(paths, ref, sourceSession, provenance, errors, now) {
   const relativeBase = sessionPath(ref);
   const sessionRoot = path.join(paths.publicData, relativeBase);
-  const required = new Set(["manifest.json", "summary.json", "drivers.json", "laps.json", "results.json", "stints.json", "strategy.json", "weather.json", "replay.json", "replay.meta.json", "replay.laps.json", "replay.race-control.json"]);
+  const required = new Set(["manifest.json", "summary.json", "drivers.json", "laps.json", "results.json", "stints.json", "strategy.json", "weather.json", "replay.meta.json", "replay.laps.json", "replay.race-control.json"]);
   const manifestPayload = await readJson(path.join(sessionRoot, "manifest.json"), errors, `${relativeBase}/manifest.json`);
   const manifest = parse(SessionManifestSchema, manifestPayload, errors, `${relativeBase}/manifest.json`);
   if (manifest && manifest.sessionKey !== ref.sessionKey) fail(errors, `${relativeBase}/manifest.json: sessionKey mismatch.`);
+  if (isRecord(manifestPayload) && Object.hasOwn(manifestPayload, "replay")) fail(errors, `${relativeBase}/manifest.json: replay.json is forbidden; use replay.meta.json and replay.frames/.`);
   if (manifest) {
     const canonicalMembers = {
       summary: "summary.json",
@@ -600,7 +636,6 @@ async function auditSession(paths, ref, sourceSession, provenance, errors, now) 
       laps: "laps.json",
       strategy: "strategy.json",
       stints: "stints.json",
-      replay: "replay.json",
     };
     for (const [field, canonicalPath] of Object.entries(canonicalMembers)) {
       if (manifest[field] !== canonicalPath) fail(errors, `${relativeBase}/manifest.json: ${field} must reference ${canonicalPath}.`);
@@ -616,7 +651,6 @@ async function auditSession(paths, ref, sourceSession, provenance, errors, now) 
       laps: manifest.laps,
       strategy: manifest.strategy,
       stints: manifest.stints,
-      replay: manifest.replay,
       compare: manifest.compare,
     })) required.add(member);
   }
@@ -687,19 +721,21 @@ async function auditSession(paths, ref, sourceSession, provenance, errors, now) 
   if (strategy && strategy.trackId !== ref.trackId) fail(errors, `${relativeBase}/strategy.json: trackId mismatch.`);
   const replayMeta = parse(ReplayMetaSchema, payloads.get("replay.meta.json"), errors, `${relativeBase}/replay.meta.json`);
   if (replayMeta && !sameSession(replayMeta, ref)) fail(errors, `${relativeBase}/replay.meta.json: season, sessionKey, or trackId mismatch.`);
+  if (replayMeta?.laps.length || replayMeta?.raceControlMessages?.length) {
+    fail(errors, `${relativeBase}/replay.meta.json: laps and raceControlMessages must remain in split artifacts.`);
+  }
   const replayLaps = parse(ReplayPackSchema.shape.laps, payloads.get("replay.laps.json"), errors, `${relativeBase}/replay.laps.json`);
   if (replayLaps) {
     requireUnique(replayLaps.map((lap) => `${lap.driverCode}:${lap.lapNumber}`), errors, `${relativeBase}/replay.laps.json driver/lap`);
+    const lastLapByDriver = new Map();
     for (const lap of replayLaps) {
       if (!driverCodes.includes(lap.driverCode)) fail(errors, `${relativeBase}/replay.laps.json: unknown driver ${lap.driverCode}.`);
+      const previousLap = lastLapByDriver.get(lap.driverCode);
+      if (previousLap !== undefined && lap.lapNumber < previousLap) fail(errors, `${relativeBase}/replay.laps.json: ${lap.driverCode} laps are unordered.`);
+      lastLapByDriver.set(lap.driverCode, lap.lapNumber);
     }
   }
   const raceControl = parse(ReplayPackSchema.shape.raceControlMessages.unwrap(), payloads.get("replay.race-control.json"), errors, `${relativeBase}/replay.race-control.json`);
-  let replay = null;
-  if (manifest?.replay) {
-    replay = parse(ReplayPackSchema, payloads.get(manifest.replay), errors, `${relativeBase}/${manifest.replay}`);
-    if (replay && !sameSession(replay, ref)) fail(errors, `${relativeBase}/${manifest.replay}: season, sessionKey, or trackId mismatch.`);
-  }
   if (manifest) {
     for (const relativePath of Object.values(manifest.compare)) {
       const compare = parse(ComparePackSchema, payloads.get(relativePath), errors, `${relativeBase}/${relativePath}`);
@@ -729,6 +765,7 @@ async function auditSession(paths, ref, sourceSession, provenance, errors, now) 
       }
     }
   }
+  if (raceControl) requireOrdered(raceControl, (left, right) => left.t - right.t, errors, `${relativeBase}/replay.race-control.json`);
   if (ref.sessionSlug === "race" && !raceControl?.some((entry) => /chequered|checkered/i.test(`${entry?.flag ?? ""} ${entry?.message ?? ""}`))) {
     fail(errors, `${relativeBase}/replay.race-control.json: completed race lacks chequered-flag evidence.`);
   }
@@ -778,6 +815,9 @@ async function auditSession(paths, ref, sourceSession, provenance, errors, now) 
         if (cadence > 0 && chunk.frames[0]?.t - previousTime !== cadence) fail(errors, `${relativeBase}/${entry.path}: frame chunk coverage has a gap.`);
       }
       for (const frame of chunk.frames) {
+        if (!sameUniqueStrings(Object.keys(frame.drivers), replayMetaDriverCodes)) {
+          fail(errors, `${relativeBase}/${entry.path}: frame driver coverage does not match replay metadata.`);
+        }
         for (const [driverCode, driver] of Object.entries(frame.drivers)) {
           const replayDriver = replayDriversByCode.get(driverCode);
           if (!replayDriver
@@ -796,25 +836,28 @@ async function auditSession(paths, ref, sourceSession, provenance, errors, now) 
     if ((frames[0]?.t ?? Infinity) > 0.01) fail(errors, `${relativeBase}/replay.meta.json: chunks do not start at the beginning.`);
     if (frames.at(-1)?.t !== replayMeta.totalTime) fail(errors, `${relativeBase}/replay.meta.json: chunks do not exactly reach totalTime.`);
     if (!sameUniqueStrings(replayMetaDriverCodes, driverCodes)) fail(errors, `${relativeBase}/replay.meta.json: driver coverage does not match drivers.json.`);
+    if (replayLaps) {
+      const totalLaps = Math.max(0, ...replayLaps.map((lap) => lap.lapNumber));
+      if (replayMeta.totalLaps !== totalLaps) fail(errors, `${relativeBase}/replay.meta.json: totalLaps does not match replay.laps.json.`);
+      if (replayMeta.fastestLap && !replayLaps.some((lap) => lap.driverCode === replayMeta.fastestLap.driverCode
+        && lap.lapNumber === replayMeta.fastestLap.lapNumber
+        && lap.lapTime === replayMeta.fastestLap.lapTime
+        && lap.compound === replayMeta.fastestLap.compound)) {
+        fail(errors, `${relativeBase}/replay.meta.json: fastestLap is not present in replay.laps.json.`);
+      }
+    }
   }
-  if (replay && replayMeta) {
-    const replayDriverCodes = replay.drivers.map((driver) => driver.driverCode);
-    requireUnique(replayDriverCodes, errors, `${relativeBase}/${manifest.replay} driverCode`);
-    requireUnique(replay.drivers.map((driver) => driver.driverNumber), errors, `${relativeBase}/${manifest.replay} driverNumber`);
-    if (!sameUniqueStrings(replayDriverCodes, replayMeta.drivers.map((driver) => driver.driverCode))) {
-      fail(errors, `${relativeBase}/${manifest.replay}: driver coverage does not match replay.meta.json.`);
-    }
-    if (replay.frames.length !== replayMeta.frameCount || JSON.stringify(replay.frames) !== JSON.stringify(frames)) {
-      fail(errors, `${relativeBase}/${manifest.replay}: full replay frames do not match chunk coverage.`);
-    }
-    if (JSON.stringify(replay.laps) !== JSON.stringify(replayLaps)) fail(errors, `${relativeBase}/${manifest.replay}: laps do not match replay.laps.json.`);
-    if (JSON.stringify(replay.raceControlMessages ?? []) !== JSON.stringify(raceControl)) fail(errors, `${relativeBase}/${manifest.replay}: race control does not match replay.race-control.json.`);
+  if (replayLaps && !sameUniqueStrings(replayLaps.map((lap) => `${lap.driverCode}:${lap.lapNumber}`), laps.map((lap) => `${lap.driverCode}:${lap.lapNumber}`))) {
+    fail(errors, `${relativeBase}/replay.laps.json: driver/lap coverage does not match laps.json.`);
   }
   const expectedDriverCodes = replayMeta?.drivers.map((driver) => driver.driverCode) ?? drivers.map((driver) => driver.driverCode);
   const observedDriverCodes = [...new Set(frames.flatMap((frame) => Object.keys(frame.drivers)))];
   const resultCount = Array.isArray(resultsPayload) ? resultsPayload.length : 0;
   const digestPaths = [...required].sort().map((member) => `${relativeBase}/${member}`);
   const actualPackPaths = (await walk(sessionRoot)).map((member) => `${relativeBase}/${member}`).sort();
+  if (actualPackPaths.some((member) => isReplayJsonPath(member))) {
+    fail(errors, `${relativeBase}: replay.json is forbidden in an emitted session pack.`);
+  }
   if (JSON.stringify(actualPackPaths) !== JSON.stringify(digestPaths)) {
     fail(errors, `${relativeBase}/provenance: artifact digest paths do not exactly match the emitted session pack.`);
   }
@@ -935,6 +978,9 @@ async function auditReleaseRecord(paths, errors, now) {
   if (manifest.manifestSha256 !== expectedDigest || manifest.releaseId !== `sha256-${expectedDigest}`) fail(errors, "release-manifest.json: release ID or manifest SHA-256 mismatch.");
   if (manifest.assetManifestSha256 !== expectedAssetDigest || manifest.assetReleaseId !== `sha256-${expectedAssetDigest}`) fail(errors, "release-manifest.json: asset release ID or asset manifest SHA-256 mismatch.");
   const actualFiles = (await walk(paths.artifactRoot)).filter((relativePath) => relativePath !== "release-manifest.json").sort();
+  if (actualFiles.some((entryPath) => isReplayJsonPath(entryPath))) {
+    fail(errors, "release-manifest.json: replay.json is forbidden in the built release unit.");
+  }
   const listedPaths = manifest.entries.map((entry) => entry?.path);
   const sortedPaths = [...listedPaths].sort();
   if (JSON.stringify(listedPaths) !== JSON.stringify(sortedPaths)) fail(errors, "release-manifest.json: artifact entries must use canonical path order.");
@@ -948,7 +994,7 @@ async function auditReleaseRecord(paths, errors, now) {
     if (entry.mimeType !== mimeType(entry.path) || entry.cachePolicy !== cachePolicy(entry.path)) fail(errors, `release-manifest.json: metadata mismatch for ${entry.path}.`);
     if (filePath && ((await stat(filePath)).size !== entry.bytes || await sha256(filePath) !== entry.sha256)) fail(errors, `release-manifest.json: digest or size mismatch for ${entry.path}.`);
   }
-  const measurements = summarizeArtifactEntries(manifest.entries);
+  const measurements = await summarizeArtifactMeasurements(manifest.entries, paths.artifactRoot);
   if (manifest.fileCount !== manifest.entries.length || manifest.totalBytes !== measurements.outputBytes
     || JSON.stringify(manifest.measurements) !== JSON.stringify(measurements)) {
     fail(errors, "release-manifest.json: count, size, or budget measurements do not match entries.");

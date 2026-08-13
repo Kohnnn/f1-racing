@@ -14,6 +14,7 @@ import {
   candidatesRoot,
   selectLatestRace,
   sha256,
+  summarizeArtifactMeasurements,
   walk,
   workspaceRoot,
 } from "./release-data.mjs";
@@ -31,6 +32,7 @@ const promotedFiles = [
   path.join(workspaceRoot, "data", "manifests", "latest.json"),
   path.join(workspaceRoot, "apps", "web", "public", "data", "manifests", "latest.json"),
 ];
+const sessionBase = path.join("packs", "seasons", "2026", "test-grand-prix", "race");
 
 async function writeJson(filePath, value) {
   await mkdir(path.dirname(filePath), { recursive: true });
@@ -71,7 +73,10 @@ async function seedCandidate({ fullPublic = false, stale = false } = {}) {
   const retrievedAtMin = stale ? "2026-06-01T01:01:00.000Z" : "2026-07-01T01:01:00.000Z";
   const retrievedAtMax = stale ? "2026-06-01T01:02:00.000Z" : "2026-07-01T01:02:00.000Z";
   const generatedAt = stale ? "2026-06-01T01:03:00.000Z" : "2026-07-01T01:03:00.000Z";
-  const raceControl = [{ t: 5, lapNumber: 2, category: "Flag", flag: "CHEQUERED", scope: "Track", sector: null, message: "CHEQUERED FLAG" }];
+  const raceControl = [
+    { t: 0, lapNumber: 1, category: "SessionStatus", flag: null, scope: null, sector: null, message: "SESSION STARTED" },
+    { t: 5, lapNumber: 2, category: "Flag", flag: "CHEQUERED", scope: "Track", sector: null, message: "CHEQUERED FLAG" },
+  ];
   const replayLaps = [
     { driverCode: "TST", lapNumber: 1, lapTime: 1, compound: "SOFT" },
     { driverCode: "TST", lapNumber: 2, lapTime: 1.1, compound: "MEDIUM" },
@@ -139,7 +144,7 @@ async function seedCandidate({ fullPublic = false, stale = false } = {}) {
       generatedAt: "2026-07-01T01:03:00.000Z",
       models: [{ id: "test", constructor: "Test", constructorSlug: "test", season: 2026, displayName: "Test", file: "/models/test.glb", poster: "/posters/test.webp", sizeLabel: "4 B", surfaceReady: true, notes: "test" }],
     },
-    [`${base}/manifest.json`]: { sessionKey: 1, summary: "summary.json", drivers: "drivers.json", laps: "laps.json", compare: { "TST-ALT": "compare/tst-alt.json" }, strategy: "strategy.json", stints: "stints.json", replay: "replay.json" },
+    [`${base}/manifest.json`]: { sessionKey: 1, summary: "summary.json", drivers: "drivers.json", laps: "laps.json", compare: { "TST-ALT": "compare/tst-alt.json" }, strategy: "strategy.json", stints: "stints.json" },
     [`${base}/summary.json`]: { season: 2026, grandPrix: "Test Grand Prix", session: "Race", sessionKey: 1, trackId: "test", generatedAt, source: "openf1", drivers: ["TST", "ALT"], weatherSummary: { airTempC: 20, trackTempC: 30, rainRiskPct: 0 } },
     [`${base}/drivers.json`]: [
       { driverCode: "TST", driverNumber: 1, fullName: "Test Driver", team: "Test", bestLap: 1, bestLapTime: 1, tyreCompound: "SOFT", stintCount: 2 },
@@ -162,7 +167,6 @@ async function seedCandidate({ fullPublic = false, stale = false } = {}) {
       { driverCode: "ALT", team: "Alternate", stints: [{ stintNumber: 1, compound: "MEDIUM", lapStart: 1, lapEnd: 2, tyreAgeAtStart: 1, averageLapTime: 2.05, trendPerLap: 0.1, lapTimes: [2, 2.1] }] },
     ] },
     [`${base}/strategy.json`]: { trackId: "test", pitLossS: 1, safetyCarPitLossS: 1, recommendedWindows: [], weatherCrossover: { toIntermediate: 0, toWet: 0 } },
-    [`${base}/replay.json`]: replay,
     [`${base}/replay.meta.json`]: { ...replay, laps: [], raceControlMessages: [], totalTime: 5, totalLaps: 2, fastestLap: replayLaps[0], frameCount: 6, frameChunkSize: 2, frameChunks: ["replay.frames/chunk-000.json", "replay.frames/chunk-001.json", "replay.frames/chunk-002.json"], frameChunkIndex: [
       { index: 0, fromTime: 0, toTime: 1, path: "replay.frames/chunk-000.json" },
       { index: 1, fromTime: 2, toTime: 3, path: "replay.frames/chunk-001.json" },
@@ -303,6 +307,15 @@ const root = await seedCandidate();
 try {
   await auditCandidate(root, { now });
   const firstManifest = JSON.parse(await readFile(candidatePaths(root).releaseManifest, "utf8"));
+  const releaseMeasurements = await summarizeArtifactMeasurements(firstManifest.entries, candidatePaths(root).artifactRoot);
+  const replayMeta = JSON.parse(await readFile(path.join(candidatePaths(root).artifactRoot, "data", sessionBase, "replay.meta.json"), "utf8"));
+  const replayFrames = [];
+  for (const entry of replayMeta.frameChunkIndex) {
+    const chunk = JSON.parse(await readFile(path.join(candidatePaths(root).artifactRoot, "data", sessionBase, entry.path), "utf8"));
+    replayFrames.push(...chunk.frames);
+  }
+  assert.equal(firstManifest.measurements.removedReplayFramePayloadBytes, Buffer.byteLength(JSON.stringify(replayFrames), "utf8"));
+  assert.deepEqual(firstManifest.measurements, releaseMeasurements);
   await finalizeCandidate(root, { sourceCommitValue: "a".repeat(40), generatedAt: "2026-07-01T01:05:00.000Z", gateEvidence: candidateGateEvidence });
   const secondManifest = JSON.parse(await readFile(candidatePaths(root).releaseManifest, "utf8"));
   assert.equal(secondManifest.releaseId, firstManifest.releaseId);
@@ -362,7 +375,7 @@ assert.equal(selectLatestRace(
   now,
 ), null);
 
-const base = path.join("packs", "seasons", "2026", "test-grand-prix", "race");
+const base = sessionBase;
 const failures = [
   [async (paths) => {
     for (const rootPath of [paths.canonicalData, paths.publicData, path.join(paths.artifactRoot, "data")]) {
@@ -370,10 +383,20 @@ const failures = [
     }
   }, /missing replay\.frames\/chunk-001\.json/],
   [async (paths) => {
-    for (const rootPath of [paths.canonicalData, paths.publicData, path.join(paths.artifactRoot, "data")]) {
-      await rm(path.join(rootPath, base, "replay.json"));
+    for (const rootPath of [paths.canonicalData, paths.publicData]) {
+      await writeFile(path.join(rootPath, base, "replay.meta.json"), "{}");
     }
-  }, /missing replay\.json/],
+  }, /replay\.meta\.json/],
+  [async (paths) => {
+    for (const rootPath of [paths.canonicalData, paths.publicData]) {
+      await mutateJson(path.join(rootPath, base, "manifest.json"), (manifest) => { manifest.replay = "replay.json"; });
+    }
+  }, /replay\.json is forbidden/],
+  [async (paths) => {
+    for (const rootPath of [paths.canonicalData, paths.publicData, path.join(paths.artifactRoot, "data")]) {
+      await writeFile(path.join(rootPath, base, "replay.json"), JSON.stringify({ stale: true }));
+    }
+  }, /replay\.json is forbidden/],
   [async (paths) => {
     for (const rootPath of [paths.canonicalData, paths.publicData]) await writeFile(path.join(rootPath, base, "summary.json"), "{}");
   }, /summary\.json/],
@@ -387,6 +410,16 @@ const failures = [
       await mutateJson(path.join(rootPath, base, "replay.frames", "chunk-001.json"), (chunk) => { chunk.frames[0].drivers.TST.driverNumber = 99; });
     }
   }, /frame contains an unknown or mismatched driver/],
+  [async (paths) => {
+    for (const rootPath of [paths.canonicalData, paths.publicData]) {
+      await mutateJson(path.join(rootPath, base, "replay.laps.json"), (laps) => { laps.pop(); });
+    }
+  }, /driver\/lap coverage does not match laps\.json/],
+  [async (paths) => {
+    for (const rootPath of [paths.canonicalData, paths.publicData]) {
+      await mutateJson(path.join(rootPath, base, "replay.race-control.json"), (messages) => { [messages[0], messages[1]] = [messages[1], messages[0]]; });
+    }
+  }, /entries must use canonical order/],
   [async (paths) => {
     for (const rootPath of [paths.canonicalData, paths.publicData]) {
       await mutateJson(path.join(rootPath, "release", "provenance-ledger.json"), (ledger) => { ledger.sessions[0].publicationState = "partial"; });

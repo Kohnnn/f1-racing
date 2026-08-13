@@ -97,9 +97,9 @@ OCI health: https://f1-api.129.150.58.64.sslip.io/health
   grid of best sectors with purple highlighting.
 - Backfill: rebuilding all packs through the full builder was unnecessarily
   slow, so `pipeline/export/src/backfill-sector-times.mjs` patches sector
-  times into existing `replay.json` + `replay.laps.json` in place from one
-  `/laps` fetch per session (cached across the data/ and public/ mirrors).
-  Result: 154 / 164 pack copies carry sector data. The 10 without are the
+  times into replay pack data from one `/laps` fetch per session (cached across
+  the data/ and public/ mirrors). Released packs retain sector data only in
+  `replay.laps.json`; `replay.json` is not an emitted artifact. Result: 154 / 164 pack copies carry sector data. The 10 without are the
   4 GPS-less 2026 Bahrain/Saudi sessions (no laps at all) and 2025 Azerbaijan
   qualifying (empty pack), mirrored across both roots.
 - Prod smoke 2026-06-10: Monaco race (4 purple cells, 10 rows, ideal 1:13.214),

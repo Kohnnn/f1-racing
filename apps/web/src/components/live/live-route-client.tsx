@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ReplayFrame, ReplayLap, ReplayPack, ReplayRaceControlMessage, SessionSummary } from "@/lib/data";
+import type { ReplayFrame, ReplayLap, ReplayMetaPack, ReplayPack, ReplayRaceControlMessage, SessionSummary } from "@/lib/data";
 import { buildClientDataUrl, buildClientWebSocketUrl, getClientApiOrigin } from "@/lib/client-data";
 import { Leaderboard, type ReplayLeaderboardRow } from "@/components/replay/Leaderboard";
+import { loadReplayChunkQueue, validateReplayFrameChunk, validateReplayMeta } from "@/components/replay/replay-chunks";
 import { ReplayTelemetryStrip } from "@/components/replay/replay-telemetry-strip";
 import { ReplayLapWaterfall } from "@/components/replay/replay-insights";
 import { TrackCanvas } from "@/components/replay/TrackCanvas";
@@ -50,7 +51,7 @@ interface LiveFeedState {
 interface LiveRouteClientProps {
   initialSession: LiveSessionRef;
   initialSummary: SessionSummary;
-  initialReplayMeta: ReplayPack;
+  initialReplayMeta: ReplayMetaPack;
   initialFrame: ReplayFrame | null;
   initialSpeed: number;
   mode?: "live" | "race-desk";
@@ -229,9 +230,12 @@ function buildReplayRaceControlUrl(route: Pick<LiveSessionRef, "season" | "grand
   return `${buildSessionBasePath(route)}/replay.race-control.json`;
 }
 
-function buildReplayFullUrl(route: Pick<LiveSessionRef, "season" | "grandPrix" | "session">) {
-  const staticPath = `${buildSessionBasePath(route)}/replay.json`;
-  return buildClientDataUrl(staticPath, `/api/replay/${route.season}/${route.grandPrix}/${route.session}/full`);
+function buildReplayChunkUrl(
+  route: Pick<LiveSessionRef, "season" | "grandPrix" | "session">,
+  entry: ReplayMetaPack["frameChunkIndex"][number],
+) {
+  const staticPath = `${buildSessionBasePath(route)}/${entry.path}`;
+  return buildClientDataUrl(staticPath, `/api/replay/${route.season}/${route.grandPrix}/${route.session}/chunk/${entry.index}`);
 }
 
 function buildLiveSocketUrl(route: Pick<LiveSessionRef, "season" | "grandPrix" | "session">, speed: number, delaySeconds: number = 0) {
@@ -244,6 +248,39 @@ async function fetchJson<T>(url: string): Promise<T> {
     throw new Error(`Request failed for ${url} (${response.status})`);
   }
   return response.json() as Promise<T>;
+}
+
+async function loadStaticReplay(
+  route: Pick<LiveSessionRef, "season" | "grandPrix" | "session">,
+  useStaticPaths: boolean,
+) {
+  const basePath = buildSessionBasePath(route);
+  const [meta, laps, raceControlMessages] = await Promise.all([
+    fetchJson<unknown>(useStaticPaths ? `${basePath}/replay.meta.json` : buildReplayMetaUrl(route)).then(validateReplayMeta),
+    fetchJson<ReplayLap[]>(buildReplayLapsUrl(route)),
+    fetchJson<ReplayRaceControlMessage[]>(buildReplayRaceControlUrl(route)),
+  ]);
+  const chunks = new Map<number, ReplayFrame[]>();
+  await loadReplayChunkQueue(
+    meta.frameChunkIndex.map((entry) => entry.index),
+    async (chunkIndex) => {
+      const entry = meta.frameChunkIndex[chunkIndex];
+      if (!entry || entry.index !== chunkIndex) {
+        throw new Error(`Replay chunk metadata is missing index ${chunkIndex}`);
+      }
+      const chunkUrl = useStaticPaths ? `${basePath}/${entry.path}` : buildReplayChunkUrl(route, entry);
+      const chunk = validateReplayFrameChunk(await fetchJson<unknown>(chunkUrl), entry);
+      chunks.set(chunkIndex, chunk.frames);
+    },
+  );
+  const frames = meta.frameChunkIndex.flatMap((entry) => chunks.get(entry.index) ?? []);
+  if (frames.length !== meta.frameCount || new Set(frames.map((frame) => frame.t)).size !== meta.frameCount) {
+    throw new Error("Replay chunks do not exactly cover the declared frame count");
+  }
+  return {
+    replay: { ...meta, laps, frames },
+    raceControlMessages,
+  };
 }
 
 function liveStatusToRef(status: NonNullable<LiveStatusResponse["live"]>): LiveSessionRef {
@@ -272,7 +309,7 @@ export function LiveRouteClient({
   const apiOrigin = getClientApiOrigin();
   const [activeSession, setActiveSession] = useState<LiveSessionRef>(initialSession);
   const [summary, setSummary] = useState<SessionSummary>(initialSummary);
-  const [replayMeta, setReplayMeta] = useState<ReplayPack>(initialReplayMeta);
+  const [replayMeta, setReplayMeta] = useState<ReplayMetaPack>(initialReplayMeta);
   const [feed, setFeed] = useState<LiveFeedState>({
     loading: false,
     connected: false,
@@ -347,7 +384,7 @@ export function LiveRouteClient({
       try {
         const [nextSummary, nextReplayMeta, nextReplayLaps] = await Promise.all([
           fetchJson<SessionSummary>(isRaceDesk ? `${buildSessionBasePath(sessionRef)}/summary.json` : buildSummaryUrl(sessionRef)),
-          fetchJson<ReplayPack>(isRaceDesk ? `${buildSessionBasePath(sessionRef)}/replay.meta.json` : buildReplayMetaUrl(sessionRef)),
+          fetchJson<unknown>(isRaceDesk ? `${buildSessionBasePath(sessionRef)}/replay.meta.json` : buildReplayMetaUrl(sessionRef)).then(validateReplayMeta),
           fetchJson<ReplayLap[]>(buildReplayLapsUrl(sessionRef)).catch(() => []),
         ]);
 
@@ -393,25 +430,17 @@ export function LiveRouteClient({
 
     async function startStaticSimulation() {
       try {
-        const [replay, raceControlPack] = await Promise.all([
-          fetchJson<ReplayPack>(isRaceDesk ? `${buildSessionBasePath(sessionRef)}/replay.json` : buildReplayFullUrl(sessionRef)),
-          fetchJson<ReplayRaceControlMessage[]>(buildReplayRaceControlUrl(sessionRef)).catch(() => null),
-        ]);
+        const { replay, raceControlMessages: raceControlPack } = await loadStaticReplay(sessionRef, isRaceDesk);
         if (cancelled) {
           return;
         }
 
-        setReplayMeta((previous) => ({
-          ...previous,
-          laps: replay.laps,
-          totalLaps: replay.totalLaps ?? previous.totalLaps,
-          fastestLap: replay.fastestLap ?? previous.fastestLap,
-        }));
+        setReplayMeta(replay);
 
         const frames = replay.frames;
         const raceControlMessages = normalizeRaceControlMessages(
-          raceControlPack ?? replay.raceControlMessages ?? [],
-          replay.totalTime ?? frames.at(-1)?.t ?? 0,
+          raceControlPack,
+          replay.totalTime,
         );
         let index = 0;
         let rcIndex = 0;
@@ -570,7 +599,7 @@ export function LiveRouteClient({
       closeTimer();
       socket?.close();
     };
-  }, [activeSession, apiOrigin, closeTimer, delaySeconds, isRaceDesk, speed]);
+  }, [activeSession, apiOrigin, closeTimer, delaySeconds, isRaceDesk, reloadKey, speed]);
 
   // Tick the displayed frame age (used in the Feed tile) once per second.
   useEffect(() => {

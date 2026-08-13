@@ -1,7 +1,11 @@
-import { ReplayFrameChunkSchema } from "@f1-racing/schemas";
-import type { ReplayFrameChunk, ReplayPack } from "@/lib/data";
+import { ReplayFrameChunkSchema, ReplayMetaSchema } from "@f1-racing/schemas";
+import type { ReplayFrameChunk, ReplayMetaPack } from "@/lib/data";
 
-type ReplayChunkEntry = NonNullable<ReplayPack["frameChunkIndex"]>[number];
+type ReplayChunkEntry = ReplayMetaPack["frameChunkIndex"][number];
+
+export function validateReplayMeta(payload: unknown): ReplayMetaPack {
+  return ReplayMetaSchema.parse(payload) as ReplayMetaPack;
+}
 
 export const FULL_RACE_CHUNK_CONCURRENCY = 4;
 
