@@ -109,11 +109,16 @@ This works well because the app is already configured for static export.
 After Pages finishes, open and test:
 
 - `/`
-- `/sessions`
-- `/sessions/2025/australian-grand-prix/qualifying`
-- `/compare/2025/australian-grand-prix/qualifying/NOR/PIA`
-- `/cars/current-spec`
-- `/sims/wind`
+- `/replay/`
+- `/replay/2025/australian-grand-prix/qualifying/`
+- `/replay/2025/australian-grand-prix/qualifying/?tab=compare&drivers=NOR,PIA#analysis`
+- `/compare/`
+- `/stints/`
+- `/race-desk/`
+- `/cars/current-spec/`
+- `/learn/`
+- `/sessions` as a permanent compatibility redirect to `/replay`
+- `/live` as a permanent compatibility redirect to `/race-desk`
 
 Check especially:
 

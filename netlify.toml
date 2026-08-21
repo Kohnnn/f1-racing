@@ -8,6 +8,18 @@ NODE_VERSION = "22"
 NETLIFY_NEXT_PLUGIN_SKIP = "true"
 
 [[redirects]]
+from = "/sessions"
+to = "/replay"
+status = 301
+force = true
+
+[[redirects]]
+from = "/sessions/*"
+to = "/replay/:splat"
+status = 301
+force = true
+
+[[redirects]]
 from = "/live"
 to = "/race-desk"
 status = 301

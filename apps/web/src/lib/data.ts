@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { ReplayFrameChunkSchema, ReplayMetaSchema } from "@f1-racing/schemas";
+import { z } from "zod";
 
 export interface SessionRef {
   season: number;
@@ -18,6 +19,68 @@ export interface LatestManifest {
   seasons: number[];
   latest: SessionRef | null;
 }
+
+const EvidenceBriefIdSchema = z.enum(["monza-braking", "mexico-aero", "zandvoort-strategy-tyres"]);
+const EvidenceBriefHandoffSchema = z.object({
+  kind: z.enum(["replay", "learn", "modelview"]),
+  href: z.string().min(1),
+});
+const EvidenceBriefClaimSchema = z.object({
+  id: z.string().min(1),
+  class: z.enum(["Recorded", "Derived", "Unknown"]),
+  statement: z.string().min(1),
+  coverage: z.string().min(1),
+  uncertainty: z.string().min(1),
+});
+const EvidenceBriefSchema = z.object({
+  id: EvidenceBriefIdSchema,
+  title: z.string().min(1),
+  subsystem: z.array(z.string().min(1)).min(1),
+  question: z.string().min(1),
+  learningOutcome: z.string().min(1),
+  handoffs: z.array(EvidenceBriefHandoffSchema).min(3),
+  evidence: z.array(EvidenceBriefClaimSchema).min(3),
+  prohibitedConclusions: z.array(z.string().min(1)).min(1),
+});
+const EvidenceBriefHandoffs = {
+  "monza-braking": [
+    { kind: "replay", href: "/replay/2025/italian-grand-prix/qualifying?tab=compare&drivers=VER,NOR#analysis" },
+    { kind: "learn", href: "/learn/braking" },
+    { kind: "modelview", href: "/cars/current-spec?focus=brakes" },
+  ],
+  "mexico-aero": [
+    { kind: "replay", href: "/replay/2025/mexico-city-grand-prix/race?tab=compare&drivers=NOR,LEC#analysis" },
+    { kind: "learn", href: "/learn/aero" },
+    { kind: "modelview", href: "/cars/current-spec?focus=rear-wing" },
+  ],
+  "zandvoort-strategy-tyres": [
+    { kind: "replay", href: "/replay/2025/dutch-grand-prix/race?tab=racecontrol#analysis" },
+    { kind: "learn", href: "/learn/strategy" },
+    { kind: "learn", href: "/learn/tyres" },
+    { kind: "modelview", href: "/cars/current-spec?focus=tyres" },
+  ],
+} as const;
+const EvidenceBriefIndexSchema = z.object({
+  version: z.literal(1),
+  templateVersion: z.literal("evidence-brief-v1"),
+  briefs: z.array(EvidenceBriefSchema).length(3),
+}).superRefine((value, context) => {
+  const expected = EvidenceBriefIdSchema.options;
+  if (value.briefs.some((brief, index) => brief.id !== expected[index])) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ["briefs"], message: "Evidence briefs are not in canonical order." });
+  }
+  for (const [index, brief] of value.briefs.entries()) {
+    if (JSON.stringify(brief.handoffs) !== JSON.stringify(EvidenceBriefHandoffs[brief.id])) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ["briefs", index, "handoffs"], message: "Evidence brief handoffs are not approved." });
+    }
+  }
+});
+
+export type EvidenceBriefId = z.infer<typeof EvidenceBriefIdSchema>;
+export type EvidenceBriefHandoff = z.infer<typeof EvidenceBriefHandoffSchema>;
+export type EvidenceBriefClaim = z.infer<typeof EvidenceBriefClaimSchema>;
+export type EvidenceBrief = z.infer<typeof EvidenceBriefSchema>;
+export type EvidenceBriefIndex = z.infer<typeof EvidenceBriefIndexSchema>;
 
 export interface SeasonIndex {
   generatedAt: string;
@@ -419,6 +482,10 @@ export function sessionBasePath(season: number | string, grandPrix: string, sess
 
 export async function getLatestManifest() {
   return readJson<LatestManifest>(path.join("manifests", "latest.json"));
+}
+
+export async function getEvidenceBriefIndex() {
+  return EvidenceBriefIndexSchema.parse(await readJson<unknown>(path.join("briefs", "index.json")));
 }
 
 export async function getSeasonIndex() {

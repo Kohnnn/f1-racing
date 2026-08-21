@@ -196,6 +196,11 @@ export function TrackCanvas({
   );
 
   useEffect(() => {
+    const canvas = canvasRef.current;
+    if (canvas) canvas.dataset.viewTransform = "0,0,1,0";
+  }, []);
+
+  useEffect(() => {
     const node = containerRef.current;
     if (!node || typeof ResizeObserver === "undefined") return;
     const ro = new ResizeObserver((entries) => {
@@ -622,6 +627,7 @@ export function TrackCanvas({
     if (interaction.mode === "pan" && interaction.pointerId === event.pointerId) {
       transformRef.current.tx = interaction.startTx + (x - interaction.startX);
       transformRef.current.ty = interaction.startTy + (y - interaction.startY);
+      syncTransformAttributes();
     } else if (interaction.mode === "rotate" && interaction.pointerId === event.pointerId) {
       const cx = rect.width * 0.5;
       const cy = rect.height * 0.5;
@@ -631,6 +637,7 @@ export function TrackCanvas({
       if (nextRot > ROT_LIMIT) nextRot = ROT_LIMIT;
       if (nextRot < -ROT_LIMIT) nextRot = -ROT_LIMIT;
       transformRef.current.rot = nextRot;
+      syncTransformAttributes();
     }
   }
 
@@ -670,10 +677,19 @@ export function TrackCanvas({
     t.tx -= ax * (ratio - 1);
     t.ty -= ay * (ratio - 1);
     t.scale = nextScale;
+    syncTransformAttributes();
+  }
+
+  function syncTransformAttributes() {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const transform = transformRef.current;
+    canvas.dataset.viewTransform = `${transform.tx},${transform.ty},${transform.scale},${transform.rot}`;
   }
 
   function resetTransform() {
     transformRef.current = { tx: 0, ty: 0, scale: 1, rot: 0 };
+    syncTransformAttributes();
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLCanvasElement>) {
@@ -687,6 +703,7 @@ export function TrackCanvas({
     else if (event.key === "-") transform.scale = Math.max(MIN_SCALE, transform.scale / 1.15);
     else if (event.key === "0") resetTransform();
     else return;
+    syncTransformAttributes();
     event.preventDefault();
   }
 

@@ -57,12 +57,12 @@ But they should not depend on live telemetry to function.
 
 Telemetry-first views using precomputed OpenF1 packs.
 
-Recommended routes:
+Current routes:
 
-- `/sessions/[season]/[grand-prix]/[session]`
-- `/compare/[session]/[drivers]`
-- `/stints/[session]`
-- `/replay/[session]`
+- `/replay/[season]/[grand-prix]/[session]` — canonical evidence workspace
+- `/compare/[season]/[grand-prix]/[session]/[left]/[right]` — supporting lap-compare deep link
+- `/stints/[season]/[grand-prix]/[session]` — supporting stint-story deep link
+- `/sessions/[season]/[grand-prix]/[session]` — compatibility redirect to the matching Replay route
 
 These routes should focus on:
 
@@ -235,13 +235,13 @@ The app should read:
 
 Owns the user-facing app.
 
-Subareas should eventually include:
+Subareas include:
 
 - `src/app/learn/`
-- `src/app/sessions/`
+- `src/app/replay/`
 - `src/app/compare/`
 - `src/app/stints/`
-- `src/app/replay/`
+- `src/app/sessions/` for compatibility redirects only
 - `src/app/cars/`
 - `src/app/sims/`
 
@@ -291,10 +291,10 @@ Instead, split it into reusable conceptual modules.
 
 ### Data module mapping
 
-- track compare concepts -> `/compare/...`
-- lap builder concepts -> `/compare/...` and `/sessions/...`
-- stint / weather / pit ideas -> `/stints/...`
-- racecraft -> `/replay/...` or compare overlays
+- track compare concepts -> Replay Compare workspace and `/compare/...` deep links
+- lap builder concepts -> Replay Compare workspace
+- stint / weather / pit ideas -> Replay Stints workspace and `/stints/...` deep links
+- racecraft -> `/replay/...`
 
 ## `model-viewer` plan
 

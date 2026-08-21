@@ -3,6 +3,7 @@
 import { createElement, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { CarModelCatalog } from "@/lib/data";
+import { saveActiveModelviewHrefInBrowser } from "@/lib/learning-trail";
 import { ensureModelViewerLoaded } from "@/lib/model-viewer-loader";
 import { focusPoints, getFocusPoint } from "./focus-points";
 import { CanvasWindTunnel } from "@/components/wind/canvas-wind-tunnel";
@@ -116,19 +117,15 @@ const CAMERA_PRESETS = [
 ] as const;
 
 function writeSelectionToUrl(season: number, constructorSlug: string, focusId: string | null = null) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
+  if (typeof window === "undefined") return;
   const url = new URL(window.location.href);
   url.searchParams.set("season", String(season));
   url.searchParams.set("constructor", constructorSlug);
-  if (focusId) {
-    url.searchParams.set("focus", focusId);
-  } else {
-    url.searchParams.delete("focus");
-  }
-  window.history.replaceState({}, "", url);
+  if (focusId) url.searchParams.set("focus", focusId);
+  else url.searchParams.delete("focus");
+  const href = `${url.pathname}${url.search}`;
+  window.history.replaceState({}, "", href);
+  saveActiveModelviewHrefInBrowser(href);
 }
 
 export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserProps) {

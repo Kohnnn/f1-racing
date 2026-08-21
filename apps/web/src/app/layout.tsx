@@ -43,6 +43,11 @@ export default function RootLayout({ children }: { children: ReactNode }) {
             <SiteNav />
           </header>
           <main id="top">{children}</main>
+          <footer>
+            <nav aria-label="Legal">
+              <a href="/privacy">Privacy</a>
+            </nav>
+          </footer>
         </div>
         <a href="#top" className="scroll-to-top" aria-label="Scroll to top">↑</a>
       </body>

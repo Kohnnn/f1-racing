@@ -90,6 +90,29 @@ async function readJson(filePath) {
 await access(outRoot);
 const liveRedirectOutput = await readFile(path.join(outRoot, "live", "index.html"), "utf-8");
 assert.match(liveRedirectOutput, /race-desk/, "Static /live output does not redirect to /race-desk.");
+const sessionsRedirectOutput = await readFile(path.join(outRoot, "sessions", "index.html"), "utf-8");
+assert.match(sessionsRedirectOutput, /replay/, "Static /sessions output does not redirect to /replay.");
+const seasonIndex = await readJson(path.join(publicRoot, "data", "manifests", "seasons.json"));
+assert.ok(Array.isArray(seasonIndex?.seasons) && seasonIndex.seasons.every((season) => Array.isArray(season?.grandsPrix) && season.grandsPrix.every((grandPrix) => Array.isArray(grandPrix?.sessions))), "Season index must expose seasons[].grandsPrix[].sessions[].");
+const legacySession = seasonIndex.seasons.flatMap((season) => season.grandsPrix.flatMap((grandPrix) => grandPrix.sessions))[0] ?? null;
+const legacySessionPath = legacySession ? `${legacySession.season}/${legacySession.grandPrixSlug}/${legacySession.sessionSlug}` : null;
+if (legacySessionPath) {
+  const sessionDetailRedirectOutput = await readFile(path.join(outRoot, "sessions", legacySessionPath, "index.html"), "utf-8");
+  assert.ok(sessionDetailRedirectOutput.includes(`/replay/${legacySessionPath}`), "Static session detail does not redirect to its matching Replay route.");
+}
+const sitemapOutput = await readFile(path.join(outRoot, "sitemap.xml"), "utf-8");
+assert.doesNotMatch(sitemapOutput, /<loc>[^<]*\/sessions(?:\/|<)/, "Sitemap publishes legacy Sessions URLs.");
+const homeOutput = await readFile(path.join(outRoot, "index.html"), "utf-8");
+const privacyOutput = await readFile(path.join(outRoot, "privacy", "index.html"), "utf-8");
+assert.match(homeOutput, /href="\/privacy"/, "Global footer does not link to /privacy.");
+assert.match(privacyOutput, /Netlify Web Analytics/, "Privacy route does not disclose Netlify aggregate reports.");
+assert.match(privacyOutput, /not measured/, "Privacy route does not disclose unmeasured outcomes.");
+const analyticsClient = await findFile(outRoot, async (filePath) => {
+  if (!/\.(?:html|js)$/.test(filePath)) return false;
+  const source = await readFile(filePath, "utf-8");
+  return /google-analytics\.com|googletagmanager\.com|plausible\.io|cdn\.segment\.com|app\.posthog\.com|clarity\.ms/i.test(source);
+});
+assert.equal(analyticsClient, null, `Static output includes an analytics client: ${analyticsClient}`);
 const latestManifestPath = path.join(publicRoot, "data", "manifests", "latest.json");
 const latestManifest = await readJson(latestManifestPath);
 const latestReplayPath = latestManifest.latest?.path.replace(/^\/sessions\//, "/replay/") ?? null;
@@ -203,6 +226,9 @@ try {
     "/cars/current-spec/",
     "/replay/",
     "/race-desk/",
+    "/privacy/",
+    "/sessions/",
+    legacySessionPath ? `/sessions/${legacySessionPath}/` : null,
     latestReplayPath,
     "/data/manifests/latest.json",
     ...latestReplayDataPaths,

@@ -36,15 +36,28 @@ npm run smoke:static
 
 ## Candidate release gate
 
-`npm run release:artifact` creates a fresh marker-owned directory under the OS temporary directory. It copies the canonical and public projections, audits the data, runs `quality`, `check:featured`, an isolated build, and static smoke against that same candidate, then writes a deterministic sorted SHA-256 manifest for the complete built `apps/web/out` release unit. It never accepts or removes an operator-selected staging path. A failed candidate is retained at the printed path for diagnosis; promoted canonical, public, and build trees remain unchanged.
+`npm run release:artifact` requires Node.js 22 and a clean worktree. It rejects `F1_CANDIDATE_ROOT` and `--candidate-root`, creates a fresh marker-owned directory under the OS temporary directory, copies the canonical and public projections, and binds the build to the clean 40-character source commit. It audits the data, runs `quality`, `check:featured`, isolated Python compilation, one build, and static smoke against that candidate, then writes a deterministic sorted SHA-256 manifest for the complete built release unit. A failed candidate is retained at the printed path; promoted canonical, public, and build trees remain unchanged.
+
+Install the three required Playwright engines once:
+
+```bash
+npx playwright install chromium firefox webkit
+```
+
+Run the release regressions, create one candidate, and set the printed path for every later gate:
 
 ```bash
 npm run test:release-data
 npm run test:release-data:e2e
+npm run test:release-gates
 npm run release:artifact
 set F1_CANDIDATE_ROOT=<candidate-path-printed-by-release-artifact>
 npm run release:data
+npm run release:security
+npm run release:browser
 ```
+
+`release-manifest.json` records the source-bound `releaseId`, byte-only `assetReleaseId`, source commit, generated timestamp, canonical hostname, sorted artifact hashes, MIME types, cache policies, counts, measurements, provenance, and freshness. `release-record.json` remains outside the deployed output and identifies the unpromoted candidate. Every browser, security, and parity invocation writes immutable passing or failing evidence under `%F1_CANDIDATE_ROOT%\evidence\<releaseId>\<gate>\sha256-<evidence-digest>\`, including `report.json` and `evidence-index.json`; the index is re-audited after finalization.
 
 Current production packs predate the complete-pack provenance contract. `release:artifact` therefore fails until each publicly indexed session has normalized results and weather artifacts plus `release/provenance-ledger.json` coverage with terminal completion, UTC source/retrieval/generated fields, approved rights status and reference, source-response digests, complete coverage counts, and SHA-256 entries for every required file. Missing values remain missing; the gate does not synthesize them. Candidate-aware quality, featured-data, build, and smoke commands read only the candidate inputs and built output.
 
@@ -86,6 +99,18 @@ NODE_VERSION = "22"
 NETLIFY_NEXT_PLUGIN_SKIP = "true"
 
 [[redirects]]
+from = "/sessions"
+to = "/replay"
+status = 301
+force = true
+
+[[redirects]]
+from = "/sessions/*"
+to = "/replay/:splat"
+status = 301
+force = true
+
+[[redirects]]
 from = "/live"
 to = "/race-desk"
 status = 301
@@ -96,28 +121,57 @@ Set any public API origin in the Netlify deployment environment. Do not add priv
 
 ## Authentication and site linkage
 
-Check the active Netlify account without copying credentials into commands:
+Check the active Netlify account and linked project from `apps/web` without copying credentials into commands:
 
 ```bash
+cd apps\web
 npx netlify status
+cd ..\..
 ```
 
-Confirm the linked site is `https://f1-demo.netlify.app` before deployment. If local linkage is absent or stale, link the site interactively or pass the verified site ID from the Netlify dashboard.
+The linked project must be `https://f1-demo.netlify.app` with site ID `d783914b-0638-46bc-ae4b-371b66cca51e`. The repository root is not linked, so every deploy command below also passes that fixed site ID explicitly.
 
 Do not use credentials found in repository `.env` files. Revoke and rotate any exposed token in Netlify before deploying.
 
-## Production deploy
+## Immutable preview and production deploy
 
 Automatic Netlify source builds are intentionally disabled because `data/packs/seasons/` and its public mirror are generated, gitignored release inputs. Keep GitHub push webhooks and Netlify build hooks unconfigured; `[build].ignore` does not stop build-hook deploys. A source-only Netlify checkout cannot pass `check:featured`; do not weaken that gate or ingest remote telemetry during deployment.
 
-After authentication, linkage, candidate audit, and smoke tests pass:
+After authentication, linkage, and all local candidate gates pass, upload the exact candidate as a draft deploy without rebuilding:
 
 ```bash
-npx netlify deploy --prod --no-build --dir "%F1_CANDIDATE_ROOT%\apps\web\out"
-set F1_CANDIDATE_ROOT=
+npx netlify deploy --site d783914b-0638-46bc-ae4b-371b66cca51e --no-build --json --dir "%F1_CANDIDATE_ROOT%\apps\web\out"
 ```
 
-The deploy must publish the exact candidate artifact printed by `release:artifact`, without rebuilding or substituting workspace `apps/web/out`.
+Record the returned `site_id`, `deploy_id`, and immutable `deploy_url`. The deploy ID must be 24 lowercase hexadecimal characters, the site ID must be `d783914b-0638-46bc-ae4b-371b66cca51e`, and the immutable origin must match `https://<deploy-id>--f1-demo.netlify.app`. Run all remote preview gates against that origin:
+
+```bash
+npm run release:parity -- https://<deploy-id>--f1-demo.netlify.app
+npm run release:security -- https://<deploy-id>--f1-demo.netlify.app
+npm run release:browser -- https://<deploy-id>--f1-demo.netlify.app
+```
+
+Only after those gates pass and the named release operator approves the evidence, publish that named atomic deploy without rebuilding or re-uploading:
+
+```bash
+npx netlify api restoreSiteDeploy --data "{\"site_id\":\"d783914b-0638-46bc-ae4b-371b66cca51e\",\"deploy_id\":\"<verified-preview-deploy-id>\"}"
+```
+
+The command is production-changing. Confirm the deploy ID and evidence path before running it. Record the returned deployment metadata and verify the canonical site names that deploy as its current production deployment. The repository does not yet write promotion data back into `release-record.json`; preserve the command output and gate evidence externally.
+
+Bind canonical production to the verified immutable permalink:
+
+```bash
+npm run release:parity -- https://f1-demo.netlify.app --deploy-permalink https://<verified-preview-deploy-id>--f1-demo.netlify.app
+npm run release:security -- https://f1-demo.netlify.app
+npm run release:browser -- https://f1-demo.netlify.app
+```
+
+Canonical parity queries Netlify deployment metadata and requires the expected site, production context, ready state, non-draft deploy, canonical alias, publication timestamp, and matching immutable permalink. It compares the candidate manifest byte-for-byte at both origins, samples critical artifact hashes, MIME types, and cache policies, and verifies permanent query-preserving `/live` and `/sessions` redirects. Preserve every evidence path before clearing the candidate variable:
+
+```bash
+set F1_CANDIDATE_ROOT=
+```
 
 ## Production smoke test
 
@@ -138,4 +192,14 @@ After deployment, verify:
 
 ## Rollback
 
-Use Netlify Deploys to republish the previous known-good production deploy. Do not rebuild during rollback; restoring the immutable prior artifact reduces variables.
+Before promotion, record a retained previous production deploy's deploy ID, immutable permalink, `releaseId`, manifest SHA-256, featured-session state, and passing evidence paths. Verify the permalink is still available under Netlify's configured retention window. Default deploy retention may be only 30 days, so the required provider rollback window plus 30 days must be confirmed rather than assumed.
+
+To restore that exact atomic deploy, either use **Publish Deploy** on its Netlify deploy-detail page or run the named-deploy API operation from the linked site:
+
+```bash
+npx netlify api restoreSiteDeploy --data "{\"site_id\":\"d783914b-0638-46bc-ae4b-371b66cca51e\",\"deploy_id\":\"<retained-deploy-id>\"}"
+```
+
+This is a production-changing operation. Confirm the deploy ID and retained evidence before running it. Do not use `rollbackSiteDeploy` for a controlled drill because it does not name the target deploy.
+
+After restoration, rerun canonical parity with the retained immutable permalink, then canonical security and browser gates. Record reason, operator, UTC time, restored release/deploy identities, featured state, and all new evidence paths. No retained previous release or executed rollback drill has been proven for the current baseline; ticket 25 remains blocked until both exist.

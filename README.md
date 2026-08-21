@@ -22,7 +22,7 @@ Implemented now:
 
 - Next.js 15 static-export app in `apps/web`
 - replay-first landing page with a poster-first optional 3D stage
-- sessions index and session detail pages backed by generated manifests
+- compatibility redirects from legacy Sessions URLs into canonical Replay routes
 - Compare and Stints indexes that deep-link into Replay analysis
 - guided replay workspace with provenance, completeness, telemetry, strategy, and race-control views
 - standalone compare and stint detail routes backed by static packs
@@ -44,8 +44,7 @@ Those materials are now archived under `docs/archived/flow-2p5d/`.
 - `/cars/current-spec` - `model-viewer` car surface
 - `/replay` - replay index
 - `/replay/2026/miami-grand-prix/race` - featured replay selected by the current manifest
-- `/sessions` - static session explorer
-- `/sessions/2026/miami-grand-prix/race` - featured session summary
+- `/sessions` and `/sessions/...` - compatibility redirects to matching Replay routes
 - `/compare` - sessions with lap-compare packs
 - `/stints` - sessions with stint packs
 - `/learn` - learn surface overview

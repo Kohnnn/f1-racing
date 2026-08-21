@@ -1,38 +1,86 @@
-import { getLatestManifest } from "@/lib/data";
 import { getCircuitArt } from "@/lib/art";
+import {
+  getEvidenceBriefIndex,
+  getLatestManifest,
+  type EvidenceBrief,
+  type EvidenceBriefHandoff,
+} from "@/lib/data";
+import { DashboardHandoff } from "@/components/story/dashboard-handoff";
+import { LearningTrail } from "@/components/story/learning-trail";
+import type { LearningTrailInput, LearnModuleId } from "@/lib/learning-trail";
 
 export const metadata = {
   title: {
     absolute: "F1 Racing — Engineering Dashboard",
   },
   description: "Learn one Formula 1 engineering subsystem through recorded race evidence.",
+  alternates: {
+    canonical: "/",
+  },
 };
 
-const featuredBrief = {
-  title: "Braking zone versus exit",
-  question: "On two Monza qualifying laps, where does VER gain or lose time to NOR — and what can the recorded traces establish?",
-  replayHref: "/replay/2025/italian-grand-prix/qualifying?tab=compare&drivers=VER,NOR#analysis",
-  learnHref: "/learn/braking",
-  modelHref: "/cars/current-spec?focus=brakes",
-};
+function handoffLabel(handoff: EvidenceBriefHandoff) {
+  if (handoff.kind === "replay") return "Open recorded evidence";
+  if (handoff.kind === "modelview") return "Inspect orientation in Modelview";
+  return `Read ${handoff.href.slice("/learn/".length)}`;
+}
 
-const nextBriefs = [
-  {
-    title: "Whole-lap advantage without a magic corner",
-    label: "Mexico City · Aero",
-    summary: "Read a faster lap in every sector without claiming an unmeasured setup or rear-wing cause.",
-    href: "/replay/2025/mexico-city-grand-prix/race?tab=compare&drivers=NOR,LEC#analysis",
-  },
-  {
-    title: "A safety-car interruption changes the question",
-    label: "Zandvoort · Strategy and tyres",
-    summary: "Use the recorded control timeline to decide when raw pace comparison must stop.",
-    href: "/replay/2025/dutch-grand-prix/race?tab=racecontrol#analysis",
-  },
-] as const;
+function trailForHandoff(brief: EvidenceBrief, activeHandoff: EvidenceBriefHandoff): LearningTrailInput {
+  const learnHref = activeHandoff.kind === "learn"
+    ? activeHandoff.href
+    : brief.handoffs.find(({ kind }) => kind === "learn")?.href;
+  const replayHref = brief.handoffs.find(({ kind }) => kind === "replay")?.href;
+  const modelviewHref = brief.handoffs.find(({ kind }) => kind === "modelview")?.href;
+  if (!learnHref) throw new Error(`Evidence brief ${brief.id} has no Learn handoff.`);
+  return {
+    briefId: brief.id,
+    learn: { slug: learnHref.slice("/learn/".length) as LearnModuleId },
+    ...(replayHref ? { replayHref } : {}),
+    ...(modelviewHref ? { modelviewHref } : {}),
+  };
+}
+
+function EvidenceClaims({ brief, compact = false }: { brief: EvidenceBrief; compact?: boolean }) {
+  return (
+    <>
+      <dl className={`dashboard-evidence${compact ? " dashboard-evidence--compact" : ""}`}>
+        {brief.evidence.map((claim) => (
+          <div data-claim-class={claim.class} key={claim.id}>
+            <dt>{claim.class}</dt>
+            <dd>{claim.statement}</dd>
+            <dd className="dashboard-evidence__scope">{claim.coverage} Limit: {claim.uncertainty}</dd>
+          </div>
+        ))}
+      </dl>
+      <div className="dashboard-prohibited">
+        <strong>Do not conclude</strong>
+        <ul>{brief.prohibitedConclusions.map((conclusion) => <li key={conclusion}>{conclusion}</li>)}</ul>
+      </div>
+    </>
+  );
+}
+
+function BriefActions({ brief, compact = false }: { brief: EvidenceBrief; compact?: boolean }) {
+  return (
+    <div className="dashboard-actions">
+      {brief.handoffs.map((handoff, index) => (
+        <DashboardHandoff
+          className={index === 0 ? "button" : compact ? "dashboard-text-link" : "button button--secondary"}
+          href={handoff.href}
+          key={`${handoff.kind}:${handoff.href}`}
+          trail={trailForHandoff(brief, handoff)}
+        >
+          {handoffLabel(handoff)}
+        </DashboardHandoff>
+      ))}
+    </div>
+  );
+}
 
 export default async function HomePage() {
-  const manifest = await getLatestManifest();
+  const [manifest, briefIndex] = await Promise.all([getLatestManifest(), getEvidenceBriefIndex()]);
+  const [featuredBrief, ...nextBriefs] = briefIndex.briefs;
+  if (!featuredBrief) throw new Error("No generated evidence briefs.");
   const monzaArt = getCircuitArt("monza");
   const latestReplayHref = manifest.latest
     ? manifest.latest.path.replace(/^\/sessions\//, "/replay/")
@@ -50,30 +98,14 @@ export default async function HomePage() {
         </p>
       </section>
 
-      <section className="dashboard-feature" aria-labelledby="featured-brief-title">
+      <section className="dashboard-feature" id={`brief-${featuredBrief.id}`} aria-labelledby="featured-brief-title">
         <div className="dashboard-feature__main">
-          <p className="dashboard-label">Featured brief · Monza qualifying</p>
+          <p className="dashboard-label">Featured subsystem · {featuredBrief.subsystem.join(" and ")}</p>
           <h2 id="featured-brief-title">{featuredBrief.title}</h2>
           <p className="dashboard-feature__question">{featuredBrief.question}</p>
-          <dl className="dashboard-evidence">
-            <div>
-              <dt>Recorded</dt>
-              <dd>VER lap 17 and NOR lap 20, sector deltas, sampled brake, speed, gear, throttle, and DRS traces.</dd>
-            </div>
-            <div>
-              <dt>Derived</dt>
-              <dd>Brake-onset, minimum-speed, and throttle-pickup annotations from the sampled traces.</dd>
-            </div>
-            <div>
-              <dt>Unknown</dt>
-              <dd>Brake balance, temperature, energy recovery, line choice, and the literal braking point.</dd>
-            </div>
-          </dl>
-          <div className="dashboard-actions">
-            <a className="button" href={featuredBrief.replayHref}>Open recorded evidence</a>
-            <a className="button button--secondary" href={featuredBrief.learnHref}>Read braking</a>
-            <a className="dashboard-text-link" href={featuredBrief.modelHref}>Inspect brake hardware in Modelview</a>
-          </div>
+          <p className="dashboard-learning-outcome"><strong>Learning outcome:</strong> {featuredBrief.learningOutcome}</p>
+          <EvidenceClaims brief={featuredBrief} />
+          <BriefActions brief={featuredBrief} />
         </div>
 
         <aside className="dashboard-feature__rail" aria-label="Featured brief route">
@@ -82,7 +114,7 @@ export default async function HomePage() {
             <span>Evidence route</span>
             <strong>Replay → Learn → evidence ceiling</strong>
           </div>
-          <p>Start with the comparison trace. Move to the Braking module only after naming what the trace does and does not show.</p>
+          <p>Start with the comparison trace. Move to the explanation only after naming what the trace does and does not show.</p>
         </aside>
       </section>
 
@@ -97,21 +129,22 @@ export default async function HomePage() {
           </div>
           <div className="dashboard-brief-list">
             {nextBriefs.map((brief) => (
-              <a className="dashboard-brief" href={brief.href} key={brief.title}>
-                <span>{brief.label}</span>
-                <strong>{brief.title}</strong>
-                <p>{brief.summary}</p>
-                <em>Open Replay evidence</em>
-              </a>
+              <article className="dashboard-brief" id={`brief-${brief.id}`} key={brief.id}>
+                <p className="dashboard-label">{brief.subsystem.join(" and ")}</p>
+                <div className="dashboard-brief__body">
+                  <h3>{brief.title}</h3>
+                  <p>{brief.question}</p>
+                  <p className="dashboard-learning-outcome"><strong>Learning outcome:</strong> {brief.learningOutcome}</p>
+                  <EvidenceClaims brief={brief} compact />
+                  <BriefActions brief={brief} compact />
+                </div>
+              </article>
             ))}
           </div>
         </div>
 
-        <aside className="dashboard-trail" aria-labelledby="learning-trail-title">
-          <p className="eyebrow">Related explanation</p>
-          <h2 id="learning-trail-title">Understand the mechanism.</h2>
-          <p>The Braking module explains the control and energy tradeoffs behind the recorded comparison.</p>
-          <a className="button button--secondary" href="/learn/braking">Open Braking</a>
+        <aside className="dashboard-trail" aria-label="Browser-local learning trail">
+          <LearningTrail />
         </aside>
       </section>
 
@@ -127,7 +160,7 @@ export default async function HomePage() {
           <a href={latestReplayHref}><span>Replay</span><strong>{manifest.latest ? "Recorded session workspace" : "Historical Replay library"}</strong></a>
           <a href="/learn"><span>Learn</span><strong>Engineering explanations</strong></a>
           <a href="/cars/current-spec"><span>Modelview</span><strong>Current-car orientation</strong></a>
-          <a className="dashboard-surface-links__historical" href="/race-desk"><span>Historical Race Desk</span><strong>Replay simulation, not live timing</strong></a>
+          <a className="dashboard-surface-links__historical" href="/race-desk"><span>Historical Race Desk</span><strong>Accelerated historical replay simulation, not live timing</strong></a>
         </div>
       </section>
     </div>

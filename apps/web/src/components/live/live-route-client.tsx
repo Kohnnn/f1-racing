@@ -870,14 +870,13 @@ export function LiveRouteClient({
         <div className="replay-session-banner__footer">
           <p className="replay-session-banner__note">
             {isRaceDesk
-              ? "Historical replay simulation · static data pack"
+              ? "Historical replay simulation — not live timing"
               : feed.isSimulated
                 ? `${feed.sourceLabel} · replay speed ${speed.toFixed(1)}x`
                 : `${feed.sourceLabel} · speed ${speed.toFixed(1)}x · displayed delay ${delaySeconds}s`}
           </p>
           <div className="replay-session-banner__actions">
             <a className="replay-session-banner__action replay-session-banner__action--primary" href={`/replay/${activeSession.season}/${activeSession.grandPrix}/${activeSession.session}`}>Open full Replay</a>
-            <a className="replay-session-banner__action" href={`/sessions/${activeSession.season}/${activeSession.grandPrix}/${activeSession.session}`}>{activeSession.grandPrixName} summary</a>
             <a className="replay-session-banner__action" href="/cars/current-spec">Modelview</a>
             <a className="replay-session-banner__action" href="/learn">Learn</a>
           </div>

@@ -67,7 +67,7 @@ export default async function LearnModulePage({ params }: LearnModulePageProps) 
         <p className="eyebrow">Learn module</p>
         <h1>{module.title}</h1>
         <p className="lead">{module.description}</p>
-        <LearnModuleProgress slug={slug} title={module.title} />
+        <LearnModuleProgress slug={module.slug} title={module.title} check={module.check} />
       </section>
 
       {embed ? (
@@ -102,7 +102,7 @@ export default async function LearnModulePage({ params }: LearnModulePageProps) 
           ))}
         </ol>
         <div className="learn-module-page__footer">
-          <LearnModuleProgress slug={slug} title={module.title} />
+          <LearnModuleProgress slug={module.slug} title={module.title} />
         </div>
       </section>
 

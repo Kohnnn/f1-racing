@@ -390,6 +390,16 @@ try {
   await page.waitForFunction(() => !new URL(window.location.href).searchParams.has("drivers"));
   assert.deepEqual(await selectedCodes(page), []);
 
+  const trackCanvas = page.getByLabel("Interactive 2D race track map");
+  await trackCanvas.focus();
+  assert.equal(await trackCanvas.getAttribute("data-view-transform"), "0,0,1,0");
+  await trackCanvas.press("ArrowRight");
+  assert.equal(await trackCanvas.getAttribute("data-view-transform"), "-24,0,1,0");
+  await trackCanvas.press("+");
+  assert.equal(await trackCanvas.getAttribute("data-view-transform"), "-24,0,1.15,0");
+  await trackCanvas.press("0");
+  assert.equal(await trackCanvas.getAttribute("data-view-transform"), "0,0,1,0");
+
   const storyButton = page.getByRole("button", { name: "Story", exact: true });
   await storyButton.focus();
   await storyButton.press("Enter");
@@ -428,7 +438,7 @@ try {
     30_000,
   );
   await raceDeskPage.getByRole("heading", { name: "Historical replay unavailable" }).waitFor({ state: "detached", timeout: 30_000 });
-  await raceDeskPage.getByText("Historical replay simulation · static data pack", { exact: true }).waitFor({ timeout: 30_000 });
+  await raceDeskPage.getByText("Historical replay simulation — not live timing", { exact: true }).waitFor({ timeout: 30_000 });
   assert.ok(raceDeskMetaRequests >= 2, "Race Desk Retry did not reload replay metadata.");
   assert.deepEqual(raceDeskSockets, [], "Historical Race Desk opened a WebSocket.");
   assertRaceDeskClean();

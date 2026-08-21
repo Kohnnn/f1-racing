@@ -32,7 +32,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       for (const session of grandPrix.sessions) {
         const sessionPath = `${session.season}/${session.grandPrixSlug}/${session.sessionSlug}`;
         entries.push({ url: `${BASE_URL}/replay/${sessionPath}` });
-        entries.push({ url: `${BASE_URL}/sessions/${sessionPath}` });
 
         const manifest = await getSessionManifest(session.season, session.grandPrixSlug, session.sessionSlug);
         if (manifest.stints) {

@@ -5,13 +5,14 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { finalizeCandidate, normalizeReleaseTime } from "./release-artifact.mjs";
+import { assertReleaseNodeVersion, finalizeCandidate, normalizeReleaseTime } from "./release-artifact.mjs";
 import {
   assertCandidateRoot,
   auditCandidate,
   candidateMarker,
   candidatePaths,
   candidatesRoot,
+  canonicalHostname,
   selectLatestRace,
   sha256,
   summarizeArtifactMeasurements,
@@ -21,10 +22,17 @@ import {
 
 const now = Date.parse("2026-07-02T00:00:00.000Z");
 const nowText = new Date(now).toISOString();
+const candidateCommands = [
+  "npm run quality",
+  "npm run check:featured",
+  "python -m py_compile backend/main.py",
+  "npm run build",
+  "npm run smoke:static",
+];
 const candidateGateEvidence = {
   node: process.version,
   platform: `${process.platform}-${process.arch}`,
-  commands: ["quality", "check:featured", "build", "smoke:static"].map((command) => ({ command: `npm run ${command}`, status: "passed" })),
+  commands: candidateCommands.map((command) => ({ command, status: "passed" })),
 };
 const releaseDataScript = fileURLToPath(new URL("./release-data.mjs", import.meta.url));
 const releaseArtifactScript = fileURLToPath(new URL("./release-artifact.mjs", import.meta.url));
@@ -182,6 +190,7 @@ async function seedCandidate({ fullPublic = false, stale = false } = {}) {
   for (const [relativePath, value] of Object.entries(files)) await writeJson(path.join(paths.publicData, relativePath), value);
   await cp(path.join(workspaceRoot, "data", "packs", "sims"), path.join(paths.publicData, "packs", "sims"), { recursive: true });
   if (fullPublic) {
+    await cp(path.join(workspaceRoot, "apps", "web", "public", "data", "briefs"), path.join(paths.publicData, "briefs"), { recursive: true, force: true });
     for (const entry of await readdir(path.join(workspaceRoot, "apps", "web", "public"), { withFileTypes: true })) {
       if (entry.name === "data" || entry.name === "models" || entry.name === "posters") continue;
       const source = path.join(workspaceRoot, "apps", "web", "public", entry.name);
@@ -236,11 +245,11 @@ async function seedCandidate({ fullPublic = false, stale = false } = {}) {
   return root;
 }
 
-async function runProcess(args, environment = {}) {
+async function runExecutable(executable, args, environment = {}) {
   const env = { ...process.env, ...environment };
   if (!("F1_CANDIDATE_ROOT" in environment)) delete env.F1_CANDIDATE_ROOT;
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, args, { cwd: workspaceRoot, env, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(executable, args, { cwd: workspaceRoot, env, stdio: ["ignore", "pipe", "pipe"] });
     let stdout = "";
     let stderr = "";
     child.stdout.setEncoding("utf8");
@@ -250,6 +259,10 @@ async function runProcess(args, environment = {}) {
     child.once("error", reject);
     child.once("exit", (code) => resolve({ code, stdout, stderr }));
   });
+}
+
+function runProcess(args, environment = {}) {
+  return runExecutable(process.execPath, args, environment);
 }
 
 function runNode(script, args = [], environment = {}) {
@@ -302,6 +315,8 @@ async function mutateJson(filePath, mutate) {
 assert.deepEqual(normalizeReleaseTime("2026-07-02T00:00:00+00:00"), { now, generatedAt: nowText });
 assert.deepEqual(normalizeReleaseTime(undefined, now), { now, generatedAt: nowText });
 assert.throws(() => normalizeReleaseTime("not-a-date"), /Invalid --now timestamp/);
+assert.doesNotThrow(() => assertReleaseNodeVersion("22.18.0"));
+assert.throws(() => assertReleaseNodeVersion("24.1.0"), /requires Node\.js 22/);
 
 const root = await seedCandidate();
 try {
@@ -316,6 +331,8 @@ try {
   }
   assert.equal(firstManifest.measurements.removedReplayFramePayloadBytes, Buffer.byteLength(JSON.stringify(replayFrames), "utf8"));
   assert.deepEqual(firstManifest.measurements, releaseMeasurements);
+  assert.equal(firstManifest.canonicalHostname, canonicalHostname);
+  assert.equal(JSON.parse(await readFile(candidatePaths(root).releaseRecord, "utf8")).canonicalHostname, canonicalHostname);
   await finalizeCandidate(root, { sourceCommitValue: "a".repeat(40), generatedAt: "2026-07-01T01:05:00.000Z", gateEvidence: candidateGateEvidence });
   const secondManifest = JSON.parse(await readFile(candidatePaths(root).releaseManifest, "utf8"));
   assert.equal(secondManifest.releaseId, firstManifest.releaseId);
@@ -441,6 +458,10 @@ const failures = [
     await mutateJson(paths.releaseManifest, (manifest) => { manifest.assetReleaseId = `sha256-${"b".repeat(64)}`; });
     await mutateJson(paths.releaseRecord, (record) => { record.assetReleaseId = `sha256-${"b".repeat(64)}`; });
   }, /asset release ID or asset manifest SHA-256 mismatch/],
+  [async (paths) => {
+    await mutateJson(paths.releaseManifest, (manifest) => { manifest.canonicalHostname = "https://example.invalid"; });
+    await mutateJson(paths.releaseRecord, (record) => { record.canonicalHostname = "https://example.invalid"; });
+  }, /canonicalHostname must be https:\/\/f1-demo\.netlify\.app/],
 ];
 
 for (const [change, pattern] of failures) {
@@ -508,6 +529,8 @@ if (process.argv.includes("--e2e")) {
       const result = await runNpm(command, env);
       assert.equal(result.code, 0, `npm run ${command} failed:\n${result.stdout.slice(-12_000)}\n${result.stderr.slice(-12_000)}`);
     }
+    const compileResult = await runExecutable("python", ["-m", "py_compile", "backend/main.py"], { ...env, PYTHONPYCACHEPREFIX: path.join(candidate, ".pycache") });
+    assert.equal(compileResult.code, 0, `python -m py_compile backend/main.py failed:\n${compileResult.stdout.slice(-12_000)}\n${compileResult.stderr.slice(-12_000)}`);
     await finalizeCandidate(candidate, { sourceCommitValue, generatedAt: "2026-07-01T01:05:00.000Z", gateEvidence: candidateGateEvidence });
     const finalizedCandidate = await candidateSnapshot(candidate);
     await auditCandidate(candidate, { now });
@@ -528,6 +551,8 @@ if (process.argv.includes("--e2e")) {
       const result = await runNpm(command, noFeaturedEnv);
       assert.equal(result.code, 0, `no-featured npm run ${command} failed:\n${result.stdout.slice(-12_000)}\n${result.stderr.slice(-12_000)}`);
     }
+    const compileResult = await runExecutable("python", ["-m", "py_compile", "backend/main.py"], { ...noFeaturedEnv, PYTHONPYCACHEPREFIX: path.join(noFeaturedCandidate, ".pycache") });
+    assert.equal(compileResult.code, 0, `no-featured python -m py_compile backend/main.py failed:\n${compileResult.stdout.slice(-12_000)}\n${compileResult.stderr.slice(-12_000)}`);
     const result = await finalizeCandidate(noFeaturedCandidate, { sourceCommitValue, generatedAt: "2026-07-01T01:05:00.000Z", gateEvidence: candidateGateEvidence });
     assert.equal(result.manifest.data.latestPath, null);
     assert.deepEqual(result.releaseRecord.featured, { status: "none", path: null, selectedBy: ["sourceEventEndAt desc", "sessionKey desc", "path asc"] });

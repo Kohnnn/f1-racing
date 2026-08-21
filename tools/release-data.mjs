@@ -25,6 +25,7 @@ import {
 } from "../packages/schemas/src/index.js";
 
 export const workspaceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+export const canonicalHostname = "https://f1-demo.netlify.app";
 const workspaceKey = createHash("sha256").update(workspaceRoot).digest("hex").slice(0, 12);
 export const candidatesRoot = path.join(os.tmpdir(), "f1-racing-release-candidates", workspaceKey);
 export const candidateMarker = Object.freeze({ schemaVersion: 1, kind: "f1-release-candidate" });
@@ -973,6 +974,7 @@ async function auditReleaseRecord(paths, errors, now) {
   }
   if (!/^[a-f0-9]{40}$/.test(manifest.sourceCommit ?? "") || !utcTimestamp(manifest.generatedAt)) fail(errors, "release-manifest.json: sourceCommit and generatedAt are required.");
   else if (Date.parse(manifest.generatedAt) > now) fail(errors, "release-manifest.json: generatedAt is in the future.");
+  if (manifest.canonicalHostname !== canonicalHostname) fail(errors, `release-manifest.json: canonicalHostname must be ${canonicalHostname}.`);
   const expectedAssetDigest = createHash("sha256").update(`${JSON.stringify(manifest.entries)}\n`).digest("hex");
   const expectedDigest = createHash("sha256").update(`${manifest.sourceCommit}\n${JSON.stringify(manifest.entries)}\n`).digest("hex");
   if (manifest.manifestSha256 !== expectedDigest || manifest.releaseId !== `sha256-${expectedDigest}`) fail(errors, "release-manifest.json: release ID or manifest SHA-256 mismatch.");
@@ -1007,7 +1009,7 @@ async function auditReleaseRecord(paths, errors, now) {
     fail(errors, `release-manifest.json: ${error instanceof Error ? error.message : String(error)}`);
   }
   if (record.schemaVersion !== 1 || record.releaseId !== manifest.releaseId || record.assetReleaseId !== manifest.assetReleaseId || record.manifestSha256 !== manifest.manifestSha256) fail(errors, "release-record.json: release identity does not match release-manifest.json.");
-  if (record.sourceCommit !== manifest.sourceCommit || record.generatedAt !== manifest.generatedAt || record.publishedAt !== null
+  if (record.sourceCommit !== manifest.sourceCommit || record.generatedAt !== manifest.generatedAt || record.canonicalHostname !== manifest.canonicalHostname || record.publishedAt !== null
     || record.previousReleaseId !== null || record.promotion !== null) {
     fail(errors, "release-record.json: candidate source, timestamps, or unpromoted state do not match release-manifest.json.");
   }
@@ -1016,7 +1018,13 @@ async function auditReleaseRecord(paths, errors, now) {
     : { status: "none", path: null, selectedBy: ["sourceEventEndAt desc", "sessionKey desc", "path asc"] };
   if (JSON.stringify(record.featured) !== JSON.stringify(expectedFeatured)) fail(errors, "release-record.json: featured state does not match audited release data.");
   const commands = record.gateEvidence?.commands;
-  const expectedCommands = ["quality", "check:featured", "build", "smoke:static"].map((command) => ({ command: `npm run ${command}`, status: "passed" }));
+  const expectedCommands = [
+    "npm run quality",
+    "npm run check:featured",
+    "python -m py_compile backend/main.py",
+    "npm run build",
+    "npm run smoke:static",
+  ].map((command) => ({ command, status: "passed" }));
   if (!isRecord(record.gateEvidence) || typeof record.gateEvidence.node !== "string" || !record.gateEvidence.node.length
     || typeof record.gateEvidence.platform !== "string" || !record.gateEvidence.platform.length
     || JSON.stringify(commands) !== JSON.stringify(expectedCommands)) {

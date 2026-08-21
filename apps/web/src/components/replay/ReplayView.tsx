@@ -4,6 +4,7 @@ import { derivePitCycleOutcomes, formatLapTime } from "@f1-racing/telemetry-util
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ComparePack, DriverSummary, LapRecord, ReplayPack, SessionManifest, SessionSummary, StintPack, StrategyPack } from "@/lib/data";
+import { saveActiveReplayHrefInBrowser } from "@/lib/learning-trail";
 import { getFocusPoint } from "@/components/model-viewer/focus-points";
 import { Leaderboard, type ReplayLeaderboardRow } from "./Leaderboard";
 import { PlaybackControls } from "./PlaybackControls";
@@ -377,6 +378,7 @@ export function ReplayView({ replay, manifest, summary, compare, insightsReady, 
   const [queryReady, setQueryReady] = useState(false);
   const [syncWorkspaceUrl, setSyncWorkspaceUrl] = useState(false);
   const [shareStatus, setShareStatus] = useState<"idle" | "copied" | "failed">("idle");
+  const [resumeStatus, setResumeStatus] = useState("");
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1277,16 +1279,19 @@ export function ReplayView({ replay, manifest, summary, compare, insightsReady, 
     setIsPlaying(false);
   }, [findFrameIndexForTime, onEnsureTimeLoaded, syncPlaybackState, totalTime]);
 
-  const handleShareReplay = useCallback(async () => {
+  const currentEvidenceUrl = useCallback(() => {
     const url = new URL(window.location.href);
+    url.searchParams.delete("debug");
     url.searchParams.set("t", String(Math.round(playheadTimeRef.current * 10) / 10));
     url.searchParams.set("tab", analysisTab);
-    if (selectedDrivers.length) {
-      url.searchParams.set("drivers", selectedDrivers.join(","));
-    } else {
-      url.searchParams.delete("drivers");
-    }
+    if (selectedDrivers.length) url.searchParams.set("drivers", selectedDrivers.join(","));
+    else url.searchParams.delete("drivers");
     url.hash = "analysis";
+    return url;
+  }, [analysisTab, selectedDrivers]);
+
+  const handleShareReplay = useCallback(async () => {
+    const url = currentEvidenceUrl();
     window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
     setViewMode("workspace");
     setSyncWorkspaceUrl(true);
@@ -1296,7 +1301,16 @@ export function ReplayView({ replay, manifest, summary, compare, insightsReady, 
     } catch {
       setShareStatus("failed");
     }
-  }, [analysisTab, selectedDrivers]);
+  }, [currentEvidenceUrl]);
+
+  const handleSaveReplayResume = useCallback(() => {
+    const url = currentEvidenceUrl();
+    const href = `${url.pathname}${url.search}${url.hash}`;
+    window.history.replaceState({}, "", href);
+    setViewMode("workspace");
+    setSyncWorkspaceUrl(true);
+    setResumeStatus(saveActiveReplayHrefInBrowser(href) ? "Replay resume point saved in this browser." : "Open an approved Dashboard brief before saving a Replay resume point.");
+  }, [currentEvidenceUrl]);
 
   useEffect(() => {
     if (shareStatus === "idle") return;
@@ -1623,11 +1637,12 @@ export function ReplayView({ replay, manifest, summary, compare, insightsReady, 
             <button className="replay-session-banner__action replay-session-banner__action--primary" type="button" onClick={() => void handleShareReplay()}>
               {shareStatus === "copied" ? "Link copied" : shareStatus === "failed" ? "Copy failed" : "Copy evidence link"}
             </button>
+            <button className="replay-session-banner__action" type="button" onClick={handleSaveReplayResume}>Save as resume point</button>
             <a className="replay-session-banner__action" href="/replay">Replay library</a>
             <a className="replay-session-banner__action" href="/cars/current-spec">Modelview</a>
             <a className="replay-session-banner__action" href="/learn">Learn</a>
-            <a className="replay-session-banner__action" href={`/sessions/${route.season}/${route.grandPrix}/${route.session}`}>Session summary</a>
           </div>
+          <p role="status" aria-live="polite">{resumeStatus}</p>
         </div>
       </section>
 

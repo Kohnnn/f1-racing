@@ -8,6 +8,7 @@ import {
   assertCandidateRoot,
   cachePolicy,
   candidateMarker,
+  canonicalHostname,
   candidatePaths,
   candidatesRoot,
   mimeType,
@@ -44,17 +45,29 @@ export function normalizeReleaseTime(value, fallbackNow = Date.now()) {
   return { now, generatedAt: new Date(now).toISOString() };
 }
 
-function runNpm(script, env) {
-  const npmCli = process.env.npm_execpath || path.join(path.dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js");
+export function assertReleaseNodeVersion(version = process.versions.node) {
+  if (Number(version.split(".", 1)[0]) !== 22) throw new Error(`release:artifact requires Node.js 22; received ${version}.`);
+}
+
+function run(executable, args, env, label) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [npmCli, "run", script], {
+    const child = spawn(executable, args, {
       cwd: workspaceRoot,
       env,
       stdio: "inherit",
     });
     child.once("error", reject);
-    child.once("exit", (code) => code === 0 ? resolve() : reject(new Error(`npm run ${script} exited ${code}`)));
+    child.once("exit", (code) => code === 0 ? resolve() : reject(new Error(`${label} exited ${code}`)));
   });
+}
+
+function runNpm(script, env) {
+  const npmCli = process.env.npm_execpath || path.join(path.dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js");
+  return run(process.execPath, [npmCli, "run", script], env, `npm run ${script}`);
+}
+
+function runPython(args, env) {
+  return run("python", args, env, `python ${args.join(" ")}`);
 }
 
 function gitOutput(args) {
@@ -113,6 +126,7 @@ export async function finalizeCandidate(candidateRoot, options = {}) {
     assetReleaseId,
     sourceCommit: sourceCommitValue,
     generatedAt,
+    canonicalHostname,
     manifestSha256,
     assetManifestSha256,
     fileCount: entries.length,
@@ -128,6 +142,7 @@ export async function finalizeCandidate(candidateRoot, options = {}) {
     assetReleaseId,
     sourceCommit: sourceCommitValue,
     generatedAt,
+    canonicalHostname,
     publishedAt: null,
     previousReleaseId: null,
     promotion: null,
@@ -159,15 +174,27 @@ async function main() {
   if (options["candidate-root"] || process.env.F1_CANDIDATE_ROOT) {
     throw new Error("release:artifact creates a fresh candidate path; use release:data to audit an existing candidate.");
   }
+  assertReleaseNodeVersion();
   const { now, generatedAt } = normalizeReleaseTime(options.now);
   const sourceCommitValue = await assertCleanSource();
   const paths = await createCandidate();
-  const env = { ...process.env, F1_CANDIDATE_ROOT: paths.root, F1_RELEASE_BUILD_ID: sourceCommitValue };
-  const commands = ["quality", "check:featured", "build", "smoke:static"];
+  const env = {
+    ...process.env,
+    F1_CANDIDATE_ROOT: paths.root,
+    F1_RELEASE_BUILD_ID: sourceCommitValue,
+    PYTHONPYCACHEPREFIX: path.join(paths.root, ".pycache"),
+  };
+  const commands = [
+    { command: "npm run quality", run: () => runNpm("quality", env) },
+    { command: "npm run check:featured", run: () => runNpm("check:featured", env) },
+    { command: "python -m py_compile backend/main.py", run: () => runPython(["-m", "py_compile", "backend/main.py"], env) },
+    { command: "npm run build", run: () => runNpm("build", env) },
+    { command: "npm run smoke:static", run: () => runNpm("smoke:static", env) },
+  ];
   try {
     const { auditCandidate } = await import("./release-data.mjs");
     await auditCandidate(paths.root, { requireReleaseRecord: false, now });
-    for (const command of commands) await runNpm(command, env);
+    for (const command of commands) await command.run();
     await assertCleanSource(sourceCommitValue);
     const result = await finalizeCandidate(paths.root, {
       sourceCommitValue,
@@ -175,7 +202,7 @@ async function main() {
       gateEvidence: {
         node: process.version,
         platform: `${process.platform}-${process.arch}`,
-        commands: commands.map((command) => ({ command: `npm run ${command}`, status: "passed" })),
+        commands: commands.map(({ command }) => ({ command, status: "passed" })),
       },
     });
     await auditCandidate(paths.root, { now });
