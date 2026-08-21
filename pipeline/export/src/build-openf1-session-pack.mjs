@@ -11,10 +11,13 @@ import {
   fetchWeather,
 } from "../../ingest/src/openf1-client.mjs";
 import { slugify } from "../../normalize/src/normalize-session.mjs";
+import { assertCandidateRoot } from "../../../tools/release-data.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const dataRoot = path.join(root, "data");
-const publicRoot = path.join(root, "apps", "web", "public", "data");
+const candidateRoot = process.env.F1_CANDIDATE_ROOT ? path.resolve(process.env.F1_CANDIDATE_ROOT) : null;
+const candidatePaths = candidateRoot ? await assertCandidateRoot(candidateRoot) : null;
+const dataRoot = candidatePaths?.canonicalData ?? path.join(root, "data");
+const publicRoot = candidatePaths?.publicData ?? path.join(root, "apps", "web", "public", "data");
 
 function parseArgs(argv) {
   const args = {};
@@ -47,6 +50,88 @@ async function writeJson(relativePath, payload) {
       await writeFile(filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf-8");
     })
   );
+}
+
+function isRecord(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function integerField(value, label, minimum = 0) {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < minimum) throw new Error(`${label} must be an integer of at least ${minimum}.`);
+  return value;
+}
+
+function optionalNumber(value, label) {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "number" || !Number.isFinite(value)) throw new Error(`${label} must be finite or null.`);
+  return value;
+}
+
+function compareCodeUnits(left, right) {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function utcTimestamp(value, label) {
+  const match = typeof value === "string"
+    ? value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-]\d{2}:\d{2})$/)
+    : null;
+  if (!match) throw new Error(`${label} requires an RFC 3339 timestamp with an explicit UTC offset.`);
+  const [, yearText, monthText, dayText, hourText, minuteText, secondText, offset] = match;
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
+  const second = Number(secondText);
+  const offsetParts = offset === "Z" ? null : offset.slice(1).split(":").map(Number);
+  const daysInMonth = month >= 1 && month <= 12 ? new Date(Date.UTC(year, month, 0)).getUTCDate() : 0;
+  if (day < 1 || day > daysInMonth || hour > 23 || minute > 59 || second > 59
+    || (offsetParts && (offsetParts[0] > 23 || offsetParts[1] > 59)) || !Number.isFinite(Date.parse(value))) {
+    throw new Error(`${label} requires a valid calendar timestamp.`);
+  }
+  return new Date(value).toISOString();
+}
+
+export function normalizeResults(drivers, sessionResult) {
+  if (!Array.isArray(drivers) || !Array.isArray(sessionResult)) throw new Error("Drivers and session results must be arrays.");
+  const driverCodes = new Map();
+  for (const driver of drivers) {
+    if (!isRecord(driver)) throw new Error("Driver records must be objects.");
+    const driverNumber = integerField(driver.driver_number, "Driver number", 1);
+    if (typeof driver.name_acronym !== "string" || !driver.name_acronym.length || driverCodes.has(driverNumber)) throw new Error("Drivers require unique numbers and acronyms.");
+    driverCodes.set(driverNumber, driver.name_acronym);
+  }
+  const results = sessionResult.map((result) => {
+    if (!isRecord(result)) throw new Error("Session result records must be objects.");
+    return {
+      driverCode: driverCodes.get(integerField(result.driver_number, "Result driver number", 1)),
+      position: integerField(result.position, "Result position", 1),
+    };
+  });
+  if (results.some((result) => typeof result.driverCode !== "string" || !result.driverCode.length)) throw new Error("Session results contain an unknown driver.");
+  if (new Set(results.map((result) => result.driverCode)).size !== driverCodes.size || results.length !== driverCodes.size) throw new Error("Session result coverage does not match drivers.");
+  if (new Set(results.map((result) => result.position)).size !== results.length) throw new Error("Session result positions must be unique.");
+  return results.sort((left, right) => left.position - right.position || compareCodeUnits(left.driverCode, right.driverCode));
+}
+
+export function normalizeWeather(samples) {
+  if (!Array.isArray(samples) || !samples.length) throw new Error("Weather requires non-empty UTC observations with finite measurements.");
+  const weather = samples.map((sample) => {
+    if (!isRecord(sample)) throw new Error("Weather observations must be objects.");
+    return {
+      at: utcTimestamp(sample.date, "Weather"),
+      airTempC: optionalNumber(sample.air_temperature, "air_temperature"),
+      trackTempC: optionalNumber(sample.track_temperature, "track_temperature"),
+      humidityPct: optionalNumber(sample.humidity, "humidity"),
+      pressureMbar: optionalNumber(sample.pressure, "pressure"),
+      rainfall: optionalNumber(sample.rainfall, "rainfall"),
+      windDirectionDeg: optionalNumber(sample.wind_direction, "wind_direction"),
+      windSpeedMps: optionalNumber(sample.wind_speed, "wind_speed"),
+    };
+  });
+  if (weather.some((sample) => Object.entries(sample).every(([key, value]) => key === "at" || value === null))) throw new Error("Weather observations require at least one measurement.");
+  const keys = (sample) => JSON.stringify(sample);
+  return weather.sort((left, right) => Date.parse(left.at) - Date.parse(right.at) || compareCodeUnits(keys(left), keys(right)));
 }
 
 function summarizeWeather(samples) {
@@ -84,6 +169,36 @@ function globalFastestLap(laps) {
   return laps
     .filter((lap) => Number.isFinite(lap.lapTime) && lap.lapTime > 0)
     .sort((left, right) => left.lapTime - right.lapTime)[0] ?? null;
+}
+
+export function normalizeStints(stints) {
+  const byDriver = new Map();
+  if (!Array.isArray(stints)) throw new Error("Stints must be an array.");
+  for (const stint of stints) {
+    if (!isRecord(stint)) throw new Error("Stint records must be objects.");
+    const driverNumber = integerField(stint.driver_number, "Stint driver number", 1);
+    if (!byDriver.has(driverNumber)) byDriver.set(driverNumber, []);
+    byDriver.get(driverNumber).push(stint);
+  }
+
+  const normalized = [];
+  for (const [driverNumber, entries] of [...byDriver.entries()].sort(([left], [right]) => left - right)) {
+    const ordered = [...entries].sort((left, right) => integerField(left.stint_number, "Stint number", 1) - integerField(right.stint_number, "Stint number", 1));
+    const seenStints = new Set();
+    let previousLapEnd = 0;
+    for (const stint of ordered) {
+      const stintNumber = integerField(stint.stint_number, "Stint number", 1);
+      const rawLapStart = integerField(stint.lap_start, "Stint lap start", 1);
+      const lapEnd = integerField(stint.lap_end, "Stint lap end", 1);
+      if (!Number.isInteger(stintNumber) || stintNumber < 1 || seenStints.has(stintNumber)) throw new Error(`Driver ${driverNumber} has invalid stint numbering.`);
+      if (!Number.isInteger(rawLapStart) || !Number.isInteger(lapEnd) || rawLapStart < 1 || lapEnd < rawLapStart) throw new Error(`Driver ${driverNumber} has an invalid stint range.`);
+      if (rawLapStart <= previousLapEnd) throw new Error(`Driver ${driverNumber} has overlapping stint ranges.`);
+      normalized.push({ ...stint, lap_start: rawLapStart, lap_end: lapEnd });
+      seenStints.add(stintNumber);
+      previousLapEnd = lapEnd;
+    }
+  }
+  return normalized;
 }
 
 function buildStintLookup(stints) {
@@ -582,7 +697,9 @@ async function main() {
   const lapsRaw = await fetchLaps({ sessionKey: ref.sessionKey });
   const weatherRaw = await fetchWeather({ sessionKey: ref.sessionKey });
   const sessionResultRaw = await fetchSessionResult({ sessionKey: ref.sessionKey });
-  const stintsRaw = await fetchStints({ sessionKey: ref.sessionKey });
+  const stintsRaw = normalizeStints(await fetchStints({ sessionKey: ref.sessionKey }));
+  const results = normalizeResults(driversRaw, sessionResultRaw);
+  const weather = normalizeWeather(weatherRaw);
 
   const weatherSummary = summarizeWeather(weatherRaw);
   const drivers = buildDriverSummaries(driversRaw, lapsRaw, stintsRaw, sessionResultRaw);
@@ -643,7 +760,9 @@ async function main() {
   await writeJson(path.join(base, "summary.json"), summary);
   await writeJson(path.join(base, "drivers.json"), drivers);
   await writeJson(path.join(base, "laps.json"), lapRecords);
+  await writeJson(path.join(base, "results.json"), results);
   await writeJson(path.join(base, "strategy.json"), strategy);
+  await writeJson(path.join(base, "weather.json"), weather);
   await writeJson(path.join(base, "stints.json"), stintPack);
   if (compare) {
     await writeJson(path.join(base, "compare", `${compare.drivers[0].toLowerCase()}-${compare.drivers[1].toLowerCase()}.json`), {
@@ -655,7 +774,9 @@ async function main() {
   process.stdout.write(`Built OpenF1 session pack for ${ref.grandPrixName} ${ref.sessionName} (${ref.sessionKey}).\n`);
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}

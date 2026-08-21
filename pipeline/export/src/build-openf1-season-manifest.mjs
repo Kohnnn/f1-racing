@@ -13,8 +13,13 @@
 import { writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { assertCandidateRoot } from "../../../tools/release-data.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const candidateRoot = process.env.F1_CANDIDATE_ROOT ? path.resolve(process.env.F1_CANDIDATE_ROOT) : null;
+const candidatePaths = candidateRoot ? await assertCandidateRoot(candidateRoot) : null;
+const canonicalDataRoot = candidatePaths?.canonicalData ?? path.join(root, "data");
+const publicDataRoot = candidatePaths?.publicData ?? path.join(root, "apps", "web", "public", "data");
 
 function slugify(value) {
   return String(value || "")
@@ -58,6 +63,7 @@ const COUNTRY_TO_GP = {
 };
 
 const LOCATION_TO_GP_OVERRIDE = {
+  Miami: "Miami Grand Prix",
   "Miami Gardens": "Miami Grand Prix",
   Imola: "Emilia Romagna Grand Prix",
   Madrid: "Madrid Grand Prix",
@@ -211,12 +217,17 @@ async function main() {
     grandsPrix,
   };
 
-  const targetDir = path.join(root, "data", "manifests");
-  await mkdir(targetDir, { recursive: true });
-  const targetPath = path.join(targetDir, `openf1-${year}-season.json`);
-  await writeFile(targetPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf-8");
+  const manifestText = `${JSON.stringify(manifest, null, 2)}\n`;
+  const targetPaths = [
+    path.join(canonicalDataRoot, "manifests", `openf1-${year}-season.json`),
+    path.join(publicDataRoot, "manifests", `openf1-${year}-season.json`),
+  ];
+  await Promise.all(targetPaths.map(async (targetPath) => {
+    await mkdir(path.dirname(targetPath), { recursive: true });
+    await writeFile(targetPath, manifestText, "utf-8");
+  }));
 
-  process.stdout.write(`Wrote ${path.relative(root, targetPath)}\n`);
+  process.stdout.write(`Wrote ${targetPaths.map((targetPath) => path.relative(root, targetPath)).join(" and ")}\n`);
   process.stdout.write(`Total Grands Prix: ${grandsPrix.length}\n`);
   for (const gp of grandsPrix) {
     process.stdout.write(`  ${gp.grandPrixSlug}: ${gp.sessions.length} session(s)\n`);

@@ -1,10 +1,17 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { assertCandidateRoot } from "../../../tools/release-data.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const defaultPublicDataRoot = path.join(root, "apps", "web", "public", "data");
-const outputPath = path.join(defaultPublicDataRoot, "briefs", "index.json");
+const candidateRoot = process.env.F1_CANDIDATE_ROOT ? path.resolve(process.env.F1_CANDIDATE_ROOT) : null;
+const candidatePaths = candidateRoot ? await assertCandidateRoot(candidateRoot) : null;
+const defaultCanonicalDataRoot = candidatePaths?.canonicalData ?? path.join(root, "data");
+const defaultPublicDataRoot = candidatePaths?.publicData ?? path.join(root, "apps", "web", "public", "data");
+const outputPaths = [
+  path.join(defaultCanonicalDataRoot, "briefs", "index.json"),
+  path.join(defaultPublicDataRoot, "briefs", "index.json"),
+];
 const claimClasses = new Set(["Recorded", "Derived", "Unknown"]);
 const canonicalBriefIds = ["monza-braking", "mexico-aero", "zandvoort-strategy-tyres"];
 const approvedReplayHandoffs = new Set([
@@ -227,8 +234,12 @@ export function validateBriefIndex(index) {
   return index;
 }
 
+export function evidenceBriefTemplates() {
+  return validateBriefIndex(templates());
+}
+
 export async function buildEvidenceBriefs({ publicDataRoot = defaultPublicDataRoot } = {}) {
-  const index = validateBriefIndex(templates());
+  const index = evidenceBriefTemplates();
   const sources = new Map();
   async function getSource(sourcePath) {
     if (!sources.has(sourcePath)) sources.set(sourcePath, await readSource(publicDataRoot, sourcePath));
@@ -258,20 +269,24 @@ function jsonText(value) {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
-export async function generateEvidenceBriefs({ check = false, publicDataRoot = defaultPublicDataRoot, destination = outputPath } = {}) {
+export async function generateEvidenceBriefs({ check = false, publicDataRoot = defaultPublicDataRoot, destinations = outputPaths } = {}) {
   const expected = jsonText(await buildEvidenceBriefs({ publicDataRoot }));
   if (check) {
-    let actual;
-    try {
-      actual = await readFile(destination, "utf8");
-    } catch {
-      throw new Error(`Missing generated evidence briefs: ${path.relative(root, destination)}`);
+    for (const destination of destinations) {
+      let actual;
+      try {
+        actual = await readFile(destination, "utf8");
+      } catch {
+        throw new Error(`Missing generated evidence briefs: ${path.relative(root, destination)}`);
+      }
+      if (actual !== expected) throw new Error(`Outdated generated evidence briefs: ${path.relative(root, destination)}`);
     }
-    if (actual !== expected) throw new Error(`Outdated generated evidence briefs: ${path.relative(root, destination)}`);
     return;
   }
-  await mkdir(path.dirname(destination), { recursive: true });
-  await writeFile(destination, expected, "utf8");
+  await Promise.all(destinations.map(async (destination) => {
+    await mkdir(path.dirname(destination), { recursive: true });
+    await writeFile(destination, expected, "utf8");
+  }));
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

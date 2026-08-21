@@ -18,6 +18,9 @@ data/packs/seasons/
 apps/web/public/data/packs/seasons/
 # TypeScript build cache
 *.tsbuildinfo
+# Python bytecode
+__pycache__/
+*.py[cod]
 # Netlify CLI artifacts
 apps/web/.netlify/
 deploy/oci/command

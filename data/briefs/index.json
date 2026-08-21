@@ -1,0 +1,964 @@
+{
+  "version": 1,
+  "templateVersion": "evidence-brief-v1",
+  "briefs": [
+    {
+      "id": "monza-braking",
+      "title": "Monza qualifying: braking zone versus exit",
+      "subsystem": [
+        "Braking"
+      ],
+      "question": "On the selected fastest laps, where does VER gain or lose time to NOR, and what do sampled controls establish?",
+      "learningOutcome": "Identify sector-level gains and sampled control transitions without treating a threshold sample as a literal brake point or causal explanation.",
+      "handoffs": [
+        {
+          "kind": "replay",
+          "href": "/replay/2025/italian-grand-prix/qualifying?tab=compare&drivers=VER,NOR#analysis"
+        },
+        {
+          "kind": "learn",
+          "href": "/learn/braking"
+        },
+        {
+          "kind": "modelview",
+          "href": "/cars/current-spec?focus=brakes"
+        }
+      ],
+      "evidence": [
+        {
+          "id": "monza-laps",
+          "class": "Recorded",
+          "statement": "The selected comparison is VER lap 17 against NOR lap 20.",
+          "sourceAnchors": [
+            {
+              "path": "packs/seasons/2025/italian-grand-prix/qualifying/compare/ver-nor.json",
+              "anchors": [
+                {
+                  "pointer": "/drivers",
+                  "expected": [
+                    "VER",
+                    "NOR"
+                  ]
+                },
+                {
+                  "pointer": "/laps",
+                  "expected": [
+                    17,
+                    20
+                  ]
+                }
+              ]
+            }
+          ],
+          "absentAnchors": [],
+          "provenance": [
+            {
+              "path": "packs/seasons/2025/italian-grand-prix/qualifying/summary.json",
+              "anchors": [
+                {
+                  "pointer": "/source",
+                  "expected": "openf1"
+                },
+                {
+                  "pointer": "/sessionKey",
+                  "expected": 9908
+                }
+              ]
+            }
+          ],
+          "coverage": "Selected lap pair in the local public comparison pack.",
+          "uncertainty": "Local source identity does not establish rights, completeness, driver intent, or car setup."
+        },
+        {
+          "id": "monza-sectors",
+          "class": "Recorded",
+          "statement": "S1 spans ratios 0–0.3333079500456899 with VER leading by 116 ms; S2 spans 0.3333079500456899–0.6694207533759773 with NOR leading by 45 ms; S3 spans 0.6694207533759773–1 with VER leading by 6 ms.",
+          "sourceAnchors": [
+            {
+              "path": "packs/seasons/2025/italian-grand-prix/qualifying/compare/ver-nor.json",
+              "anchors": [
+                {
+                  "pointer": "/deltaSections/0/from",
+                  "expected": 0
+                },
+                {
+                  "pointer": "/deltaSections/0/to",
+                  "expected": 0.3333079500456899
+                },
+                {
+                  "pointer": "/deltaSections/0/leader",
+                  "expected": "VER"
+                },
+                {
+                  "pointer": "/deltaSections/0/deltaMs",
+                  "expected": 116
+                },
+                {
+                  "pointer": "/deltaSections/1/from",
+                  "expected": 0.3333079500456899
+                },
+                {
+                  "pointer": "/deltaSections/1/to",
+                  "expected": 0.6694207533759773
+                },
+                {
+                  "pointer": "/deltaSections/1/leader",
+                  "expected": "NOR"
+                },
+                {
+                  "pointer": "/deltaSections/1/deltaMs",
+                  "expected": 45
+                },
+                {
+                  "pointer": "/deltaSections/2/from",
+                  "expected": 0.6694207533759773
+                },
+                {
+                  "pointer": "/deltaSections/2/to",
+                  "expected": 1
+                },
+                {
+                  "pointer": "/deltaSections/2/leader",
+                  "expected": "VER"
+                },
+                {
+                  "pointer": "/deltaSections/2/deltaMs",
+                  "expected": 6
+                }
+              ]
+            }
+          ],
+          "absentAnchors": [],
+          "provenance": [
+            {
+              "path": "packs/seasons/2025/italian-grand-prix/qualifying/summary.json",
+              "anchors": [
+                {
+                  "pointer": "/source",
+                  "expected": "openf1"
+                },
+                {
+                  "pointer": "/sessionKey",
+                  "expected": 9908
+                }
+              ]
+            }
+          ],
+          "coverage": "Three exported timing-sector windows cover lap ratio 0 through 1.",
+          "uncertainty": "Timing-sector windows are not named corners."
+        },
+        {
+          "id": "monza-brake-sample",
+          "class": "Recorded",
+          "statement": "At approximately 3.7 Hz, VER has a sample at ratio 0.08243222662199208 recording 348 km/h, 100% throttle, brake 0, gear 8, and DRS code 12; the later ratio 0.1052771855010661 sample records 312 km/h, throttle 0, brake 100, gear 8, and DRS code 8.",
+          "sourceAnchors": [
+            {
+              "path": "packs/seasons/2025/italian-grand-prix/qualifying/compare/ver-nor.json",
+              "anchors": [
+                {
+                  "pointer": "/telemetry/left/sampleHz",
+                  "expected": 3.7
+                },
+                {
+                  "pointer": "/telemetry/left/points/8/ratio",
+                  "expected": 0.08243222662199208
+                },
+                {
+                  "pointer": "/telemetry/left/points/8/speed",
+                  "expected": 348
+                },
+                {
+                  "pointer": "/telemetry/left/points/8/throttle",
+                  "expected": 100
+                },
+                {
+                  "pointer": "/telemetry/left/points/8/brake",
+                  "expected": 0
+                },
+                {
+                  "pointer": "/telemetry/left/points/8/gear",
+                  "expected": 8
+                },
+                {
+                  "pointer": "/telemetry/left/points/8/drs",
+                  "expected": 12
+                },
+                {
+                  "pointer": "/telemetry/left/points/10/ratio",
+                  "expected": 0.1052771855010661
+                },
+                {
+                  "pointer": "/telemetry/left/points/10/speed",
+                  "expected": 312
+                },
+                {
+                  "pointer": "/telemetry/left/points/10/throttle",
+                  "expected": 0
+                },
+                {
+                  "pointer": "/telemetry/left/points/10/brake",
+                  "expected": 100
+                },
+                {
+                  "pointer": "/telemetry/left/points/10/gear",
+                  "expected": 8
+                },
+                {
+                  "pointer": "/telemetry/left/points/10/drs",
+                  "expected": 8
+                }
+              ]
+            }
+          ],
+          "absentAnchors": [],
+          "provenance": [
+            {
+              "path": "packs/seasons/2025/italian-grand-prix/qualifying/summary.json",
+              "anchors": [
+                {
+                  "pointer": "/source",
+                  "expected": "openf1"
+                },
+                {
+                  "pointer": "/sessionKey",
+                  "expected": 9908
+                }
+              ]
+            }
+          ],
+          "coverage": "Two named samples from the local comparison trace.",
+          "uncertainty": "Sample spacing and pedal calibration prevent continuous onset precision."
+        },
+        {
+          "id": "monza-threshold",
+          "class": "Derived",
+          "statement": "The braking probe is a deterministic annotation from sampled telemetry thresholds.",
+          "sourceAnchors": [
+            {
+              "path": "packs/seasons/2025/italian-grand-prix/qualifying/compare/ver-nor.json",
+              "anchors": [
+                {
+                  "pointer": "/telemetry/left/sampleHz",
+                  "expected": 3.7
+                },
+                {
+                  "pointer": "/telemetry/left/points/10/brake",
+                  "expected": 100
+                }
+              ]
+            }
+          ],
+          "absentAnchors": [],
+          "provenance": [
+            {
+              "path": "packs/seasons/2025/italian-grand-prix/qualifying/summary.json",
+              "anchors": [
+                {
+                  "pointer": "/source",
+                  "expected": "openf1"
+                },
+                {
+                  "pointer": "/sessionKey",
+                  "expected": 9908
+                }
+              ]
+            }
+          ],
+          "coverage": "Derived only from the locally exported sampled trace.",
+          "uncertainty": "The first threshold sample is not a literal brake point."
+        },
+        {
+          "id": "monza-unknown",
+          "class": "Unknown",
+          "statement": "Not established: brake balance, brake temperature, energy recovery, steering or line, setup, confidence, intent, or a causal explanation.",
+          "sourceAnchors": [],
+          "absentAnchors": [
+            {
+              "path": "packs/seasons/2025/italian-grand-prix/qualifying/compare/ver-nor.json",
+              "pointers": [
+                "/telemetry/left/brakeBalance",
+                "/telemetry/right/brakeBalance",
+                "/telemetry/left/brakeTemperature",
+                "/telemetry/right/brakeTemperature",
+                "/telemetry/left/energyRecovery",
+                "/telemetry/right/energyRecovery",
+                "/telemetry/left/steering",
+                "/telemetry/right/steering",
+                "/telemetry/left/setup",
+                "/telemetry/right/setup",
+                "/telemetry/left/driverIntent",
+                "/telemetry/right/driverIntent"
+              ]
+            }
+          ],
+          "provenance": [
+            {
+              "path": "packs/seasons/2025/italian-grand-prix/qualifying/summary.json",
+              "anchors": [
+                {
+                  "pointer": "/source",
+                  "expected": "openf1"
+                },
+                {
+                  "pointer": "/sessionKey",
+                  "expected": 9908
+                }
+              ]
+            }
+          ],
+          "coverage": "The explicit fields are absent from both selected telemetry traces in the local comparison pack.",
+          "uncertainty": "Requires calibrated pedals, brake sensors, steering, GPS-to-corner mapping, and video."
+        }
+      ],
+      "prohibitedConclusions": [
+        "Treating a sampled brake threshold as a literal brake point",
+        "Inferring brake balance, temperature, setup, driver intent, or causality"
+      ]
+    },
+    {
+      "id": "mexico-aero",
+      "title": "Mexico race: whole-lap advantage without a single magic corner",
+      "subsystem": [
+        "Aero"
+      ],
+      "question": "How should a learner read a lap that is faster in every timing sector without inventing one aerodynamic cause?",
+      "learningOutcome": "Aggregate sector evidence across a lap while keeping drag, downforce, setup, rear-wing specification, and single-corner causes unknown.",
+      "handoffs": [
+        {
+          "kind": "replay",
+          "href": "/replay/2025/mexico-city-grand-prix/race?tab=compare&drivers=NOR,LEC#analysis"
+        },
+        {
+          "kind": "learn",
+          "href": "/learn/aero"
+        },
+        {
+          "kind": "modelview",
+          "href": "/cars/current-spec?focus=rear-wing"
+        }
+      ],
+      "evidence": [
+        {
+          "id": "mexico-laps",
+          "class": "Recorded",
+          "statement": "The selected comparison is NOR against LEC, both on lap 45.",
+          "sourceAnchors": [
+            {
+              "path": "packs/seasons/2025/mexico-city-grand-prix/race/compare/nor-lec.json",
+              "anchors": [
+                {
+                  "pointer": "/drivers",
+                  "expected": [
+                    "NOR",
+                    "LEC"
+                  ]
+                },
+                {
+                  "pointer": "/laps",
+                  "expected": [
+                    45,
+                    45
+                  ]
+                }
+              ]
+            }
+          ],
+          "absentAnchors": [],
+          "provenance": [
+            {
+              "path": "packs/seasons/2025/mexico-city-grand-prix/race/summary.json",
+              "anchors": [
+                {
+                  "pointer": "/source",
+                  "expected": "openf1"
+                },
+                {
+                  "pointer": "/sessionKey",
+                  "expected": 9877
+                }
+              ]
+            }
+          ],
+          "coverage": "Selected lap pair in the local public comparison pack.",
+          "uncertainty": "Same-lap selection does not control traffic, wind, fuel, or tyre state."
+        },
+        {
+          "id": "mexico-sectors",
+          "class": "Recorded",
+          "statement": "S1 spans ratios 0–0.3495988311623991 with NOR leading by 337 ms; S2 spans 0.3495988311623991–0.7415680253578327 with NOR leading by 133 ms; S3 spans 0.7415680253578327–1 with NOR leading by 354 ms.",
+          "sourceAnchors": [
+            {
+              "path": "packs/seasons/2025/mexico-city-grand-prix/race/compare/nor-lec.json",
+              "anchors": [
+                {
+                  "pointer": "/deltaSections/0/from",
+                  "expected": 0
+                },
+                {
+                  "pointer": "/deltaSections/0/to",
+                  "expected": 0.3495988311623991
+                },
+                {
+                  "pointer": "/deltaSections/0/leader",
+                  "expected": "NOR"
+                },
+                {
+                  "pointer": "/deltaSections/0/deltaMs",
+                  "expected": 337
+                },
+                {
+                  "pointer": "/deltaSections/1/from",
+                  "expected": 0.3495988311623991
+                },
+                {
+                  "pointer": "/deltaSections/1/to",
+                  "expected": 0.7415680253578327
+                },
+                {
+                  "pointer": "/deltaSections/1/leader",
+                  "expected": "NOR"
+                },
+                {
+                  "pointer": "/deltaSections/1/deltaMs",
+                  "expected": 133
+                },
+                {
+                  "pointer": "/deltaSections/2/from",
+                  "expected": 0.7415680253578327
+                },
+                {
+                  "pointer": "/deltaSections/2/to",
+                  "expected": 1
+                },
+                {
+                  "pointer": "/deltaSections/2/leader",
+                  "expected": "NOR"
+                },
+                {
+                  "pointer": "/deltaSections/2/deltaMs",
+                  "expected": 354
+                }
+              ]
+            }
+          ],
+          "absentAnchors": [],
+          "provenance": [
+            {
+              "path": "packs/seasons/2025/mexico-city-grand-prix/race/summary.json",
+              "anchors": [
+                {
+                  "pointer": "/source",
+                  "expected": "openf1"
+                },
+                {
+                  "pointer": "/sessionKey",
+                  "expected": 9877
+                }
+              ]
+            }
+          ],
+          "coverage": "Three exported timing-sector windows cover lap ratio 0 through 1.",
+          "uncertainty": "Sector windows do not identify a named corner or cause."
+        },
+        {
+          "id": "mexico-controls",
+          "class": "Recorded",
+          "statement": "At approximately 3.7 Hz, NOR records 344 km/h, throttle 99, brake 0, gear 8, and DRS code 14 at ratio 0.11059382893368333; at ratio 0.1512059828636521 the sample records 238 km/h, throttle 0, brake 100, gear 7, and DRS code 8.",
+          "sourceAnchors": [
+            {
+              "path": "packs/seasons/2025/mexico-city-grand-prix/race/compare/nor-lec.json",
+              "anchors": [
+                {
+                  "pointer": "/telemetry/left/sampleHz",
+                  "expected": 3.7
+                },
+                {
+                  "pointer": "/telemetry/left/points/11/ratio",
+                  "expected": 0.11059382893368333
+                },
+                {
+                  "pointer": "/telemetry/left/points/11/speed",
+                  "expected": 344
+                },
+                {
+                  "pointer": "/telemetry/left/points/11/throttle",
+                  "expected": 99
+                },
+                {
+                  "pointer": "/telemetry/left/points/11/brake",
+                  "expected": 0
+                },
+                {
+                  "pointer": "/telemetry/left/points/11/gear",
+                  "expected": 8
+                },
+                {
+                  "pointer": "/telemetry/left/points/11/drs",
+                  "expected": 14
+                },
+                {
+                  "pointer": "/telemetry/left/points/15/ratio",
+                  "expected": 0.1512059828636521
+                },
+                {
+                  "pointer": "/telemetry/left/points/15/speed",
+                  "expected": 238
+                },
+                {
+                  "pointer": "/telemetry/left/points/15/throttle",
+                  "expected": 0
+                },
+                {
+                  "pointer": "/telemetry/left/points/15/brake",
+                  "expected": 100
+                },
+                {
+                  "pointer": "/telemetry/left/points/15/gear",
+                  "expected": 7
+                },
+                {
+                  "pointer": "/telemetry/left/points/15/drs",
+                  "expected": 8
+                }
+              ]
+            }
+          ],
+          "absentAnchors": [],
+          "provenance": [
+            {
+              "path": "packs/seasons/2025/mexico-city-grand-prix/race/summary.json",
+              "anchors": [
+                {
+                  "pointer": "/source",
+                  "expected": "openf1"
+                },
+                {
+                  "pointer": "/sessionKey",
+                  "expected": 9877
+                }
+              ]
+            }
+          ],
+          "coverage": "Two named samples from the local comparison trace.",
+          "uncertainty": "DRS code is a state, not force, flap angle, drag, or downforce measurement."
+        },
+        {
+          "id": "mexico-sector-aggregation",
+          "class": "Derived",
+          "statement": "The whole-lap timing observation aggregates three sector deltas: 337 ms, 133 ms, and 354 ms, each led by NOR.",
+          "sourceAnchors": [
+            {
+              "path": "packs/seasons/2025/mexico-city-grand-prix/race/compare/nor-lec.json",
+              "anchors": [
+                {
+                  "pointer": "/deltaSections/0/leader",
+                  "expected": "NOR"
+                },
+                {
+                  "pointer": "/deltaSections/0/deltaMs",
+                  "expected": 337
+                },
+                {
+                  "pointer": "/deltaSections/1/leader",
+                  "expected": "NOR"
+                },
+                {
+                  "pointer": "/deltaSections/1/deltaMs",
+                  "expected": 133
+                },
+                {
+                  "pointer": "/deltaSections/2/leader",
+                  "expected": "NOR"
+                },
+                {
+                  "pointer": "/deltaSections/2/deltaMs",
+                  "expected": 354
+                }
+              ]
+            }
+          ],
+          "absentAnchors": [],
+          "provenance": [
+            {
+              "path": "packs/seasons/2025/mexico-city-grand-prix/race/summary.json",
+              "anchors": [
+                {
+                  "pointer": "/source",
+                  "expected": "openf1"
+                },
+                {
+                  "pointer": "/sessionKey",
+                  "expected": 9877
+                }
+              ]
+            }
+          ],
+          "coverage": "Derived only across the three exported timing-sector windows.",
+          "uncertainty": "Aggregation does not isolate an aerodynamic mechanism."
+        },
+        {
+          "id": "mexico-unknown",
+          "class": "Unknown",
+          "statement": "Not established: drag, downforce, setup, rear-wing specification, steering, ride height, wind at the car, traffic state, or a causal car-versus-driver explanation.",
+          "sourceAnchors": [],
+          "absentAnchors": [
+            {
+              "path": "packs/seasons/2025/mexico-city-grand-prix/race/compare/nor-lec.json",
+              "pointers": [
+                "/telemetry/left/drag",
+                "/telemetry/right/drag",
+                "/telemetry/left/downforce",
+                "/telemetry/right/downforce",
+                "/telemetry/left/setup",
+                "/telemetry/right/setup",
+                "/telemetry/left/rearWingSpecification",
+                "/telemetry/right/rearWingSpecification",
+                "/telemetry/left/steering",
+                "/telemetry/right/steering",
+                "/telemetry/left/rideHeight",
+                "/telemetry/right/rideHeight",
+                "/telemetry/left/windAtCar",
+                "/telemetry/right/windAtCar",
+                "/telemetry/left/trafficState",
+                "/telemetry/right/trafficState"
+              ]
+            }
+          ],
+          "provenance": [
+            {
+              "path": "packs/seasons/2025/mexico-city-grand-prix/race/summary.json",
+              "anchors": [
+                {
+                  "pointer": "/source",
+                  "expected": "openf1"
+                },
+                {
+                  "pointer": "/sessionKey",
+                  "expected": 9877
+                }
+              ]
+            }
+          ],
+          "coverage": "The explicit fields are absent from both selected telemetry traces in the local comparison pack.",
+          "uncertainty": "Requires wing geometry, aerodynamic coefficients, ride height, wind-relative speed, traffic, steering, and video."
+        }
+      ],
+      "prohibitedConclusions": [
+        "Claiming lower drag, more downforce, better setup, or a superior rear wing",
+        "Assigning the whole-lap difference to one corner or one cause"
+      ]
+    },
+    {
+      "id": "zandvoort-strategy-tyres",
+      "title": "Zandvoort race: safety-car interruption changes the question",
+      "subsystem": [
+        "Strategy",
+        "Tyres"
+      ],
+      "question": "What evidence changes when the race is neutralised, and why must raw pace comparison stop across the interruption?",
+      "learningOutcome": "Segment evidence around the neutralisation and restart before discussing strategy or tyres, without inventing intent, pit loss, or causal advantage.",
+      "handoffs": [
+        {
+          "kind": "replay",
+          "href": "/replay/2025/dutch-grand-prix/race?tab=racecontrol#analysis"
+        },
+        {
+          "kind": "learn",
+          "href": "/learn/strategy"
+        },
+        {
+          "kind": "learn",
+          "href": "/learn/tyres"
+        },
+        {
+          "kind": "modelview",
+          "href": "/cars/current-spec?focus=tyres"
+        }
+      ],
+      "evidence": [
+        {
+          "id": "zandvoort-deploy",
+          "class": "Recorded",
+          "statement": "A double yellow is recorded on lap 23 at T+1,705,936 ms, then safety car deploys on lap 23 at T+1,720,936 ms.",
+          "sourceAnchors": [
+            {
+              "path": "packs/seasons/2025/dutch-grand-prix/race/replay.race-control.json",
+              "anchors": [
+                {
+                  "pointer": "/12/t",
+                  "expected": 1705936
+                },
+                {
+                  "pointer": "/12/lapNumber",
+                  "expected": 23
+                },
+                {
+                  "pointer": "/12/message",
+                  "expected": "DOUBLE YELLOW IN TRACK SECTOR 5"
+                },
+                {
+                  "pointer": "/15/t",
+                  "expected": 1720936
+                },
+                {
+                  "pointer": "/15/lapNumber",
+                  "expected": 23
+                },
+                {
+                  "pointer": "/15/message",
+                  "expected": "SAFETY CAR DEPLOYED"
+                }
+              ]
+            }
+          ],
+          "absentAnchors": [],
+          "provenance": [
+            {
+              "path": "packs/seasons/2025/dutch-grand-prix/race/replay.meta.json",
+              "anchors": [
+                {
+                  "pointer": "/source",
+                  "expected": "openf1"
+                },
+                {
+                  "pointer": "/sessionKey",
+                  "expected": 9920
+                }
+              ]
+            }
+          ],
+          "coverage": "Recorded local race-control messages with session-relative timestamps.",
+          "uncertainty": "Local source identity does not establish rights, completeness, incident cause, or strategy intent."
+        },
+        {
+          "id": "zandvoort-restart",
+          "class": "Recorded",
+          "statement": "Safety car is called in on lap 26 at T+2,027,936 ms, track is clear on lap 26 at T+2,105,936 ms, and DRS is enabled on lap 28 at T+2,189,936 ms.",
+          "sourceAnchors": [
+            {
+              "path": "packs/seasons/2025/dutch-grand-prix/race/replay.race-control.json",
+              "anchors": [
+                {
+                  "pointer": "/21/t",
+                  "expected": 2027936
+                },
+                {
+                  "pointer": "/21/lapNumber",
+                  "expected": 26
+                },
+                {
+                  "pointer": "/21/message",
+                  "expected": "SAFETY CAR IN THIS LAP"
+                },
+                {
+                  "pointer": "/22/t",
+                  "expected": 2105936
+                },
+                {
+                  "pointer": "/22/lapNumber",
+                  "expected": 26
+                },
+                {
+                  "pointer": "/22/message",
+                  "expected": "TRACK CLEAR"
+                },
+                {
+                  "pointer": "/23/t",
+                  "expected": 2189936
+                },
+                {
+                  "pointer": "/23/lapNumber",
+                  "expected": 28
+                },
+                {
+                  "pointer": "/23/message",
+                  "expected": "DRS ENABLED"
+                }
+              ]
+            }
+          ],
+          "absentAnchors": [],
+          "provenance": [
+            {
+              "path": "packs/seasons/2025/dutch-grand-prix/race/replay.meta.json",
+              "anchors": [
+                {
+                  "pointer": "/source",
+                  "expected": "openf1"
+                },
+                {
+                  "pointer": "/sessionKey",
+                  "expected": 9920
+                }
+              ]
+            }
+          ],
+          "coverage": "Recorded local chronology from safety-car call-in through DRS enablement.",
+          "uncertainty": "DRS enablement is not a pace-normalisation guarantee."
+        },
+        {
+          "id": "zandvoort-stints",
+          "class": "Recorded",
+          "statement": "NOR stint 1 spans laps 1–23 and stint 2 spans laps 24–53; PIA stint 1 spans laps 1–23 and stint 2 spans laps 24–53.",
+          "sourceAnchors": [
+            {
+              "path": "packs/seasons/2025/dutch-grand-prix/race/stints.json",
+              "anchors": [
+                {
+                  "pointer": "/drivers/1/driverCode",
+                  "expected": "NOR"
+                },
+                {
+                  "pointer": "/drivers/1/stints/0/lapStart",
+                  "expected": 1
+                },
+                {
+                  "pointer": "/drivers/1/stints/0/lapEnd",
+                  "expected": 23
+                },
+                {
+                  "pointer": "/drivers/1/stints/1/lapStart",
+                  "expected": 24
+                },
+                {
+                  "pointer": "/drivers/1/stints/1/lapEnd",
+                  "expected": 53
+                },
+                {
+                  "pointer": "/drivers/18/driverCode",
+                  "expected": "PIA"
+                },
+                {
+                  "pointer": "/drivers/18/stints/0/lapStart",
+                  "expected": 1
+                },
+                {
+                  "pointer": "/drivers/18/stints/0/lapEnd",
+                  "expected": 23
+                },
+                {
+                  "pointer": "/drivers/18/stints/1/lapStart",
+                  "expected": 24
+                },
+                {
+                  "pointer": "/drivers/18/stints/1/lapEnd",
+                  "expected": 53
+                }
+              ]
+            }
+          ],
+          "absentAnchors": [],
+          "provenance": [
+            {
+              "path": "packs/seasons/2025/dutch-grand-prix/race/summary.json",
+              "anchors": [
+                {
+                  "pointer": "/source",
+                  "expected": "openf1"
+                },
+                {
+                  "pointer": "/sessionKey",
+                  "expected": 9920
+                }
+              ]
+            }
+          ],
+          "coverage": "Recorded local compound-stint lap boundaries for NOR and PIA.",
+          "uncertainty": "A stint boundary does not establish why a stop occurred."
+        },
+        {
+          "id": "zandvoort-bands",
+          "class": "Derived",
+          "statement": "Evidence is segmented into pre-neutralisation through lap 22, safety-car laps 23–26, restart before DRS on lap 27, and post-restart from lap 28.",
+          "sourceAnchors": [
+            {
+              "path": "packs/seasons/2025/dutch-grand-prix/race/replay.race-control.json",
+              "anchors": [
+                {
+                  "pointer": "/15/lapNumber",
+                  "expected": 23
+                },
+                {
+                  "pointer": "/21/lapNumber",
+                  "expected": 26
+                },
+                {
+                  "pointer": "/23/lapNumber",
+                  "expected": 28
+                }
+              ]
+            }
+          ],
+          "absentAnchors": [],
+          "provenance": [
+            {
+              "path": "packs/seasons/2025/dutch-grand-prix/race/replay.meta.json",
+              "anchors": [
+                {
+                  "pointer": "/source",
+                  "expected": "openf1"
+                },
+                {
+                  "pointer": "/sessionKey",
+                  "expected": 9920
+                }
+              ]
+            }
+          ],
+          "coverage": "Deterministic bands derived only from recorded local race-control boundaries.",
+          "uncertainty": "Raw pace must not be compared across these bands."
+        },
+        {
+          "id": "zandvoort-unknown",
+          "class": "Unknown",
+          "statement": "Not established: pit entry or exit time, stationary time, team intent, tyre condition or temperature, traffic state, measured pit loss, undercut or overcut success, or causal advantage.",
+          "sourceAnchors": [],
+          "absentAnchors": [
+            {
+              "path": "packs/seasons/2025/dutch-grand-prix/race/stints.json",
+              "pointers": [
+                "/drivers/1/stints/0/pitEntryTime",
+                "/drivers/1/stints/0/pitExitTime",
+                "/drivers/1/stints/0/stationaryTime",
+                "/drivers/1/stints/0/teamIntent",
+                "/drivers/1/stints/0/tyreCondition",
+                "/drivers/1/stints/0/tyreTemperature",
+                "/drivers/1/stints/0/trafficState",
+                "/drivers/1/stints/0/measuredPitLoss",
+                "/drivers/18/stints/0/pitEntryTime",
+                "/drivers/18/stints/0/pitExitTime",
+                "/drivers/18/stints/0/stationaryTime",
+                "/drivers/18/stints/0/teamIntent",
+                "/drivers/18/stints/0/tyreCondition",
+                "/drivers/18/stints/0/tyreTemperature",
+                "/drivers/18/stints/0/trafficState",
+                "/drivers/18/stints/0/measuredPitLoss"
+              ]
+            }
+          ],
+          "provenance": [
+            {
+              "path": "packs/seasons/2025/dutch-grand-prix/race/summary.json",
+              "anchors": [
+                {
+                  "pointer": "/source",
+                  "expected": "openf1"
+                },
+                {
+                  "pointer": "/sessionKey",
+                  "expected": 9920
+                }
+              ]
+            }
+          ],
+          "coverage": "The explicit fields are absent from the local stint pack.",
+          "uncertainty": "Requires pit timing, radio, tyre condition, traffic, and a validated counterfactual."
+        }
+      ],
+      "prohibitedConclusions": [
+        "Claiming the safety car made a stop cheap or caused a stop",
+        "Claiming undercut success, tyre warm-up, team intent, measured pit loss, or causal advantage"
+      ]
+    }
+  ]
+}

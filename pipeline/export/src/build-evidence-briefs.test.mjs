@@ -6,7 +6,9 @@ import { fileURLToPath } from "node:url";
 import { buildEvidenceBriefs, generateEvidenceBriefs, validateBriefIndex } from "./build-evidence-briefs.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const publicDataRoot = path.join(root, "apps", "web", "public", "data");
+const publicDataRoot = process.env.F1_CANDIDATE_ROOT
+  ? path.join(path.resolve(process.env.F1_CANDIDATE_ROOT), "public", "data")
+  : path.join(root, "apps", "web", "public", "data");
 const index = await buildEvidenceBriefs({ publicDataRoot });
 
 assert.equal(index.version, 1);
@@ -59,9 +61,16 @@ const tempRoot = await mkdtemp(path.join(os.tmpdir(), "f1-evidence-briefs-"));
 try {
   const tempData = path.join(tempRoot, "data");
   await cp(path.join(publicDataRoot, "packs"), path.join(tempData, "packs"), { recursive: true });
-  const destination = path.join(tempData, "briefs", "index.json");
-  await generateEvidenceBriefs({ publicDataRoot: tempData, destination });
-  await generateEvidenceBriefs({ check: true, publicDataRoot: tempData, destination });
+  const destinations = [
+    path.join(tempRoot, "canonical", "data", "briefs", "index.json"),
+    path.join(tempRoot, "public", "data", "briefs", "index.json"),
+  ];
+  await generateEvidenceBriefs({ publicDataRoot: tempData, destinations });
+  await generateEvidenceBriefs({ check: true, publicDataRoot: tempData, destinations });
+  assert.equal(await readFile(destinations[0], "utf8"), await readFile(destinations[1], "utf8"));
+  await rm(destinations[0]);
+  await assert.rejects(generateEvidenceBriefs({ check: true, publicDataRoot: tempData, destinations }), /Missing generated evidence briefs/);
+  await generateEvidenceBriefs({ publicDataRoot: tempData, destinations });
 
   async function changedAnchor(relativePath, mutate, expectedError) {
     const filePath = path.join(tempData, ...relativePath.split("/"));

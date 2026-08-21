@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { evidenceBriefTemplates } from "../pipeline/export/src/build-evidence-briefs.mjs";
 import { assertReleaseNodeVersion, finalizeCandidate, normalizeReleaseTime } from "./release-artifact.mjs";
 import {
   assertCandidateRoot,
@@ -36,9 +37,9 @@ const candidateGateEvidence = {
 };
 const releaseDataScript = fileURLToPath(new URL("./release-data.mjs", import.meta.url));
 const releaseArtifactScript = fileURLToPath(new URL("./release-artifact.mjs", import.meta.url));
-const promotedFiles = [
-  path.join(workspaceRoot, "data", "manifests", "latest.json"),
-  path.join(workspaceRoot, "apps", "web", "public", "data", "manifests", "latest.json"),
+const promotedRoots = [
+  path.join(workspaceRoot, "data"),
+  path.join(workspaceRoot, "apps", "web", "public"),
 ];
 const sessionBase = path.join("packs", "seasons", "2026", "test-grand-prix", "race");
 
@@ -49,6 +50,32 @@ async function writeJson(filePath, value) {
 
 function digest(value) {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function assignPointer(payload, pointer, value) {
+  const segments = pointer.slice(1).split("/").map((segment) => segment.replaceAll("~1", "/").replaceAll("~0", "~"));
+  let current = payload;
+  for (let index = 0; index < segments.length - 1; index += 1) {
+    const segment = segments[index];
+    const next = segments[index + 1];
+    if (!Object.hasOwn(current, segment) || current[segment] === null) current[segment] = /^\d+$/.test(next) ? [] : {};
+    current = current[segment];
+  }
+  current[segments.at(-1)] = structuredClone(value);
+}
+
+async function seedBriefSources(publicDataRoot) {
+  const briefIndex = evidenceBriefTemplates();
+  const payloads = new Map();
+  for (const brief of briefIndex.briefs) {
+    for (const claim of brief.evidence) {
+      for (const source of [...claim.sourceAnchors, ...claim.provenance]) {
+        if (!payloads.has(source.path)) payloads.set(source.path, {});
+        for (const anchor of source.anchors) assignPointer(payloads.get(source.path), anchor.pointer, anchor.expected);
+      }
+    }
+  }
+  for (const [relativePath, payload] of payloads) await writeJson(path.join(publicDataRoot, relativePath), payload);
 }
 
 function frame(t, lap = t + 1) {
@@ -190,7 +217,8 @@ async function seedCandidate({ fullPublic = false, stale = false } = {}) {
   for (const [relativePath, value] of Object.entries(files)) await writeJson(path.join(paths.publicData, relativePath), value);
   await cp(path.join(workspaceRoot, "data", "packs", "sims"), path.join(paths.publicData, "packs", "sims"), { recursive: true });
   if (fullPublic) {
-    await cp(path.join(workspaceRoot, "apps", "web", "public", "data", "briefs"), path.join(paths.publicData, "briefs"), { recursive: true, force: true });
+    await writeJson(path.join(paths.publicData, "briefs", "index.json"), evidenceBriefTemplates());
+    await seedBriefSources(paths.publicData);
     for (const entry of await readdir(path.join(workspaceRoot, "apps", "web", "public"), { withFileTypes: true })) {
       if (entry.name === "data" || entry.name === "models" || entry.name === "posters") continue;
       const source = path.join(workspaceRoot, "apps", "web", "public", entry.name);
@@ -274,8 +302,16 @@ function runNpm(script, environment = {}) {
   return runProcess([npmCli, "run", script], environment);
 }
 
-async function promotedDigests() {
-  return Promise.all(promotedFiles.map(sha256));
+async function promotedSnapshot() {
+  const snapshot = [];
+  for (const root of promotedRoots) {
+    for (const relativePath of await walk(root)) {
+      const filePath = path.join(root, relativePath);
+      const info = await stat(filePath, { bigint: true });
+      snapshot.push([path.relative(workspaceRoot, root), relativePath, info.size.toString(), info.mtimeNs.toString(), await sha256(filePath)]);
+    }
+  }
+  return snapshot;
 }
 
 async function treeSnapshot(root) {
@@ -297,13 +333,13 @@ async function candidateSnapshot(root) {
 }
 
 async function expectFailure(root, change, pattern) {
-  const before = await promotedDigests();
+  const before = await promotedSnapshot();
   const paths = candidatePaths(root);
   await change(paths);
   const result = await runNode(releaseDataScript, ["--candidate-root", root, "--now", nowText]);
   assert.notEqual(result.code, 0, `Expected failure, received stdout:\n${result.stdout}`);
   assert.match(result.stderr, pattern);
-  assert.deepEqual(await promotedDigests(), before);
+  assert.deepEqual(await promotedSnapshot(), before);
 }
 
 async function mutateJson(filePath, mutate) {
@@ -524,7 +560,7 @@ if (process.argv.includes("--e2e")) {
   const candidate = await seedCandidate({ fullPublic: true });
   const env = { F1_CANDIDATE_ROOT: candidate, F1_RELEASE_BUILD_ID: sourceCommitValue };
   try {
-    const before = await promotedDigests();
+    const before = await promotedSnapshot();
     for (const command of ["quality", "check:featured", "build", "smoke:static"]) {
       const result = await runNpm(command, env);
       assert.equal(result.code, 0, `npm run ${command} failed:\n${result.stdout.slice(-12_000)}\n${result.stderr.slice(-12_000)}`);
@@ -538,7 +574,7 @@ if (process.argv.includes("--e2e")) {
     const cliResult = await runNode(releaseDataScript, ["--candidate-root", candidate, "--now", nowText]);
     assert.equal(cliResult.code, 0, cliResult.stderr);
     assert.deepEqual(await candidateSnapshot(candidate), finalizedCandidate);
-    assert.deepEqual(await promotedDigests(), before);
+    assert.deepEqual(await promotedSnapshot(), before);
   } finally {
     await rm(candidate, { recursive: true, force: true });
   }
@@ -546,7 +582,7 @@ if (process.argv.includes("--e2e")) {
   const noFeaturedCandidate = await seedCandidate({ fullPublic: true, stale: true });
   const noFeaturedEnv = { F1_CANDIDATE_ROOT: noFeaturedCandidate, F1_RELEASE_BUILD_ID: sourceCommitValue };
   try {
-    const before = await promotedDigests();
+    const before = await promotedSnapshot();
     for (const command of ["quality", "check:featured", "build", "smoke:static"]) {
       const result = await runNpm(command, noFeaturedEnv);
       assert.equal(result.code, 0, `no-featured npm run ${command} failed:\n${result.stdout.slice(-12_000)}\n${result.stderr.slice(-12_000)}`);
@@ -557,7 +593,7 @@ if (process.argv.includes("--e2e")) {
     assert.equal(result.manifest.data.latestPath, null);
     assert.deepEqual(result.releaseRecord.featured, { status: "none", path: null, selectedBy: ["sourceEventEndAt desc", "sessionKey desc", "path asc"] });
     await auditCandidate(noFeaturedCandidate, { now });
-    assert.deepEqual(await promotedDigests(), before);
+    assert.deepEqual(await promotedSnapshot(), before);
   } finally {
     await rm(noFeaturedCandidate, { recursive: true, force: true });
   }
