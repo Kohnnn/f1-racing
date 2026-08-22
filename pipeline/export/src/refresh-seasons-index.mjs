@@ -1,17 +1,19 @@
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { assertCandidateOutputPath, assertCandidateRoot } from "../../../tools/release-data.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const candidateRoot = process.env.F1_CANDIDATE_ROOT ? path.resolve(process.env.F1_CANDIDATE_ROOT) : null;
-const dataDir = candidateRoot ? path.join(candidateRoot, "canonical", "data") : path.join(root, "data");
+const candidatePaths = candidateRoot ? await assertCandidateRoot(candidateRoot) : null;
+const dataDir = candidatePaths?.canonicalData ?? path.join(root, "data");
 const manifestsDir = path.join(dataDir, "manifests");
 const packsDir = path.join(dataDir, "packs", "seasons");
 const dataSeasonsPath = path.join(manifestsDir, "seasons.json");
 const dataLatestPath = path.join(manifestsDir, "latest.json");
 const provenanceLedgerPath = path.join(dataDir, "release", "provenance-ledger.json");
-const publicManifestsDir = candidateRoot
-  ? path.join(candidateRoot, "public", "data", "manifests")
+const publicManifestsDir = candidatePaths
+  ? path.join(candidatePaths.publicData, "manifests")
   : path.join(root, "apps", "web", "public", "data", "manifests");
 const publicSeasonsPath = path.join(publicManifestsDir, "seasons.json");
 const publicLatestPath = path.join(publicManifestsDir, "latest.json");
@@ -218,12 +220,14 @@ async function assertMatches(filePath, expected) {
 }
 
 async function writeIfChanged(filePath, content) {
+  if (candidateRoot) await assertCandidateOutputPath(candidateRoot, filePath);
   let current = null;
   try {
     current = await readFile(filePath, "utf-8");
   } catch {}
   if (current === content) return;
   await mkdir(path.dirname(filePath), { recursive: true });
+  if (candidateRoot) await assertCandidateOutputPath(candidateRoot, filePath);
   await writeFile(filePath, content, "utf-8");
 }
 

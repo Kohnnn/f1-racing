@@ -6,14 +6,16 @@ import {
   ReplayMetaSchema,
   ReplayPackSchema,
 } from "../../../packages/schemas/src/index.js";
+import { assertCandidateOutputPath, assertCandidateRoot } from "../../../tools/release-data.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const candidateRoot = process.env.F1_CANDIDATE_ROOT ? path.resolve(process.env.F1_CANDIDATE_ROOT) : null;
+const candidatePaths = candidateRoot ? await assertCandidateRoot(candidateRoot) : null;
 const chunkSize = 120;
-const seasonRoots = candidateRoot
+const seasonRoots = candidatePaths
   ? [
-    path.join(candidateRoot, "canonical", "data", "packs", "seasons"),
-    path.join(candidateRoot, "public", "data", "packs", "seasons"),
+    path.join(candidatePaths.canonicalData, "packs", "seasons"),
+    path.join(candidatePaths.publicData, "packs", "seasons"),
   ]
   : [
     path.join(root, "data", "packs", "seasons"),
@@ -54,14 +56,21 @@ async function walk(directory, replayFiles = [], manifestFiles = []) {
   return { replayFiles, manifestFiles };
 }
 
+async function assertOutputPath(filePath, expectedType = "file") {
+  return candidateRoot ? assertCandidateOutputPath(candidateRoot, filePath, expectedType) : filePath;
+}
+
 async function writeJson(filePath, payload) {
+  await assertOutputPath(filePath);
   await mkdir(path.dirname(filePath), { recursive: true });
+  await assertOutputPath(filePath);
   await writeFile(filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
 }
 
 async function removeManifestReplay(baseDir) {
   const manifestPath = path.join(baseDir, "manifest.json");
   try {
+    await assertOutputPath(manifestPath);
     const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
     if (!Object.hasOwn(manifest, "replay")) return;
     delete manifest.replay;
@@ -82,6 +91,10 @@ export async function writeSplitReplayPack(baseDir, replay) {
 
   const chunkDirectory = path.join(baseDir, "replay.frames");
   const temporaryChunkDirectory = `${chunkDirectory}.tmp-${process.pid}`;
+  await Promise.all([
+    assertOutputPath(chunkDirectory, "directory"),
+    assertOutputPath(temporaryChunkDirectory, "directory"),
+  ]);
   await rm(temporaryChunkDirectory, { recursive: true, force: true });
 
   const chunkFileNames = [];
@@ -127,7 +140,12 @@ export async function writeSplitReplayPack(baseDir, replay) {
 
   await writeJson(path.join(baseDir, "replay.laps.json"), laps);
   await writeJson(path.join(baseDir, "replay.race-control.json"), raceControlMessages);
+  await Promise.all([
+    assertOutputPath(chunkDirectory, "directory"),
+    assertOutputPath(temporaryChunkDirectory, "directory"),
+  ]);
   await rm(chunkDirectory, { recursive: true, force: true });
+  await assertOutputPath(temporaryChunkDirectory, "directory");
   await rename(temporaryChunkDirectory, chunkDirectory);
   await writeJson(path.join(baseDir, "replay.meta.json"), metaPayload);
   await removeManifestReplay(baseDir);
@@ -137,13 +155,17 @@ export async function writeSplitReplayPack(baseDir, replay) {
 export async function splitReplayPack(filePath, { removeInput = true } = {}) {
   let replay;
   try {
+    await assertOutputPath(filePath);
     replay = JSON.parse(await readFile(filePath, "utf8"));
   } catch (error) {
     if (error && error.code === "ENOENT") return false;
     throw error;
   }
   const chunkCount = await writeSplitReplayPack(path.dirname(filePath), replay);
-  if (removeInput) await rm(filePath, { force: true });
+  if (removeInput) {
+    await assertOutputPath(filePath);
+    await rm(filePath, { force: true });
+  }
   process.stdout.write(`Split ${path.relative(root, filePath)} into ${chunkCount} frame chunks\n`);
   return true;
 }
@@ -169,7 +191,10 @@ async function main() {
   for (const replayFile of replayFiles) {
     if (await splitReplayPack(replayFile, { removeInput: false })) splitFiles.push(replayFile);
   }
-  await Promise.all(splitFiles.map((replayFile) => rm(replayFile, { force: true })));
+  await Promise.all(splitFiles.map(async (replayFile) => {
+    await assertOutputPath(replayFile);
+    await rm(replayFile, { force: true });
+  }));
   await Promise.all(manifestFiles.map((manifestFile) => removeManifestReplay(path.dirname(manifestFile))));
 }
 

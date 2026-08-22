@@ -1,11 +1,15 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { splitReplayPack } from "./split-replay-packs.mjs";
 
-const root = await mkdtemp(path.join(os.tmpdir(), "f1-split-replay-"));
-const replayPath = path.join(root, "replay.json");
+const candidateRoot = process.env.F1_CANDIDATE_ROOT ? path.resolve(process.env.F1_CANDIDATE_ROOT) : null;
+const temporaryRoot = candidateRoot
+  ? path.join(candidateRoot, "canonical", "data", `.split-replay-test-${process.pid}`)
+  : await mkdtemp(path.join(os.tmpdir(), "f1-split-replay-"));
+if (candidateRoot) await mkdir(temporaryRoot, { recursive: true });
+const replayPath = path.join(temporaryRoot, "replay.json");
 const replay = {
   generatedAt: "2025-01-01T00:00:00.000Z",
   sessionKey: 1,
@@ -53,18 +57,18 @@ const replay = {
 };
 
 try {
-  await writeFile(path.join(root, "manifest.json"), `${JSON.stringify({ sessionKey: 1, replay: "replay.json" })}\n`);
+  await writeFile(path.join(temporaryRoot, "manifest.json"), `${JSON.stringify({ sessionKey: 1, replay: "replay.json" })}\n`);
   await writeFile(replayPath, `${JSON.stringify(replay)}\n`);
 
   assert.equal(await splitReplayPack(replayPath), true);
   assert.equal(await splitReplayPack(replayPath), false);
 
   const [manifest, meta, laps, raceControl, chunk] = await Promise.all([
-    readFile(path.join(root, "manifest.json"), "utf8").then(JSON.parse),
-    readFile(path.join(root, "replay.meta.json"), "utf8").then(JSON.parse),
-    readFile(path.join(root, "replay.laps.json"), "utf8").then(JSON.parse),
-    readFile(path.join(root, "replay.race-control.json"), "utf8").then(JSON.parse),
-    readFile(path.join(root, "replay.frames", "chunk-000.json"), "utf8").then(JSON.parse),
+    readFile(path.join(temporaryRoot, "manifest.json"), "utf8").then(JSON.parse),
+    readFile(path.join(temporaryRoot, "replay.meta.json"), "utf8").then(JSON.parse),
+    readFile(path.join(temporaryRoot, "replay.laps.json"), "utf8").then(JSON.parse),
+    readFile(path.join(temporaryRoot, "replay.race-control.json"), "utf8").then(JSON.parse),
+    readFile(path.join(temporaryRoot, "replay.frames", "chunk-000.json"), "utf8").then(JSON.parse),
   ]);
   assert.equal(manifest.replay, undefined);
   assert.equal(meta.frameCount, 2);
@@ -72,5 +76,5 @@ try {
   assert.deepEqual(raceControl, replay.raceControlMessages);
   assert.deepEqual(chunk.frames, replay.frames);
 } finally {
-  await rm(root, { recursive: true, force: true });
+  await rm(temporaryRoot, { recursive: true, force: true });
 }

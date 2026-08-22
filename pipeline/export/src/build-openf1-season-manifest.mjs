@@ -13,8 +13,9 @@
 import { writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { fetchSessions } from "../../ingest/src/openf1-client.mjs";
 import { generationTimestamp } from "../../normalize/src/normalize-session.mjs";
-import { assertCandidateRoot } from "../../../tools/release-data.mjs";
+import { assertCandidateOutputPath, assertCandidateRoot } from "../../../tools/release-data.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const candidateRoot = process.env.F1_CANDIDATE_ROOT ? path.resolve(process.env.F1_CANDIDATE_ROOT) : null;
@@ -116,19 +117,6 @@ function inferTrackId(meetingSession) {
   return slugify(location);
 }
 
-async function fetchJson(url) {
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent": "f1-racing-app/1.0 (season manifest builder)",
-      Accept: "application/json",
-    },
-  });
-  if (!response.ok) {
-    throw new Error(`Request failed: ${response.status} ${response.statusText}`);
-  }
-  return response.json();
-}
-
 function parseArgs(argv) {
   const out = {};
   for (let i = 2; i < argv.length; i += 1) {
@@ -148,7 +136,7 @@ async function main() {
   const suppliedGeneratedAt = generatedAtInput === undefined ? null : generationTimestamp(generatedAtInput);
 
   process.stdout.write(`Fetching OpenF1 sessions for ${year} ...\n`);
-  const allSessions = await fetchJson(`https://api.openf1.org/v1/sessions?year=${year}`);
+  const allSessions = await fetchSessions({ year });
 
   const meetings = new Map();
   for (const session of allSessions) {
@@ -228,7 +216,9 @@ async function main() {
     path.join(publicDataRoot, "manifests", `openf1-${year}-season.json`),
   ];
   await Promise.all(targetPaths.map(async (targetPath) => {
+    if (candidateRoot) await assertCandidateOutputPath(candidateRoot, targetPath);
     await mkdir(path.dirname(targetPath), { recursive: true });
+    if (candidateRoot) await assertCandidateOutputPath(candidateRoot, targetPath);
     await writeFile(targetPath, manifestText, "utf-8");
   }));
 

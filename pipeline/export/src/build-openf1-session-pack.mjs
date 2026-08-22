@@ -11,7 +11,7 @@ import {
   fetchWeather,
 } from "../../ingest/src/openf1-client.mjs";
 import { generationTimestamp, normalizeTimestamp, slugify } from "../../normalize/src/normalize-session.mjs";
-import { assertCandidateRoot } from "../../../tools/release-data.mjs";
+import { assertCandidateOutputPath, assertCandidateRoot } from "../../../tools/release-data.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const candidateRoot = process.env.F1_CANDIDATE_ROOT ? path.resolve(process.env.F1_CANDIDATE_ROOT) : null;
@@ -46,7 +46,9 @@ async function writeJson(relativePath, payload) {
   const targets = [path.join(dataRoot, relativePath), path.join(publicRoot, relativePath)];
   await Promise.all(
     targets.map(async (filePath) => {
+      if (candidateRoot) await assertCandidateOutputPath(candidateRoot, filePath);
       await mkdir(path.dirname(filePath), { recursive: true });
+      if (candidateRoot) await assertCandidateOutputPath(candidateRoot, filePath);
       await writeFile(filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf-8");
     })
   );

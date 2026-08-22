@@ -3,6 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { refreshFeaturedIndexes } from "./refresh-seasons-index.mjs";
 import { writeSplitReplayPack } from "./split-replay-packs.mjs";
+import { assertCandidateOutputPath, assertCandidateRoot } from "../../../tools/release-data.mjs";
 import {
   CarModelCatalogSchema,
   CfdOverlaySchemaExampleSchema,
@@ -22,8 +23,9 @@ import {
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const candidateRoot = process.env.F1_CANDIDATE_ROOT ? path.resolve(process.env.F1_CANDIDATE_ROOT) : null;
-const dataRoot = candidateRoot ? path.join(candidateRoot, "canonical", "data") : path.join(root, "data");
-const publicRoot = candidateRoot ? path.join(candidateRoot, "public", "data") : path.join(root, "apps", "web", "public", "data");
+const candidatePaths = candidateRoot ? await assertCandidateRoot(candidateRoot) : null;
+const dataRoot = candidatePaths?.canonicalData ?? path.join(root, "data");
+const publicRoot = candidatePaths?.publicData ?? path.join(root, "apps", "web", "public", "data");
 
 const sample = {
   ref: {
@@ -438,8 +440,14 @@ function ensureValid() {
   });
 }
 
+async function assertOutputPath(filePath, expectedType = "file") {
+  return candidateRoot ? assertCandidateOutputPath(candidateRoot, filePath, expectedType) : filePath;
+}
+
 async function writeJson(filePath, payload) {
+  await assertOutputPath(filePath);
   await mkdir(path.dirname(filePath), { recursive: true });
+  await assertOutputPath(filePath);
   await writeFile(filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf-8");
 }
 
@@ -476,7 +484,9 @@ async function assertNoReplayInputs() {
 }
 
 async function syncDirectory(sourceDir, destinationDir) {
+  await assertOutputPath(destinationDir, "directory");
   await mkdir(destinationDir, { recursive: true });
+  await assertOutputPath(destinationDir, "directory");
   const entries = await readdir(sourceDir, { withFileTypes: true });
 
   await Promise.all(
@@ -489,7 +499,9 @@ async function syncDirectory(sourceDir, destinationDir) {
         return;
       }
 
+      await assertOutputPath(destinationPath);
       await mkdir(path.dirname(destinationPath), { recursive: true });
+      await assertOutputPath(destinationPath);
       await copyFile(sourcePath, destinationPath);
     })
   );
@@ -552,8 +564,10 @@ async function main() {
   const mode = process.argv.includes("--check") ? "check" : "generate";
 
   if (mode === "generate") {
+    await assertOutputPath(publicRoot, "directory");
     await rm(publicRoot, { recursive: true, force: true });
     await mkdir(publicRoot, { recursive: true });
+    await assertOutputPath(publicRoot, "directory");
     await generate();
     await syncDirectory(dataRoot, publicRoot);
     process.stdout.write("Sample OpenF1-style packs generated.\n");

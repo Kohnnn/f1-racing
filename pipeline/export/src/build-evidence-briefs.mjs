@@ -1,7 +1,7 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { assertCandidateRoot } from "../../../tools/release-data.mjs";
+import { assertCandidateOutputPath, assertCandidateRoot } from "../../../tools/release-data.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const candidateRoot = process.env.F1_CANDIDATE_ROOT ? path.resolve(process.env.F1_CANDIDATE_ROOT) : null;
@@ -269,6 +269,12 @@ function jsonText(value) {
   return `${JSON.stringify(value, null, 2)}\n`;
 }
 
+function isCandidateDestination(destination) {
+  if (!candidateRoot) return false;
+  const relative = path.relative(candidateRoot, path.resolve(destination));
+  return relative && !relative.startsWith("..") && !path.isAbsolute(relative);
+}
+
 export async function generateEvidenceBriefs({ check = false, publicDataRoot = defaultPublicDataRoot, destinations = outputPaths } = {}) {
   const expected = jsonText(await buildEvidenceBriefs({ publicDataRoot }));
   if (check) {
@@ -284,7 +290,9 @@ export async function generateEvidenceBriefs({ check = false, publicDataRoot = d
     return;
   }
   await Promise.all(destinations.map(async (destination) => {
+    if (isCandidateDestination(destination)) await assertCandidateOutputPath(candidateRoot, destination);
     await mkdir(path.dirname(destination), { recursive: true });
+    if (isCandidateDestination(destination)) await assertCandidateOutputPath(candidateRoot, destination);
     await writeFile(destination, expected, "utf8");
   }));
 }

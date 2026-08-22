@@ -138,6 +138,15 @@ export async function assertCandidateRoot(candidateRoot) {
   return paths;
 }
 
+export async function assertCandidateOutputPath(candidateRoot, target, expectedType = "file") {
+  const paths = await assertCandidateRoot(candidateRoot);
+  const rootRealPath = await realpath(paths.root);
+  const resolved = path.resolve(target);
+  if (resolved === paths.root || !isContained(paths.root, resolved)) throw new Error(`Unsafe F1 release candidate path: ${resolved}`);
+  await assertSafeCandidatePath(paths.root, rootRealPath, resolved, expectedType);
+  return resolved;
+}
+
 function isRecord(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }

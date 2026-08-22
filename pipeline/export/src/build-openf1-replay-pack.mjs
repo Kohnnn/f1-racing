@@ -13,12 +13,15 @@ import {
   fetchStints,
   fetchWeather,
 } from "../../ingest/src/openf1-client.mjs";
-import { slugify } from "../../normalize/src/normalize-session.mjs";
+import { generationTimestamp, slugify } from "../../normalize/src/normalize-session.mjs";
+import { assertCandidateOutputPath, assertCandidateRoot } from "../../../tools/release-data.mjs";
 import { writeSplitReplayPack } from "./split-replay-packs.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
-const dataRoot = path.join(root, "data");
-const publicRoot = path.join(root, "apps", "web", "public", "data");
+const candidateRoot = process.env.F1_CANDIDATE_ROOT ? path.resolve(process.env.F1_CANDIDATE_ROOT) : null;
+const candidatePaths = candidateRoot ? await assertCandidateRoot(candidateRoot) : null;
+const dataRoot = candidatePaths?.canonicalData ?? path.join(root, "data");
+const publicRoot = candidatePaths?.publicData ?? path.join(root, "apps", "web", "public", "data");
 
 const TEAM_COLORS = {
   "Red Bull Racing": "#3671C6",
@@ -58,11 +61,17 @@ async function readJson(filePath) {
   return JSON.parse(await readFile(filePath, "utf-8"));
 }
 
+async function assertOutputPath(filePath, expectedType = "file") {
+  return candidateRoot ? assertCandidateOutputPath(candidateRoot, filePath, expectedType) : filePath;
+}
+
 async function writeJson(relativePath, payload) {
   const targets = [path.join(dataRoot, relativePath), path.join(publicRoot, relativePath)];
   await Promise.all(
     targets.map(async (filePath) => {
+      await assertOutputPath(filePath);
       await mkdir(path.dirname(filePath), { recursive: true });
+      await assertOutputPath(filePath);
       await writeFile(filePath, `${JSON.stringify(payload, null, 2)}\n`, "utf-8");
     })
   );
@@ -111,7 +120,9 @@ function getReplayStartTime(ref, lapsRaw, carDataByDriver, positionData) {
   }
 
   const fallback = isoToMs(ref.startDate);
-  return Math.min(...fallbackCandidates.filter((value) => value > 0), fallback || Date.now());
+  const candidates = [...fallbackCandidates.filter((value) => value > 0), fallback].filter((value) => value > 0);
+  if (!candidates.length) throw new Error("Replay requires a source session start timestamp.");
+  return Math.min(...candidates);
 }
 
 function summarizeWeather(samples) {
@@ -1499,6 +1510,9 @@ async function buildReplayPack(sessionKey, drivers, ref) {
 
 async function main() {
   const args = parseArgs(process.argv);
+  const generatedAtInput = args.generatedAt ?? process.env.F1_GENERATED_AT;
+  if (candidateRoot && generatedAtInput === undefined) throw new Error("Candidate generation requires --generatedAt or F1_GENERATED_AT.");
+  const generatedAt = generationTimestamp(generatedAtInput);
   const session = await resolveSession(args);
   const ref = normalizeSessionRef(session, {
     grandPrixSlug: session._manifestSlug,
@@ -1528,7 +1542,7 @@ async function main() {
   process.stdout.write(`Built ${frames.length} frames.\n`);
 
   const replayPack = {
-    generatedAt: new Date().toISOString(),
+    generatedAt,
     sessionKey: ref.sessionKey,
     season: ref.season,
     grandPrix: ref.grandPrixName,
@@ -1563,13 +1577,19 @@ async function main() {
 
   const base = path.join("packs", "seasons", String(ref.season), ref.grandPrixSlug, ref.sessionSlug);
   const outputBases = [path.join(dataRoot, base), path.join(publicRoot, base)];
+  await Promise.all(outputBases.map((outputBase) => assertOutputPath(outputBase, "directory")));
   await Promise.all(outputBases.map((outputBase) => writeSplitReplayPack(outputBase, replayPack)));
-  await Promise.all(outputBases.map((outputBase) => rm(path.join(outputBase, "replay.json"), { force: true })));
+  await Promise.all(outputBases.map(async (outputBase) => {
+    const replayPath = path.join(outputBase, "replay.json");
+    await assertOutputPath(replayPath);
+    await rm(replayPath, { force: true });
+  }));
 
   const manifestRelativePath = path.join(base, "manifest.json");
   const manifestPath = path.join(dataRoot, manifestRelativePath);
   let manifest = { sessionKey: ref.sessionKey };
   try {
+    await assertOutputPath(manifestPath);
     manifest = await readJson(manifestPath);
   } catch {}
   delete manifest.replay;
@@ -1581,7 +1601,7 @@ async function main() {
     session: ref.sessionName,
     sessionKey: ref.sessionKey,
     trackId: ref.trackId,
-    generatedAt: new Date().toISOString(),
+    generatedAt,
     source: "openf1",
     drivers: drivers.map((d) => d.driverCode),
     weatherSummary,

@@ -1,45 +1,264 @@
+import { createHash, randomUUID } from "node:crypto";
+import { lstat, mkdir, open, readFile, realpath, rename, rm, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { assertCandidateRoot } from "../../../tools/release-data.mjs";
+
 const OPENF1_BASE_URL = "https://api.openf1.org/v1";
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export async function openF1Fetch(endpoint, params = {}) {
+function digest(value) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function contained(root, target) {
+  const relative = path.relative(root, target);
+  return !relative || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function isUtcTimestamp(value) {
+  if (typeof value !== "string") return false;
+  try {
+    return new Date(value).toISOString() === value;
+  } catch {
+    return false;
+  }
+}
+
+async function assertOwnedCacheRoot(cacheRoot) {
+  const candidateRoot = process.env.F1_CANDIDATE_ROOT && path.resolve(process.env.F1_CANDIDATE_ROOT);
+  if (!candidateRoot) throw new Error("Set F1_CANDIDATE_ROOT before enabling the OpenF1 response cache.");
+  await assertCandidateRoot(candidateRoot);
+  const candidateRealPath = await realpath(candidateRoot);
+  const privateRoot = path.join(candidateRoot, "private");
+  const resolved = path.resolve(cacheRoot);
+  if (resolved === privateRoot || !contained(privateRoot, resolved)) {
+    throw new Error("OpenF1 response cache must stay inside F1_CANDIDATE_ROOT/private.");
+  }
+  const relative = path.relative(candidateRoot, resolved);
+  let current = candidateRoot;
+  for (const segment of relative.split(path.sep)) {
+    current = path.join(current, segment);
+    try {
+      const info = await lstat(current);
+      if (info.isSymbolicLink() || !info.isDirectory() || !contained(candidateRealPath, await realpath(current))) {
+        throw new Error(`Unsafe OpenF1 response cache path: ${current}`);
+      }
+    } catch (error) {
+      if (error?.code === "ENOENT") break;
+      throw error;
+    }
+  }
+  await mkdir(resolved, { recursive: true });
+  const [privateInfo, resolvedInfo, privateRealPath, resolvedRealPath] = await Promise.all([
+    lstat(privateRoot),
+    lstat(resolved),
+    realpath(privateRoot),
+    realpath(resolved),
+  ]);
+  if (
+    privateInfo.isSymbolicLink()
+    || resolvedInfo.isSymbolicLink()
+    || !privateInfo.isDirectory()
+    || !resolvedInfo.isDirectory()
+    || !contained(candidateRealPath, privateRealPath)
+    || !contained(privateRealPath, resolvedRealPath)
+  ) throw new Error(`Unsafe OpenF1 response cache path: ${resolved}`);
+  return resolved;
+}
+
+async function cachePaths(cacheRoot, identifier) {
+  if (!cacheRoot) return null;
+  const resolved = await assertOwnedCacheRoot(cacheRoot);
+  const entry = path.join(resolved, digest(identifier));
+  try {
+    const [entryInfo, resolvedRealPath, entryRealPath] = await Promise.all([
+      lstat(entry),
+      realpath(resolved),
+      realpath(entry),
+    ]);
+    if (entryInfo.isSymbolicLink() || !entryInfo.isDirectory() || !contained(resolvedRealPath, entryRealPath)) {
+      throw new Error(`Unsafe OpenF1 response cache entry: ${entry}`);
+    }
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+  return {
+    root: resolved,
+    entry,
+    body: path.join(entry, "response.body"),
+    metadata: path.join(entry, "metadata.json"),
+  };
+}
+
+async function readCacheFile(filePath, encoding) {
+  const info = await lstat(filePath);
+  if (!info.isFile() || info.isSymbolicLink()) throw new Error(`Unsafe OpenF1 response cache entry: ${filePath}`);
+  const handle = await open(filePath, "r");
+  try {
+    const openedInfo = await handle.stat();
+    if (!openedInfo.isFile() || openedInfo.dev !== info.dev || openedInfo.ino !== info.ino) {
+      throw new Error(`Unsafe OpenF1 response cache entry: ${filePath}`);
+    }
+    return handle.readFile(encoding);
+  } finally {
+    await handle.close();
+  }
+}
+
+async function cacheEntryIdentity(root, entry) {
+  const [rootInfo, entryInfo, rootRealPath, entryRealPath] = await Promise.all([
+    lstat(root),
+    lstat(entry),
+    realpath(root),
+    realpath(entry),
+  ]);
+  if (
+    rootInfo.isSymbolicLink()
+    || entryInfo.isSymbolicLink()
+    || !rootInfo.isDirectory()
+    || !entryInfo.isDirectory()
+    || !contained(rootRealPath, entryRealPath)
+  ) throw new Error(`Unsafe OpenF1 response cache entry: ${entry}`);
+  return {
+    rootDev: rootInfo.dev,
+    rootIno: rootInfo.ino,
+    rootRealPath,
+    entryDev: entryInfo.dev,
+    entryIno: entryInfo.ino,
+    entryRealPath,
+  };
+}
+
+async function readCachedResponse(paths, identifier) {
+  if (!paths) return null;
+  let before;
+  try {
+    before = await cacheEntryIdentity(paths.root, paths.entry);
+  } catch (error) {
+    if (error?.code === "ENOENT") return null;
+    throw error;
+  }
+  const [bodyResult, metadataResult] = await Promise.allSettled([
+    readCacheFile(paths.body),
+    readCacheFile(paths.metadata, "utf8").then(JSON.parse),
+  ]);
+  const bodyMissing = bodyResult.status === "rejected" && bodyResult.reason?.code === "ENOENT";
+  const metadataMissing = metadataResult.status === "rejected" && metadataResult.reason?.code === "ENOENT";
+  if (bodyMissing && metadataMissing) throw new Error(`Incomplete OpenF1 response cache entry: ${identifier}`);
+  if (bodyResult.status === "rejected") {
+    if (bodyMissing) throw new Error(`Incomplete OpenF1 response cache entry: ${identifier}`);
+    throw bodyResult.reason;
+  }
+  if (metadataResult.status === "rejected") {
+    if (metadataMissing) throw new Error(`Incomplete OpenF1 response cache entry: ${identifier}`);
+    throw metadataResult.reason;
+  }
+  const after = await cacheEntryIdentity(paths.root, paths.entry);
+  if (
+    after.rootDev !== before.rootDev
+    || after.rootIno !== before.rootIno
+    || after.rootRealPath !== before.rootRealPath
+    || after.entryDev !== before.entryDev
+    || after.entryIno !== before.entryIno
+    || after.entryRealPath !== before.entryRealPath
+  ) throw new Error(`Unsafe OpenF1 response cache entry: ${paths.entry}`);
+  const metadata = metadataResult.value;
+  const payload = JSON.parse(bodyResult.value.toString("utf8"));
+  const noResults = metadata.status === 404 && typeof payload?.detail === "string" && /no results/i.test(payload.detail);
+  if (
+    metadata.schemaVersion !== 1
+    || metadata.provider !== "openf1"
+    || metadata.identifier !== identifier
+    || metadata.responseSha256 !== digest(bodyResult.value)
+    || metadata.bytes !== bodyResult.value.length
+    || typeof metadata.statusText !== "string"
+    || !isUtcTimestamp(metadata.retrievedAt)
+    || (!(metadata.status >= 200 && metadata.status < 300) && !noResults)
+  ) throw new Error(`Invalid OpenF1 response cache entry: ${identifier}`);
+  return noResults ? [] : payload;
+}
+
+async function writeCachedResponse(paths, body, metadata) {
+  if (!paths) return;
+  const temporaryEntry = `${paths.entry}.tmp-${process.pid}-${randomUUID()}`;
+  try {
+    await mkdir(temporaryEntry);
+    await Promise.all([
+      writeFile(path.join(temporaryEntry, "response.body"), body, { flag: "wx" }),
+      writeFile(path.join(temporaryEntry, "metadata.json"), `${JSON.stringify(metadata, null, 2)}\n`, { encoding: "utf8", flag: "wx" }),
+    ]);
+    try {
+      await rename(temporaryEntry, paths.entry);
+    } catch (error) {
+      if (!new Set(["EEXIST", "ENOTEMPTY", "EPERM"]).has(error?.code)) throw error;
+      let winnerInfo;
+      try {
+        winnerInfo = await lstat(paths.entry);
+      } catch {
+        throw error;
+      }
+      if (!winnerInfo.isDirectory() || winnerInfo.isSymbolicLink()) throw error;
+    }
+  } finally {
+    await rm(temporaryEntry, { recursive: true, force: true });
+  }
+}
+
+export async function openF1Fetch(endpoint, params = {}, options = {}) {
+  if (typeof endpoint !== "string" || !/^[a-z_]+$/.test(endpoint)) throw new Error(`Invalid OpenF1 endpoint: ${endpoint}`);
   const url = new URL(`${OPENF1_BASE_URL}/${endpoint}`);
   Object.entries(params).forEach(([key, value]) => {
     if (value !== undefined && value !== null && value !== "") {
       url.searchParams.set(key, String(value));
     }
   });
+  const identifier = url.href;
+  const defaultCacheRoot = process.env.F1_CANDIDATE_ROOT
+    ? path.join(process.env.F1_CANDIDATE_ROOT, "private", "openf1-responses")
+    : null;
+  const paths = await cachePaths(options.cacheRoot ?? process.env.F1_OPENF1_CACHE_ROOT ?? defaultCacheRoot, identifier);
+  const cached = await readCachedResponse(paths, identifier);
+  if (cached !== null) return cached;
+  const fetchImpl = options.fetch ?? fetch;
+  const wait = options.sleep ?? sleep;
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    const response = await fetch(url, {
+    const response = await fetchImpl(url, {
       headers: {
         Accept: "application/json",
       },
     });
 
-    if (response.ok) {
-      return response.json();
-    }
-
     if (response.status === 429 && attempt < 4) {
-      await sleep(12000 + attempt * 3000);
+      await wait(12000 + attempt * 3000);
       continue;
     }
 
-    // OpenF1 returns 404 for endpoints with no rows; treat as an empty list
-    // so the caller can decide how to handle missing data instead of throwing.
-    if (response.status === 404) {
-      try {
-        const body = await response.json();
-        if (body && typeof body.detail === "string" && /no results/i.test(body.detail)) {
-          return [];
-        }
-      } catch {
-        // body was not JSON; fall through to throw below.
-      }
-      return [];
+    const body = Buffer.from(await response.arrayBuffer());
+    let payload;
+    try {
+      payload = JSON.parse(body.toString("utf8"));
+    } catch {
+      throw new Error(`OpenF1 returned invalid JSON: ${response.status} ${response.statusText}`);
+    }
+    const noResults = response.status === 404 && typeof payload?.detail === "string" && /no results/i.test(payload.detail);
+    if (response.ok || noResults) {
+      const retrievedAt = (options.now ? options.now() : new Date()).toISOString();
+      await writeCachedResponse(paths, body, {
+        schemaVersion: 1,
+        provider: "openf1",
+        identifier,
+        retrievedAt,
+        responseSha256: digest(body),
+        bytes: body.length,
+        status: response.status,
+        statusText: response.statusText,
+      });
+      if (paths) return readCachedResponse(paths, identifier);
+      return response.ok ? payload : [];
     }
 
     throw new Error(`OpenF1 request failed: ${response.status} ${response.statusText}`);

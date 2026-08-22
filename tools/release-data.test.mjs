@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { evidenceBriefTemplates } from "../pipeline/export/src/build-evidence-briefs.mjs";
 import { assertReleaseNodeVersion, finalizeCandidate, normalizeReleaseTime } from "./release-artifact.mjs";
 import {
+  assertCandidateOutputPath,
   assertCandidateRoot,
   auditCandidate,
   candidateMarker,
@@ -547,6 +548,10 @@ try {
   const sentinel = path.join(descendantEscapeTarget, "sentinel.txt");
   await writeFile(sentinel, "preserve");
   await symlink(descendantEscapeTarget, descendantEscapeLink, process.platform === "win32" ? "junction" : "dir");
+  await assert.rejects(
+    assertCandidateOutputPath(descendantEscapeRoot, path.join(descendantEscapeLink, "replay.meta.json")),
+    /Unsafe F1 release candidate path/,
+  );
   await assert.rejects(auditCandidate(descendantEscapeRoot, { now }), /Unsupported release entry/);
   assert.equal(await readFile(sentinel, "utf8"), "preserve");
 } finally {
