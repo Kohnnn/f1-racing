@@ -165,15 +165,20 @@ export function normalizeStints(stints) {
     const ordered = [...entries].sort((left, right) => integerField(left.stint_number, "Stint number", 1) - integerField(right.stint_number, "Stint number", 1));
     const seenStints = new Set();
     let previousLapEnd = 0;
-    for (const stint of ordered) {
+    for (let index = 0; index < ordered.length; index += 1) {
+      const stint = ordered[index];
       const stintNumber = integerField(stint.stint_number, "Stint number", 1);
-      const rawLapStart = integerField(stint.lap_start, "Stint lap start", 1);
-      const lapEnd = integerField(stint.lap_end, "Stint lap end", 1);
-      if (!Number.isInteger(stintNumber) || stintNumber < 1 || seenStints.has(stintNumber)) throw new Error(`Driver ${driverNumber} has invalid stint numbering.`);
-      if (!Number.isInteger(rawLapStart) || !Number.isInteger(lapEnd) || rawLapStart < 1 || lapEnd < rawLapStart) throw new Error(`Driver ${driverNumber} has an invalid stint range.`);
-      if (rawLapStart <= previousLapEnd) throw new Error(`Driver ${driverNumber} has overlapping stint ranges.`);
-      normalized.push({ ...stint, lap_start: rawLapStart, lap_end: lapEnd });
+      const lapStart = integerField(stint.lap_start, "Stint lap start", 1);
+      const rawLapEnd = integerField(stint.lap_end, "Stint lap end", 1);
+      const nextLapStart = index + 1 < ordered.length ? integerField(ordered[index + 1].lap_start, "Stint lap start", 1) : null;
+      if (seenStints.has(stintNumber)) throw new Error(`Driver ${driverNumber} has invalid stint numbering.`);
+      if (rawLapEnd < lapStart) throw new Error(`Driver ${driverNumber} has an invalid stint range.`);
+      if (nextLapStart !== null && nextLapStart < rawLapEnd) throw new Error(`Driver ${driverNumber} has overlapping stint ranges.`);
+      const lapEnd = nextLapStart === rawLapEnd ? rawLapEnd - 1 : rawLapEnd;
+      if (lapStart <= previousLapEnd) throw new Error(`Driver ${driverNumber} has overlapping stint ranges.`);
       seenStints.add(stintNumber);
+      if (lapEnd < lapStart) continue;
+      normalized.push({ ...stint, lap_start: lapStart, lap_end: lapEnd });
       previousLapEnd = lapEnd;
     }
   }

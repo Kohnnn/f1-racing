@@ -54,10 +54,14 @@ assert.deepEqual(normalizeStints([
   { driver_number: 4, stint_number: 2, lap_start: 5, lap_end: 7, compound: "HARD" },
   { driver_number: 4, stint_number: 1, lap_start: 1, lap_end: 4, compound: "MEDIUM" },
 ]).map(({ lap_start: lapStart, lap_end: lapEnd }) => [lapStart, lapEnd]), [[1, 4], [5, 7]]);
-assert.throws(() => normalizeStints([
+assert.deepEqual(normalizeStints([
   { driver_number: 4, stint_number: 1, lap_start: 1, lap_end: 4 },
   { driver_number: 4, stint_number: 2, lap_start: 4, lap_end: 7 },
-]), /overlapping/);
+]).map(({ lap_start: lapStart, lap_end: lapEnd }) => [lapStart, lapEnd]), [[1, 3], [4, 7]]);
+assert.deepEqual(normalizeStints([
+  { driver_number: 4, stint_number: 1, lap_start: 1, lap_end: 1 },
+  { driver_number: 4, stint_number: 2, lap_start: 1, lap_end: 4 },
+]).map(({ stint_number: stintNumber, lap_start: lapStart, lap_end: lapEnd }) => [stintNumber, lapStart, lapEnd]), [[2, 1, 4]]);
 assert.deepEqual(normalizeStints([
   { driver_number: 81, stint_number: 1, lap_start: 1, lap_end: 2 },
   { driver_number: 4, stint_number: 1, lap_start: 1, lap_end: 2 },
@@ -66,6 +70,10 @@ assert.throws(() => normalizeStints([{ driver_number: null, stint_number: 1, lap
 assert.throws(() => normalizeStints([
   { driver_number: 4, stint_number: 1, lap_start: 1, lap_end: 5 },
   { driver_number: 4, stint_number: 2, lap_start: 4, lap_end: 7 },
+]), /overlapping/);
+assert.throws(() => normalizeStints([
+  { driver_number: 4, stint_number: 1, lap_start: 1, lap_end: 5 },
+  { driver_number: 4, stint_number: 2, lap_start: 3, lap_end: 7 },
 ]), /overlapping/);
 
 process.stdout.write("OpenF1 session pack normalization tests passed.\n");
