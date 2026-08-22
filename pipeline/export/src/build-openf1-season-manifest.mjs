@@ -13,6 +13,7 @@
 import { writeFile, mkdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { generationTimestamp } from "../../normalize/src/normalize-session.mjs";
 import { assertCandidateRoot } from "../../../tools/release-data.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
@@ -142,6 +143,9 @@ function parseArgs(argv) {
 async function main() {
   const args = parseArgs(process.argv);
   const year = Number(args.year || 2026);
+  const generatedAtInput = args.generatedAt ?? process.env.F1_GENERATED_AT;
+  if (candidateRoot && generatedAtInput === undefined) throw new Error("Candidate generation requires --generatedAt or F1_GENERATED_AT.");
+  const suppliedGeneratedAt = generatedAtInput === undefined ? null : generationTimestamp(generatedAtInput);
 
   process.stdout.write(`Fetching OpenF1 sessions for ${year} ...\n`);
   const allSessions = await fetchJson(`https://api.openf1.org/v1/sessions?year=${year}`);
@@ -209,11 +213,12 @@ async function main() {
     }
   }
 
+  const generatedAt = suppliedGeneratedAt ?? generationTimestamp();
   const manifest = {
     schemaVersion: 1,
     season: year,
     source: "openf1",
-    generatedAt: new Date().toISOString(),
+    generatedAt,
     grandsPrix,
   };
 

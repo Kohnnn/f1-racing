@@ -10,7 +10,7 @@ import {
   fetchStints,
   fetchWeather,
 } from "../../ingest/src/openf1-client.mjs";
-import { slugify } from "../../normalize/src/normalize-session.mjs";
+import { generationTimestamp, normalizeTimestamp, slugify } from "../../normalize/src/normalize-session.mjs";
 import { assertCandidateRoot } from "../../../tools/release-data.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
@@ -71,27 +71,6 @@ function compareCodeUnits(left, right) {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
-function utcTimestamp(value, label) {
-  const match = typeof value === "string"
-    ? value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d+)?(Z|[+-]\d{2}:\d{2})$/)
-    : null;
-  if (!match) throw new Error(`${label} requires an RFC 3339 timestamp with an explicit UTC offset.`);
-  const [, yearText, monthText, dayText, hourText, minuteText, secondText, offset] = match;
-  const year = Number(yearText);
-  const month = Number(monthText);
-  const day = Number(dayText);
-  const hour = Number(hourText);
-  const minute = Number(minuteText);
-  const second = Number(secondText);
-  const offsetParts = offset === "Z" ? null : offset.slice(1).split(":").map(Number);
-  const daysInMonth = month >= 1 && month <= 12 ? new Date(Date.UTC(year, month, 0)).getUTCDate() : 0;
-  if (day < 1 || day > daysInMonth || hour > 23 || minute > 59 || second > 59
-    || (offsetParts && (offsetParts[0] > 23 || offsetParts[1] > 59)) || !Number.isFinite(Date.parse(value))) {
-    throw new Error(`${label} requires a valid calendar timestamp.`);
-  }
-  return new Date(value).toISOString();
-}
-
 export function normalizeResults(drivers, sessionResult) {
   if (!Array.isArray(drivers) || !Array.isArray(sessionResult)) throw new Error("Drivers and session results must be arrays.");
   const driverCodes = new Map();
@@ -119,7 +98,7 @@ export function normalizeWeather(samples) {
   const weather = samples.map((sample) => {
     if (!isRecord(sample)) throw new Error("Weather observations must be objects.");
     return {
-      at: utcTimestamp(sample.date, "Weather"),
+      at: normalizeTimestamp(sample.date, "Weather"),
       airTempC: optionalNumber(sample.air_temperature, "air_temperature"),
       trackTempC: optionalNumber(sample.track_temperature, "track_temperature"),
       humidityPct: optionalNumber(sample.humidity, "humidity"),
@@ -690,6 +669,9 @@ async function resolveSession(args) {
 
 async function main() {
   const args = parseArgs(process.argv);
+  const generatedAtInput = args.generatedAt ?? process.env.F1_GENERATED_AT;
+  if (candidateRoot && generatedAtInput === undefined) throw new Error("Candidate generation requires --generatedAt or F1_GENERATED_AT.");
+  const suppliedGeneratedAt = generatedAtInput === undefined ? null : generationTimestamp(generatedAtInput);
   const session = await resolveSession(args);
   const ref = normalizeSessionRef(session);
 
@@ -733,13 +715,14 @@ async function main() {
     }
   }
 
+  const generatedAt = suppliedGeneratedAt ?? generationTimestamp();
   const summary = {
     season: ref.season,
     grandPrix: ref.grandPrixName,
     session: ref.sessionName,
     sessionKey: ref.sessionKey,
     trackId: ref.trackId,
-    generatedAt: new Date().toISOString(),
+    generatedAt,
     source: "openf1",
     drivers: drivers.map((driver) => driver.driverCode),
     weatherSummary,

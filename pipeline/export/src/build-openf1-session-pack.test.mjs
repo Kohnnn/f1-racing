@@ -1,5 +1,13 @@
 import assert from "node:assert/strict";
+import { generationTimestamp, normalizeTimestamp } from "../../normalize/src/normalize-session.mjs";
 import { normalizeResults, normalizeStints, normalizeWeather } from "./build-openf1-session-pack.mjs";
+
+const generatedAt = "2026-08-22T12:34:56.789Z";
+assert.equal(generationTimestamp(generatedAt), generatedAt);
+assert.equal(generationTimestamp("2026-08-22T14:34:56.789+02:00"), generatedAt);
+assert.equal(generationTimestamp(undefined, new Date(generatedAt)), generatedAt);
+assert.equal(generationTimestamp(generatedAt), generationTimestamp(generatedAt));
+assert.throws(() => normalizeTimestamp("2026-02-30T00:00:00Z", "Generation time"), /calendar timestamp/);
 
 assert.deepEqual(normalizeResults([
   { driver_number: 4, name_acronym: "NOR" },
