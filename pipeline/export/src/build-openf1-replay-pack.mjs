@@ -77,8 +77,15 @@ async function writeJson(relativePath, payload) {
   );
 }
 
-function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+export function groupByDriverNumber(samples) {
+  const grouped = new Map();
+  for (const sample of samples) {
+    const driverNumber = Number(sample?.driver_number);
+    if (!Number.isInteger(driverNumber) || driverNumber <= 0) continue;
+    if (!grouped.has(driverNumber)) grouped.set(driverNumber, []);
+    grouped.get(driverNumber).push(sample);
+  }
+  return grouped;
 }
 
 function isoToMs(value) {
@@ -1179,78 +1186,34 @@ function determineSafetyCarPhase(raceControlMessages, t) {
 }
 
 async function buildReplayPack(sessionKey, drivers, ref) {
-  process.stdout.write(`Fetching position data for session ${sessionKey}...\n`);
-
-  const allPositionData = [];
-
-  for (const driver of drivers) {
-    try {
-      const positions = await fetchPosition({ sessionKey, driverNumber: driver.driverNumber });
-      if (positions && positions.length > 0) {
-        allPositionData.push({
-          driverCode: driver.driverCode,
-          driverNumber: driver.driverNumber,
-          positions,
-        });
-      }
-      await sleep(200);
-    } catch (err) {
-      process.stderr.write(`Warning: Failed to fetch positions for driver ${driver.driverNumber}: ${err.message}\n`);
-    }
-  }
-
-  process.stdout.write(`Fetched position data for ${allPositionData.length} drivers.\n`);
-
-  process.stdout.write(`Fetching GPS location data...\n`);
-  const allLocationData = [];
-  for (const driver of drivers) {
-    try {
-      const locations = await fetchLocation({ sessionKey, driverNumber: driver.driverNumber });
-      if (locations && locations.length > 0) {
-        allLocationData.push({
-          driverCode: driver.driverCode,
-          driverNumber: driver.driverNumber,
-          locations,
-        });
-      }
-      await sleep(200);
-    } catch (err) {
-      process.stderr.write(`Warning: Failed to fetch location for driver ${driver.driverNumber}: ${err.message}\n`);
-    }
-  }
-  process.stdout.write(`Fetched GPS location for ${allLocationData.length} drivers.\n`);
-
-  process.stdout.write(`Fetching car telemetry data...\n`);
-  const carDataByDriver = new Map();
-
-  for (const driver of drivers) {
-    try {
-      const carData = await fetchCarData({ sessionKey, driverNumber: driver.driverNumber });
-      if (carData && carData.length > 0) {
-        carDataByDriver.set(driver.driverNumber, carData);
-      }
-      await sleep(200);
-    } catch (err) {
-      process.stderr.write(`Warning: Failed to fetch car data for driver ${driver.driverNumber}: ${err.message}\n`);
-    }
-  }
-
-  process.stdout.write(`Fetched telemetry for ${carDataByDriver.size} drivers.\n`);
-
-  process.stdout.write(`Fetching lap, weather, and stint data...\n`);
-  const [lapsRaw, weatherRaw, stintsRaw] = await Promise.all([
+  process.stdout.write(`Fetching session-wide replay data for session ${sessionKey}...\n`);
+  const [positionsRaw, locationsRaw, carDataRaw, lapsRaw, weatherRaw, stintsRaw, raceControlMessages] = await Promise.all([
+    fetchPosition({ sessionKey }),
+    fetchLocation({ sessionKey }),
+    fetchCarData({ sessionKey }),
     fetchLaps({ sessionKey }),
-    fetchWeather({ sessionKey }).catch(() => []),
-    fetchStints({ sessionKey }).catch(() => []),
+    fetchWeather({ sessionKey }),
+    fetchStints({ sessionKey }),
+    fetchRaceControl({ sessionKey }),
   ]);
-
-  process.stdout.write(`Fetching race control data...\n`);
-  let raceControlMessages = [];
-  try {
-    raceControlMessages = await fetchRaceControl({ sessionKey });
-  } catch (err) {
-    process.stderr.write(`Warning: Failed to fetch race control: ${err.message}\n`);
-  }
+  const positionsByDriver = groupByDriverNumber(positionsRaw);
+  const locationsByDriver = groupByDriverNumber(locationsRaw);
+  const carDataByDriver = groupByDriverNumber(carDataRaw);
+  const allPositionData = drivers
+    .filter((driver) => positionsByDriver.has(driver.driverNumber))
+    .map((driver) => ({
+      driverCode: driver.driverCode,
+      driverNumber: driver.driverNumber,
+      positions: positionsByDriver.get(driver.driverNumber),
+    }));
+  const allLocationData = drivers
+    .filter((driver) => locationsByDriver.has(driver.driverNumber))
+    .map((driver) => ({
+      driverCode: driver.driverCode,
+      driverNumber: driver.driverNumber,
+      locations: locationsByDriver.get(driver.driverNumber),
+    }));
+  process.stdout.write(`Fetched replay data for ${allPositionData.length} position, ${allLocationData.length} location, and ${carDataByDriver.size} telemetry drivers.\n`);
 
   process.stdout.write(`Building replay frames...\n`);
 
@@ -1611,7 +1574,9 @@ async function main() {
   process.stdout.write(`Built split replay pack at ${base}\n`);
 }
 
-main().catch((error) => {
-  console.error(error);
-  process.exit(1);
-});
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    console.error(error);
+    process.exit(1);
+  });
+}

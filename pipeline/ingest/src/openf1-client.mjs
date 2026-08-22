@@ -132,7 +132,7 @@ async function cacheEntryIdentity(root, entry) {
   };
 }
 
-async function readCachedResponse(paths, identifier) {
+async function readCachedResponse(paths, identifier, includeMetadata = false) {
   if (!paths) return null;
   let before;
   try {
@@ -178,7 +178,8 @@ async function readCachedResponse(paths, identifier) {
     || !isUtcTimestamp(metadata.retrievedAt)
     || (!(metadata.status >= 200 && metadata.status < 300) && !noResults)
   ) throw new Error(`Invalid OpenF1 response cache entry: ${identifier}`);
-  return noResults ? [] : payload;
+  const response = noResults ? [] : payload;
+  return includeMetadata ? { metadata, payload: response } : response;
 }
 
 async function writeCachedResponse(paths, body, metadata) {
@@ -207,21 +208,38 @@ async function writeCachedResponse(paths, body, metadata) {
   }
 }
 
-export async function openF1Fetch(endpoint, params = {}, options = {}) {
+function requestIdentifier(endpoint, params) {
   if (typeof endpoint !== "string" || !/^[a-z_]+$/.test(endpoint)) throw new Error(`Invalid OpenF1 endpoint: ${endpoint}`);
   const url = new URL(`${OPENF1_BASE_URL}/${endpoint}`);
   Object.entries(params).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== "") {
-      url.searchParams.set(key, String(value));
-    }
+    if (value !== undefined && value !== null && value !== "") url.searchParams.set(key, String(value));
   });
-  const identifier = url.href;
+  return url.href;
+}
+
+export async function readOpenF1Evidence(endpoint, params = {}, options = {}) {
+  const identifier = requestIdentifier(endpoint, params);
+  const defaultCacheRoot = process.env.F1_CANDIDATE_ROOT
+    ? path.join(process.env.F1_CANDIDATE_ROOT, "private", "openf1-responses")
+    : null;
+  const paths = await cachePaths(options.cacheRoot ?? process.env.F1_OPENF1_CACHE_ROOT ?? defaultCacheRoot, identifier);
+  const cached = await readCachedResponse(paths, identifier, true);
+  if (cached === null) throw new Error(`Missing OpenF1 response cache entry: ${identifier}`);
+  return cached;
+}
+
+export async function openF1Fetch(endpoint, params = {}, options = {}) {
+  const identifier = requestIdentifier(endpoint, params);
+  const url = new URL(identifier);
   const defaultCacheRoot = process.env.F1_CANDIDATE_ROOT
     ? path.join(process.env.F1_CANDIDATE_ROOT, "private", "openf1-responses")
     : null;
   const paths = await cachePaths(options.cacheRoot ?? process.env.F1_OPENF1_CACHE_ROOT ?? defaultCacheRoot, identifier);
   const cached = await readCachedResponse(paths, identifier);
   if (cached !== null) return cached;
+  if (options.cacheOnly || process.env.F1_OPENF1_CACHE_ONLY === "1") {
+    throw new Error(`Missing OpenF1 response cache entry: ${identifier}`);
+  }
   const fetchImpl = options.fetch ?? fetch;
   const wait = options.sleep ?? sleep;
 

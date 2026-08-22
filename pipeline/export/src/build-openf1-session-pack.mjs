@@ -682,11 +682,15 @@ async function main() {
   const session = await resolveSession(args);
   const ref = normalizeSessionRef(session);
 
-  const driversRaw = await fetchDrivers({ sessionKey: ref.sessionKey });
-  const lapsRaw = await fetchLaps({ sessionKey: ref.sessionKey });
-  const weatherRaw = await fetchWeather({ sessionKey: ref.sessionKey });
-  const sessionResultRaw = await fetchSessionResult({ sessionKey: ref.sessionKey });
-  const stintsRaw = normalizeStints(await fetchStints({ sessionKey: ref.sessionKey }));
+  const [driversRaw, lapsRaw, weatherRaw, sessionResultRaw, stintsResponse, carDataRaw] = await Promise.all([
+    fetchDrivers({ sessionKey: ref.sessionKey }),
+    fetchLaps({ sessionKey: ref.sessionKey }),
+    fetchWeather({ sessionKey: ref.sessionKey }),
+    fetchSessionResult({ sessionKey: ref.sessionKey }),
+    fetchStints({ sessionKey: ref.sessionKey }),
+    fetchCarData({ sessionKey: ref.sessionKey }),
+  ]);
+  const stintsRaw = normalizeStints(stintsResponse);
   const results = normalizeResults(driversRaw, sessionResultRaw);
   const weather = normalizeWeather(weatherRaw);
 
@@ -707,8 +711,8 @@ async function main() {
     const rightRawLap = lapsRaw.find((lap) => Number(lap.driver_number) === rightDriver?.driverNumber && Number(lap.lap_number) === rightLap?.lapNumber);
 
     if (leftDriver && rightDriver && leftLap && rightLap && leftRawLap && rightRawLap) {
-      const leftCarData = await fetchCarData({ sessionKey: ref.sessionKey, driverNumber: leftDriver.driverNumber });
-      const rightCarData = await fetchCarData({ sessionKey: ref.sessionKey, driverNumber: rightDriver.driverNumber });
+      const leftCarData = carDataRaw.filter((point) => Number(point.driver_number) === leftDriver.driverNumber);
+      const rightCarData = carDataRaw.filter((point) => Number(point.driver_number) === rightDriver.driverNumber);
       const leftTrace = buildTelemetryTrace(leftCarData, leftLap, leftRawLap);
       const rightTrace = buildTelemetryTrace(rightCarData, rightLap, rightRawLap);
 

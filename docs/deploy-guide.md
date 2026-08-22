@@ -34,6 +34,18 @@ npm run smoke:static
 
 `npm run build` validates the deterministic newest-complete-race manifests before creating `apps/web/out`; it does not fetch or rewrite OpenF1 packs.
 
+Plan indexed OpenF1 regeneration without creating a candidate or making provider requests:
+
+```bash
+npm run release:regenerate:openf1 -- --dry-run
+```
+
+Live regeneration requires recorded operator approval. It captures exact responses privately, rebuilds only sessions with complete terminal source evidence from cache, derives provenance, runs the existing candidate gates, and prints the retained candidate path without deploying:
+
+```bash
+npm run release:regenerate:openf1 -- --rights-status approved --rights-reference <approval-reference>
+```
+
 ## Candidate release gate
 
 `npm run release:artifact` requires Node.js 22 and a clean worktree. It rejects `F1_CANDIDATE_ROOT` and `--candidate-root`, creates a fresh marker-owned directory under the OS temporary directory, copies the canonical and public projections, and binds the build to the clean 40-character source commit. It audits the data, runs `quality`, `check:featured`, isolated Python compilation, one build, and static smoke against that candidate, then writes a deterministic sorted SHA-256 manifest for the complete built release unit. A failed candidate is retained at the printed path; promoted canonical, public, and build trees remain unchanged.

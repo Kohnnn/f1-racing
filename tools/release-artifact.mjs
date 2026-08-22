@@ -81,7 +81,7 @@ function gitOutput(args) {
   });
 }
 
-async function assertCleanSource(expectedCommit) {
+export async function assertCleanSource(expectedCommit) {
   const [commit, status] = await Promise.all([
     gitOutput(["rev-parse", "HEAD"]),
     gitOutput(["status", "--porcelain", "--untracked-files=all"]),
@@ -169,15 +169,8 @@ export async function createCandidate() {
   return paths;
 }
 
-async function main() {
-  const options = parseArgs(process.argv.slice(2));
-  if (options["candidate-root"] || process.env.F1_CANDIDATE_ROOT) {
-    throw new Error("release:artifact creates a fresh candidate path; use release:data to audit an existing candidate.");
-  }
-  assertReleaseNodeVersion();
-  const { now, generatedAt } = normalizeReleaseTime(options.now);
-  const sourceCommitValue = await assertCleanSource();
-  const paths = await createCandidate();
+export async function buildAndFinalizeCandidate(candidateRoot, { now, generatedAt, sourceCommitValue }) {
+  const paths = await assertCandidateRoot(candidateRoot);
   const env = {
     ...process.env,
     F1_CANDIDATE_ROOT: paths.root,
@@ -191,21 +184,34 @@ async function main() {
     { command: "npm run build", run: () => runNpm("build", env) },
     { command: "npm run smoke:static", run: () => runNpm("smoke:static", env) },
   ];
+  const { auditCandidate } = await import("./release-data.mjs");
+  await auditCandidate(paths.root, { requireReleaseRecord: false, now });
+  for (const command of commands) await command.run();
+  await assertCleanSource(sourceCommitValue);
+  const result = await finalizeCandidate(paths.root, {
+    sourceCommitValue,
+    generatedAt,
+    gateEvidence: {
+      node: process.version,
+      platform: `${process.platform}-${process.arch}`,
+      commands: commands.map(({ command }) => ({ command, status: "passed" })),
+    },
+  });
+  await auditCandidate(paths.root, { now });
+  return result;
+}
+
+async function main() {
+  const options = parseArgs(process.argv.slice(2));
+  if (options["candidate-root"] || process.env.F1_CANDIDATE_ROOT) {
+    throw new Error("release:artifact creates a fresh candidate path; use release:data to audit an existing candidate.");
+  }
+  assertReleaseNodeVersion();
+  const { now, generatedAt } = normalizeReleaseTime(options.now);
+  const sourceCommitValue = await assertCleanSource();
+  const paths = await createCandidate();
   try {
-    const { auditCandidate } = await import("./release-data.mjs");
-    await auditCandidate(paths.root, { requireReleaseRecord: false, now });
-    for (const command of commands) await command.run();
-    await assertCleanSource(sourceCommitValue);
-    const result = await finalizeCandidate(paths.root, {
-      sourceCommitValue,
-      generatedAt,
-      gateEvidence: {
-        node: process.version,
-        platform: `${process.platform}-${process.arch}`,
-        commands: commands.map(({ command }) => ({ command, status: "passed" })),
-      },
-    });
-    await auditCandidate(paths.root, { now });
+    const result = await buildAndFinalizeCandidate(paths.root, { now, generatedAt, sourceCommitValue });
     process.stdout.write(`Release artifact candidate passed: ${paths.root}\nRelease ID: ${result.manifest.releaseId}\n`);
   } catch (error) {
     process.stderr.write(`Candidate retained for inspection: ${paths.root}\n`);

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { generationTimestamp, normalizeTimestamp } from "../../normalize/src/normalize-session.mjs";
+import { groupByDriverNumber } from "./build-openf1-replay-pack.mjs";
 import { normalizeResults, normalizeStints, normalizeWeather } from "./build-openf1-session-pack.mjs";
 
 const generatedAt = "2026-08-22T12:34:56.789Z";
@@ -75,5 +76,18 @@ assert.throws(() => normalizeStints([
   { driver_number: 4, stint_number: 1, lap_start: 1, lap_end: 5 },
   { driver_number: 4, stint_number: 2, lap_start: 3, lap_end: 7 },
 ]), /overlapping/);
+
+assert.deepEqual([...groupByDriverNumber([
+  { driver_number: 81, date: "later" },
+  { driver_number: 4, date: "first" },
+  { driver_number: "4", date: "second" },
+  { driver_number: null, date: "ignored" },
+])], [
+  [81, [{ driver_number: 81, date: "later" }]],
+  [4, [
+    { driver_number: 4, date: "first" },
+    { driver_number: "4", date: "second" },
+  ]],
+]);
 
 process.stdout.write("OpenF1 session pack normalization tests passed.\n");

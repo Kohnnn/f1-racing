@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promis
 import os from "node:os";
 import path from "node:path";
 import { candidatesRoot } from "../../../tools/release-data.mjs";
-import { openF1Fetch } from "./openf1-client.mjs";
+import { openF1Fetch, readOpenF1Evidence } from "./openf1-client.mjs";
 
 const root = await mkdtemp(path.join(os.tmpdir(), "openf1-client-test-"));
 await mkdir(candidatesRoot, { recursive: true });
@@ -44,6 +44,17 @@ try {
     status: 200,
     statusText: "OK",
   });
+  assert.deepEqual(await readOpenF1Evidence("drivers", { session_key: 123 }, { cacheRoot }), {
+    metadata,
+    payload: result,
+  });
+  await assert.rejects(() => openF1Fetch("drivers", { session_key: 999 }, {
+    cacheRoot,
+    cacheOnly: true,
+    fetch: async () => {
+      throw new Error("network invoked");
+    },
+  }), /Missing OpenF1 response cache entry/);
 
   assert.deepEqual(await openF1Fetch("drivers", { session_key: 123 }, {
     cacheRoot,
