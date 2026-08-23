@@ -104,8 +104,21 @@ try {
     sleep: async (delay) => waits.push(delay),
   }), []);
   assert.deepEqual(waits, [12000]);
+  const transientWaits = [];
+  let transientCount = 0;
+  assert.deepEqual(await openF1Fetch("weather", { session_key: 503 }, {
+    fetch: async () => {
+      transientCount += 1;
+      if (transientCount === 1) throw new TypeError("fetch failed");
+      return transientCount === 2
+        ? new Response('{"detail":"unavailable"}\n', { status: 503, statusText: "Service Unavailable" })
+        : new Response("[]\n", { status: 200, statusText: "OK" });
+    },
+    sleep: async (delay) => transientWaits.push(delay),
+  }), []);
+  assert.deepEqual(transientWaits, [1000, 2000]);
   await assert.rejects(() => openF1Fetch("laps", { session_key: 500 }, {
-    fetch: async () => new Response("not-json", { status: 500, statusText: "Server Error" }),
+    fetch: async () => new Response("not-json", { status: 400, statusText: "Bad Request" }),
   }), /invalid JSON/);
 
   await writeFile(path.join(entryRoot, "response.body"), "[]\n", "utf8");

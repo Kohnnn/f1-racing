@@ -14,6 +14,7 @@ import {
 } from "./release-artifact.mjs";
 import {
   assertCandidateOutputPath,
+  assertCandidateRoot,
   selectLatestRace,
   sha256,
   walk,
@@ -384,7 +385,9 @@ async function main() {
   const rightsReference = assertApprovedRights(options);
   assertReleaseNodeVersion();
   const sourceCommitValue = await assertCleanSource();
-  const paths = await createCandidate();
+  const paths = options["candidate-root"]
+    ? await assertCandidateRoot(path.resolve(options["candidate-root"]))
+    : await createCandidate();
   process.env.F1_CANDIDATE_ROOT = paths.root;
   try {
     const captured = new Map();

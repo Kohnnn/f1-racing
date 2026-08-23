@@ -244,14 +244,21 @@ export async function openF1Fetch(endpoint, params = {}, options = {}) {
   const wait = options.sleep ?? sleep;
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    const response = await fetchImpl(url, {
-      headers: {
-        Accept: "application/json",
-      },
-    });
+    let response;
+    try {
+      response = await fetchImpl(url, {
+        headers: {
+          Accept: "application/json",
+        },
+      });
+    } catch (error) {
+      if (attempt === 4) throw error;
+      await wait(1000 * 2 ** attempt);
+      continue;
+    }
 
-    if (response.status === 429 && attempt < 4) {
-      await wait(12000 + attempt * 3000);
+    if ((response.status === 429 || response.status >= 500) && attempt < 4) {
+      await wait(response.status === 429 ? 12000 + attempt * 3000 : 1000 * 2 ** attempt);
       continue;
     }
 
