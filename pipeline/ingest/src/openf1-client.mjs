@@ -320,7 +320,13 @@ export async function fetchLaps({ sessionKey, driverNumber }) {
   });
 }
 
-export async function fetchCarData({ sessionKey, driverNumber }) {
+export async function fetchCarData({ sessionKey, driverNumber, driverNumbers } = {}) {
+  if (Array.isArray(driverNumbers)) {
+    return (await Promise.all(driverNumbers.map((value) => openF1Fetch("car_data", {
+      session_key: sessionKey,
+      driver_number: value,
+    })))).flat();
+  }
   return openF1Fetch("car_data", {
     session_key: sessionKey,
     driver_number: driverNumber,
@@ -370,7 +376,13 @@ export async function fetchPosition({ sessionKey, driverNumber }) {
  * real positional telemetry — distinct from `position`, which only returns the
  * race rank. Used to project true car coordinates onto the canonical track.
  */
-export async function fetchLocation({ sessionKey, driverNumber }) {
+export async function fetchLocation({ sessionKey, driverNumber, driverNumbers } = {}) {
+  if (Array.isArray(driverNumbers)) {
+    return (await Promise.all(driverNumbers.map((value) => openF1Fetch("location", {
+      session_key: sessionKey,
+      driver_number: value,
+    })))).flat();
+  }
   return openF1Fetch("location", {
     session_key: sessionKey,
     driver_number: driverNumber,

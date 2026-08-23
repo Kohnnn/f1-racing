@@ -20,17 +20,20 @@ import {
   workspaceRoot,
 } from "./release-data.mjs";
 
-const endpointNames = Object.freeze([
+const sessionEndpointNames = Object.freeze([
   "drivers",
   "laps",
   "weather",
   "session_result",
   "stints",
   "position",
-  "location",
-  "car_data",
   "race_control",
 ]);
+const driverEndpointNames = Object.freeze([
+  "location",
+  "car_data",
+]);
+const endpointNames = Object.freeze([...sessionEndpointNames, ...driverEndpointNames]);
 const driverCoverageEndpoints = Object.freeze([
   "laps",
   "session_result",
@@ -92,8 +95,9 @@ export function createRegenerationPlan(index, manifests) {
   assert.equal(new Set(sessions.map((session) => session.path)).size, sessions.length, "Indexed session paths must be unique.");
   assert.equal(new Set(sessions.map((session) => session.sessionKey)).size, sessions.length, "Indexed session keys must be unique.");
   return {
-    endpointNames: [...endpointNames],
-    requestCount: sessions.length * endpointNames.length,
+    driverEndpointNames: [...driverEndpointNames],
+    sessionEndpointNames: [...sessionEndpointNames],
+    sessionRequestCount: sessions.length * sessionEndpointNames.length,
     sessions,
   };
 }
@@ -127,11 +131,37 @@ async function loadPlan(root = workspaceRoot) {
   return { manifests, plan: createRegenerationPlan(index, manifests) };
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function captureResponse(endpoint, params) {
+  const startedAt = Date.now();
+  await openF1Fetch(endpoint, params);
+  const response = await readOpenF1Evidence(endpoint, params);
+  await sleep(Math.max(0, 350 - (Date.now() - startedAt)));
+  return response;
+}
+
 async function captureSession(session) {
   const evidence = new Map();
-  for (const endpoint of endpointNames) {
-    await openF1Fetch(endpoint, { session_key: session.sessionKey });
-    evidence.set(endpoint, await readOpenF1Evidence(endpoint, { session_key: session.sessionKey }));
+  for (const endpoint of sessionEndpointNames) {
+    const response = await captureResponse(endpoint, { session_key: session.sessionKey });
+    evidence.set(endpoint, { payload: response.payload, records: [response] });
+  }
+  const drivers = [...driverNumbers(evidence.get("drivers").payload)].sort((left, right) => left - right);
+  for (const endpoint of driverEndpointNames) {
+    const records = [];
+    for (const driverNumber of drivers) {
+      records.push(await captureResponse(endpoint, {
+        session_key: session.sessionKey,
+        driver_number: driverNumber,
+      }));
+    }
+    evidence.set(endpoint, {
+      payload: records.flatMap((record) => record.payload),
+      records,
+    });
   }
   return evidence;
 }
@@ -186,7 +216,7 @@ export function terminalEvidence(session, evidence) {
   }
   return {
     eligible: true,
-    observedAt: evidence.get("race_control").metadata.retrievedAt,
+    observedAt: evidence.get("race_control").records[0].metadata.retrievedAt,
     ...coverageWindow,
   };
 }
@@ -281,17 +311,14 @@ async function coverageLedger(paths, session, requiredPaths, terminal) {
 }
 
 async function provenanceEntry(paths, session, evidence, generatedAt, rightsReference, terminal) {
-  const sources = endpointNames.map((endpoint) => {
-    const { metadata } = evidence.get(endpoint);
-    return {
-      provider: metadata.provider,
-      identifier: metadata.identifier,
-      retrievedAt: metadata.retrievedAt,
-      responseSha256: metadata.responseSha256,
-      rightsStatus: "approved",
-      rightsReference,
-    };
-  });
+  const sources = endpointNames.flatMap((endpoint) => evidence.get(endpoint).records.map(({ metadata }) => ({
+    provider: metadata.provider,
+    identifier: metadata.identifier,
+    retrievedAt: metadata.retrievedAt,
+    responseSha256: metadata.responseSha256,
+    rightsStatus: "approved",
+    rightsReference,
+  })));
   const retrievalTimes = sources.map((source) => source.retrievedAt).sort(compareText);
   const { artifacts, packSha256, requiredPaths } = await artifactLedger(paths, session);
   return {
@@ -346,7 +373,12 @@ async function main() {
   const options = parseArgs(process.argv.slice(2));
   const { manifests, plan } = await loadPlan();
   if (options.dryRun) {
-    process.stdout.write(`${JSON.stringify({ sessions: plan.sessions.length, endpoints: plan.endpointNames, requests: plan.requestCount }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({
+      sessions: plan.sessions.length,
+      sessionEndpoints: plan.sessionEndpointNames,
+      driverEndpoints: plan.driverEndpointNames,
+      fixedRequests: plan.sessionRequestCount,
+    }, null, 2)}\n`);
     return;
   }
   const rightsReference = assertApprovedRights(options);

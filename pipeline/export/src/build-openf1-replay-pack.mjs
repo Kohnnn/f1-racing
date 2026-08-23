@@ -1186,11 +1186,12 @@ function determineSafetyCarPhase(raceControlMessages, t) {
 }
 
 async function buildReplayPack(sessionKey, drivers, ref) {
-  process.stdout.write(`Fetching session-wide replay data for session ${sessionKey}...\n`);
+  process.stdout.write(`Fetching replay data for session ${sessionKey}...\n`);
+  const driverNumbers = drivers.map((driver) => driver.driverNumber);
   const [positionsRaw, locationsRaw, carDataRaw, lapsRaw, weatherRaw, stintsRaw, raceControlMessages] = await Promise.all([
     fetchPosition({ sessionKey }),
-    fetchLocation({ sessionKey }),
-    fetchCarData({ sessionKey }),
+    fetchLocation({ sessionKey, driverNumbers }),
+    fetchCarData({ sessionKey, driverNumbers }),
     fetchLaps({ sessionKey }),
     fetchWeather({ sessionKey }),
     fetchStints({ sessionKey }),

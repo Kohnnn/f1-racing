@@ -12,18 +12,17 @@ const manifests = await Promise.all(years.map(async (year) => JSON.parse(await r
 const plan = createRegenerationPlan(index, manifests);
 
 assert.equal(plan.sessions.length, 81);
-assert.deepEqual(plan.endpointNames, [
+assert.deepEqual(plan.sessionEndpointNames, [
   "drivers",
   "laps",
   "weather",
   "session_result",
   "stints",
   "position",
-  "location",
-  "car_data",
   "race_control",
 ]);
-assert.equal(plan.requestCount, 729);
+assert.deepEqual(plan.driverEndpointNames, ["location", "car_data"]);
+assert.equal(plan.sessionRequestCount, 567);
 assert.equal(new Set(plan.sessions.map((session) => session.path)).size, 81);
 assert.equal(new Set(plan.sessions.map((session) => session.sessionKey)).size, 81);
 assert.equal(assertApprovedRights({ "rights-status": "approved", "rights-reference": "operator-approval-123" }), "operator-approval-123");
@@ -31,16 +30,19 @@ assert.throws(() => assertApprovedRights({ "rights-reference": "operator-approva
 assert.throws(() => assertApprovedRights({ "rights-status": "approved", "rights-reference": " " }), /rights-reference/);
 
 const metadata = { retrievedAt: "2026-07-01T01:05:00.000Z" };
+function evidenceRecord(payload) {
+  return { payload, records: [{ metadata, payload }] };
+}
 const evidence = new Map([
-  ["drivers", { metadata, payload: [{ driver_number: 4 }, { driver_number: 81 }] }],
-  ["laps", { metadata, payload: [{ driver_number: 4, date_start: "2026-07-01T00:01:00Z" }, { driver_number: 81, date_start: "2026-07-01T00:02:00Z" }] }],
-  ["weather", { metadata, payload: [{ date: "2026-07-01T00:03:00Z" }] }],
-  ["session_result", { metadata, payload: [{ driver_number: 4 }, { driver_number: 81 }] }],
-  ["stints", { metadata, payload: [{ driver_number: 4 }, { driver_number: 81 }] }],
-  ["position", { metadata, payload: [{ driver_number: 4, date: "2026-07-01T00:04:00Z" }, { driver_number: 81, date: "2026-07-01T00:05:00Z" }] }],
-  ["location", { metadata, payload: [{ driver_number: 4, date: "2026-07-01T00:06:00Z" }, { driver_number: 81, date: "2026-07-01T00:07:00Z" }] }],
-  ["car_data", { metadata, payload: [{ driver_number: 4, date: "2026-07-01T00:08:00Z" }, { driver_number: 81, date: "2026-07-01T00:09:00Z" }] }],
-  ["race_control", { metadata, payload: [{ date: "2026-07-01T00:59:00Z", flag: "CHEQUERED", message: "SESSION FINISHED" }] }],
+  ["drivers", evidenceRecord([{ driver_number: 4 }, { driver_number: 81 }])],
+  ["laps", evidenceRecord([{ driver_number: 4, date_start: "2026-07-01T00:01:00Z" }, { driver_number: 81, date_start: "2026-07-01T00:02:00Z" }])],
+  ["weather", evidenceRecord([{ date: "2026-07-01T00:03:00Z" }])],
+  ["session_result", evidenceRecord([{ driver_number: 4 }, { driver_number: 81 }])],
+  ["stints", evidenceRecord([{ driver_number: 4 }, { driver_number: 81 }])],
+  ["position", evidenceRecord([{ driver_number: 4, date: "2026-07-01T00:04:00Z" }, { driver_number: 81, date: "2026-07-01T00:05:00Z" }])],
+  ["location", evidenceRecord([{ driver_number: 4, date: "2026-07-01T00:06:00Z" }, { driver_number: 81, date: "2026-07-01T00:07:00Z" }])],
+  ["car_data", evidenceRecord([{ driver_number: 4, date: "2026-07-01T00:08:00Z" }, { driver_number: 81, date: "2026-07-01T00:09:00Z" }])],
+  ["race_control", evidenceRecord([{ date: "2026-07-01T00:59:00Z", flag: "CHEQUERED", message: "SESSION FINISHED" }])],
 ]);
 const sourceSession = {
   path: "/sessions/2026/test-grand-prix/race",
@@ -55,7 +57,7 @@ assert.deepEqual(terminalEvidence(sourceSession, evidence), {
   observedEndAt: "2026-07-01T00:59:00.000Z",
 });
 const incompleteEvidence = new Map(evidence);
-incompleteEvidence.set("location", { metadata, payload: [{ driver_number: 4, date: "2026-07-01T00:06:00Z" }] });
+incompleteEvidence.set("location", evidenceRecord([{ driver_number: 4, date: "2026-07-01T00:06:00Z" }]));
 assert.match(terminalEvidence(sourceSession, incompleteEvidence).reason, /incomplete driver coverage: location/);
 
 async function candidateNames() {
@@ -85,7 +87,12 @@ function runCli(args) {
 }
 const dryRun = await runCli(["--dry-run"]);
 assert.equal(dryRun.code, 0, dryRun.stderr);
-assert.deepEqual(JSON.parse(dryRun.stdout), { sessions: 81, endpoints: plan.endpointNames, requests: 729 });
+assert.deepEqual(JSON.parse(dryRun.stdout), {
+  sessions: 81,
+  sessionEndpoints: plan.sessionEndpointNames,
+  driverEndpoints: plan.driverEndpointNames,
+  fixedRequests: 567,
+});
 const denied = await runCli([]);
 assert.notEqual(denied.code, 0);
 assert.match(denied.stderr, /rights-status approved/);

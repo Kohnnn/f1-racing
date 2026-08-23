@@ -682,13 +682,14 @@ async function main() {
   const session = await resolveSession(args);
   const ref = normalizeSessionRef(session);
 
-  const [driversRaw, lapsRaw, weatherRaw, sessionResultRaw, stintsResponse, carDataRaw] = await Promise.all([
-    fetchDrivers({ sessionKey: ref.sessionKey }),
+  const driversRaw = await fetchDrivers({ sessionKey: ref.sessionKey });
+  const driverNumbers = driversRaw.map((driver) => driver.driver_number);
+  const [lapsRaw, weatherRaw, sessionResultRaw, stintsResponse, carDataRaw] = await Promise.all([
     fetchLaps({ sessionKey: ref.sessionKey }),
     fetchWeather({ sessionKey: ref.sessionKey }),
     fetchSessionResult({ sessionKey: ref.sessionKey }),
     fetchStints({ sessionKey: ref.sessionKey }),
-    fetchCarData({ sessionKey: ref.sessionKey }),
+    fetchCarData({ sessionKey: ref.sessionKey, driverNumbers }),
   ]);
   const stintsRaw = normalizeStints(stintsResponse);
   const results = normalizeResults(driversRaw, sessionResultRaw);
