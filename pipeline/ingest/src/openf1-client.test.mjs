@@ -117,6 +117,18 @@ try {
     sleep: async (delay) => transientWaits.push(delay),
   }), []);
   assert.deepEqual(transientWaits, [1000, 2000]);
+  const validationWaits = [];
+  let validationCount = 0;
+  assert.deepEqual(await openF1Fetch("car_data", { session_key: 422, driver_number: 4 }, {
+    fetch: async () => {
+      validationCount += 1;
+      return validationCount === 1
+        ? new Response('{"detail":"temporary validation failure"}\n', { status: 422, statusText: "Unprocessable Entity" })
+        : new Response("[]\n", { status: 200, statusText: "OK" });
+    },
+    sleep: async (delay) => validationWaits.push(delay),
+  }), []);
+  assert.deepEqual(validationWaits, [1000]);
   await assert.rejects(() => openF1Fetch("laps", { session_key: 500 }, {
     fetch: async () => new Response("not-json", { status: 400, statusText: "Bad Request" }),
   }), /invalid JSON/);

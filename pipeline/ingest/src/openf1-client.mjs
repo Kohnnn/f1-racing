@@ -257,7 +257,8 @@ export async function openF1Fetch(endpoint, params = {}, options = {}) {
       continue;
     }
 
-    if ((response.status === 429 || response.status >= 500) && attempt < 4) {
+    const retryableValidation = response.status === 422 && new Set(["location", "car_data"]).has(endpoint);
+    if ((response.status === 429 || response.status >= 500 || retryableValidation) && attempt < 4) {
       await wait(response.status === 429 ? 12000 + attempt * 3000 : 1000 * 2 ** attempt);
       continue;
     }
@@ -286,7 +287,8 @@ export async function openF1Fetch(endpoint, params = {}, options = {}) {
       return response.ok ? payload : [];
     }
 
-    throw new Error(`OpenF1 request failed: ${response.status} ${response.statusText}`);
+    const detail = typeof payload?.detail === "string" ? `: ${payload.detail}` : "";
+    throw new Error(`OpenF1 request failed: ${response.status} ${response.statusText} (${identifier})${detail}`);
   }
 
   throw new Error("OpenF1 request failed after retries.");
