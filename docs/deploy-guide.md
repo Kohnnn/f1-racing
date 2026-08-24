@@ -137,7 +137,7 @@ Check the active Netlify account and linked project from `apps/web` without copy
 
 ```bash
 cd apps\web
-npx netlify status
+npx --yes netlify@27.1.2 status
 cd ..\..
 ```
 
@@ -152,7 +152,7 @@ Automatic Netlify source builds are intentionally disabled because `data/packs/s
 After authentication, linkage, and all local candidate gates pass, upload the exact candidate as a draft deploy without rebuilding:
 
 ```bash
-npx netlify deploy --site d783914b-0638-46bc-ae4b-371b66cca51e --no-build --json --dir "%F1_CANDIDATE_ROOT%\apps\web\out"
+npx --yes netlify@27.1.2 deploy --filter "@f1-racing/web" --site d783914b-0638-46bc-ae4b-371b66cca51e --no-build --json --dir "%F1_CANDIDATE_ROOT%\apps\web\out"
 ```
 
 Record the returned `site_id`, `deploy_id`, and immutable `deploy_url`. The deploy ID must be 24 lowercase hexadecimal characters, the site ID must be `d783914b-0638-46bc-ae4b-371b66cca51e`, and the immutable origin must match `https://<deploy-id>--f1-demo.netlify.app`. Run all remote preview gates against that origin:
@@ -166,7 +166,7 @@ npm run release:browser -- https://<deploy-id>--f1-demo.netlify.app
 Only after those gates pass and the named release operator approves the evidence, publish that named atomic deploy without rebuilding or re-uploading:
 
 ```bash
-npx netlify api restoreSiteDeploy --data "{\"site_id\":\"d783914b-0638-46bc-ae4b-371b66cca51e\",\"deploy_id\":\"<verified-preview-deploy-id>\"}"
+npx --yes netlify@27.1.2 api restoreSiteDeploy --data "{\"site_id\":\"d783914b-0638-46bc-ae4b-371b66cca51e\",\"deploy_id\":\"<verified-preview-deploy-id>\"}"
 ```
 
 The command is production-changing. Confirm the deploy ID and evidence path before running it. Record the returned deployment metadata and verify the canonical site names that deploy as its current production deployment. The repository does not yet write promotion data back into `release-record.json`; preserve the command output and gate evidence externally.
@@ -209,7 +209,7 @@ Before promotion, record a retained previous production deploy's deploy ID, immu
 To restore that exact atomic deploy, either use **Publish Deploy** on its Netlify deploy-detail page or run the named-deploy API operation from the linked site:
 
 ```bash
-npx netlify api restoreSiteDeploy --data "{\"site_id\":\"d783914b-0638-46bc-ae4b-371b66cca51e\",\"deploy_id\":\"<retained-deploy-id>\"}"
+npx --yes netlify@27.1.2 api restoreSiteDeploy --data "{\"site_id\":\"d783914b-0638-46bc-ae4b-371b66cca51e\",\"deploy_id\":\"<retained-deploy-id>\"}"
 ```
 
 This is a production-changing operation. Confirm the deploy ID and retained evidence before running it. Do not use `rollbackSiteDeploy` for a controlled drill because it does not name the target deploy.

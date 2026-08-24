@@ -14,6 +14,7 @@ import {
   isAnalyticsRequest,
   loadNetlifyDeployMetadata,
   localServer,
+  netlifyCliArgs,
   netlifySiteId,
   normalizeCacheControl,
   normalizeContentType,
@@ -41,7 +42,15 @@ for (const value of ["https://f1-demo.netlify.app", "https://build-123--f1-demo.
 assert.equal(normalizeContentType("Application/JSON; charset=utf-8"), "application/json");
 assert.equal(normalizeCacheControl("immutable, Public, max-age=31536000"), "immutable, max-age=31536000, public");
 
-const headerText = `/_next/static/*
+const headerText = `/*
+  Cache-Control: no-cache
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: SAMEORIGIN
+  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' blob:; connect-src 'self' blob: https://f1-api.129.150.58.64.sslip.io wss://f1-api.129.150.58.64.sslip.io; worker-src 'self' blob:; child-src 'self' blob:
+  Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), fullscreen=(self), xr-spatial-tracking=(self)
+
+/_next/static/*
   Cache-Control: public, max-age=31536000, immutable
 
 /data/manifests/*
@@ -58,14 +67,6 @@ const headerText = `/_next/static/*
 
 /posters/*
   Cache-Control: public, max-age=86400
-
-/*
-  Cache-Control: no-cache
-  X-Content-Type-Options: nosniff
-  Referrer-Policy: strict-origin-when-cross-origin
-  X-Frame-Options: SAMEORIGIN
-  Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' blob:; connect-src 'self' blob: https://f1-api.129.150.58.64.sslip.io wss://f1-api.129.150.58.64.sslip.io; worker-src 'self' blob:; child-src 'self' blob:
-  Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), fullscreen=(self), xr-spatial-tracking=(self)
 `;
 const headerPolicy = headerPolicyFromText(headerText);
 assert.deepEqual([...allowedNetworkOrigins(headerPolicy.security["content-security-policy"])].sort(), ["https://f1-api.129.150.58.64.sslip.io", "wss://f1-api.129.150.58.64.sslip.io"]);
@@ -78,6 +79,7 @@ assertResponseHeaderPolicy({
   "cache-control": "public, max-age=60",
 }, headerPolicy, "/data/manifests/latest.json");
 assert.throws(() => headerPolicyFromText(headerText.replace("X-Frame-Options: SAMEORIGIN", "X-Frame-Options: DENY")), /exact x-frame-options/);
+assert.throws(() => headerPolicyFromText(headerText.replace(/\/\*[\s\S]+?(?=\n\/_next)/, "").concat(headerText.slice(0, headerText.indexOf("\n/_next")))), /must follow/);
 assert.throws(() => assertResponseHeaderPolicy({ "cache-control": "no-cache" }, headerPolicy, "/"), /content-security-policy/);
 assert.throws(() => assertResponseHeaderPolicy({
   "content-security-policy": headerPolicy.security["content-security-policy"],
@@ -169,17 +171,17 @@ assert.deepEqual(validateDeployMetadata(productionMetadata, "https://f1-demo.net
   canonicalAlias: "https://f1-demo.netlify.app",
   publishedAt: "2026-07-24T02:50:31.367Z",
 });
-assert.deepEqual(validateDeployMetadata({ ...productionMetadata, context: "deploy-preview", published_at: null, draft: true }, deployPermalink, deployPermalink), {
+assert.deepEqual(validateDeployMetadata({ ...productionMetadata, context: "deploy-preview", published_at: null }, deployPermalink, deployPermalink), {
   deployId,
   siteId: netlifySiteId,
   state: "ready",
   context: "deploy-preview",
-  draft: true,
+  draft: null,
   deployPermalink,
   canonicalAlias: null,
   publishedAt: null,
 });
-assert.throws(() => validateDeployMetadata(productionMetadata, deployPermalink, deployPermalink), /does not identify a draft/);
+assert.throws(() => validateDeployMetadata({ ...productionMetadata, draft: false }, deployPermalink, deployPermalink), /does not identify a draft/);
 assert.throws(() => validateDeployMetadata({ ...productionMetadata, draft: true }, deployPermalink, deployPermalink), /already published/);
 for (const [change, pattern] of [
   [{ id: "a".repeat(24) }, /ID does not match/],
@@ -198,6 +200,7 @@ assert.deepEqual(await loadNetlifyDeployMetadata(deployPermalink, async (args) =
   return JSON.stringify(productionMetadata);
 }), productionMetadata);
 assert.deepEqual(metadataArgs, ["api", "getDeploy", "--data", JSON.stringify({ deploy_id: deployId })]);
+assert.deepEqual(netlifyCliArgs(metadataArgs), ["--yes", "netlify@27.1.2", ...metadataArgs]);
 await assert.rejects(() => loadNetlifyDeployMetadata(deployPermalink, async () => "not-json"), /not JSON/);
 await assert.rejects(() => loadNetlifyDeployMetadata(deployPermalink, async () => "[]"), /response is invalid/);
 assert.deepEqual(parseCommand(["security"]), { gate: "security", target: null, deployPermalink: null });

@@ -107,7 +107,7 @@ export function validateDeployMetadata(metadata, target, deployPermalink) {
     if (validateTargetUrl(canonicalAlias) !== canonicalHostname) throw new Error("Netlify production alias does not match the canonical hostname.");
   } else {
     if (normalizedTarget !== immutable) throw new Error("Preview parity target must be the immutable deploy permalink.");
-    if (metadata?.draft !== true) throw new Error("Netlify preview deploy metadata does not identify a draft deploy.");
+    if (metadata?.draft === false) throw new Error("Netlify preview deploy metadata does not identify a draft deploy.");
     if (metadata?.published_at !== null && metadata?.published_at !== undefined) throw new Error("Netlify preview deploy metadata is already published.");
   }
   return {
@@ -122,11 +122,15 @@ export function validateDeployMetadata(metadata, target, deployPermalink) {
   };
 }
 
+export function netlifyCliArgs(args) {
+  return ["--yes", "netlify@27.1.2", ...args];
+}
+
 async function runNetlifyCli(args) {
   const npmCli = process.env.npm_execpath || path.join(path.dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js");
   const npxCli = path.join(path.dirname(npmCli), "npx-cli.js");
   try {
-    const { stdout } = await execFileAsync(process.execPath, [npxCli, "--no-install", "netlify", ...args], {
+    const { stdout } = await execFileAsync(process.execPath, [npxCli, ...netlifyCliArgs(args)], {
       cwd: path.join(workspaceRoot, "apps", "web"),
       encoding: "utf8",
       env: process.env,
@@ -264,8 +268,10 @@ export function headerPolicyFromText(text) {
   for (const [name, expected] of Object.entries(reviewedSecurityHeaders)) {
     if (root.get(name) !== expected) throw new Error(`_headers must set exact ${name}.`);
   }
+  const rootIndex = [...rules.keys()].indexOf("/*");
   for (const [rule, expected] of Object.entries(reviewedCacheRules)) {
     if (normalizeCacheControl(rules.get(rule)?.get("cache-control")) !== normalizeCacheControl(expected)) throw new Error(`_headers cache rule missing: ${rule}.`);
+    if (rule !== "/*" && [...rules.keys()].indexOf(rule) <= rootIndex) throw new Error(`_headers cache rule must follow /*: ${rule}.`);
   }
   return Object.freeze({ security: Object.fromEntries(Object.entries(reviewedSecurityHeaders)), cacheRules: Object.fromEntries(Object.entries(reviewedCacheRules)) });
 }
