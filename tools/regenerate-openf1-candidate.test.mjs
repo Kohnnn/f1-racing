@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { assertApprovedRights, createRegenerationPlan, terminalEvidence } from "./regenerate-openf1-candidate.mjs";
+import { assertApprovedRights, captureTerminalOutcomes, createRegenerationPlan, terminalEvidence } from "./regenerate-openf1-candidate.mjs";
 import { candidatesRoot, workspaceRoot } from "./release-data.mjs";
 
 const index = JSON.parse(await readFile(path.join(workspaceRoot, "data", "manifests", "seasons.json"), "utf8"));
@@ -59,6 +59,20 @@ assert.deepEqual(terminalEvidence(sourceSession, evidence), {
 const incompleteEvidence = new Map(evidence);
 incompleteEvidence.set("location", evidenceRecord([{ driver_number: 4, date: "2026-07-01T00:06:00Z" }]));
 assert.match(terminalEvidence(sourceSession, incompleteEvidence).reason, /incomplete driver coverage: location/);
+const captureOrder = [];
+const capturedOutcomes = await captureTerminalOutcomes([
+  { ...sourceSession, path: "/sessions/2026/test-grand-prix/qualifying" },
+  sourceSession,
+], async (session) => {
+  captureOrder.push(session.path);
+  return evidence;
+});
+assert.deepEqual(captureOrder, [
+  "/sessions/2026/test-grand-prix/qualifying",
+  "/sessions/2026/test-grand-prix/race",
+]);
+assert.equal(capturedOutcomes.size, 2);
+assert.equal(capturedOutcomes.get(sourceSession.path).eligible, true);
 
 async function candidateNames() {
   try {

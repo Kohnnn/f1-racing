@@ -222,6 +222,16 @@ export function terminalEvidence(session, evidence) {
   };
 }
 
+export async function captureTerminalOutcomes(sessions, capture = captureSession, onCapture = () => {}) {
+  const outcomes = new Map();
+  for (let index = 0; index < sessions.length; index += 1) {
+    const session = sessions[index];
+    onCapture(session, index);
+    outcomes.set(session.path, terminalEvidence(session, await capture(session)));
+  }
+  return outcomes;
+}
+
 function runNode(script, args, env) {
   return new Promise((resolve, reject) => {
     const child = spawn(process.execPath, [script, ...args], {
@@ -390,14 +400,10 @@ async function main() {
     : await createCandidate();
   process.env.F1_CANDIDATE_ROOT = paths.root;
   try {
-    const captured = new Map();
-    for (let index = 0; index < plan.sessions.length; index += 1) {
-      const session = plan.sessions[index];
+    const terminals = await captureTerminalOutcomes(plan.sessions, captureSession, (session, index) => {
       process.stdout.write(`Capturing ${index + 1}/${plan.sessions.length}: ${session.path}\n`);
-      captured.set(session.path, await captureSession(session));
-    }
+    });
     const generatedAt = new Date().toISOString();
-    const terminals = new Map(plan.sessions.map((session) => [session.path, terminalEvidence(session, captured.get(session.path))]));
     const sourceEligible = plan.sessions.filter((session) => terminals.get(session.path).eligible);
     const eligible = [];
     const entries = [];
@@ -407,7 +413,8 @@ async function main() {
       process.stdout.write(`Building ${index + 1}/${sourceEligible.length}: ${session.path}\n`);
       try {
         await buildSession(paths, session, generatedAt);
-        entries.push(await provenanceEntry(paths, session, captured.get(session.path), generatedAt, rightsReference, terminals.get(session.path)));
+        const evidence = await captureSession(session);
+        entries.push(await provenanceEntry(paths, session, evidence, generatedAt, rightsReference, terminals.get(session.path)));
         eligible.push(session);
       } catch (error) {
         await removeSessionPack(paths, session);
