@@ -1,4 +1,4 @@
-import { cp, mkdir, readdir, rm } from "node:fs/promises";
+import { cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -28,10 +28,43 @@ async function replacePublicProjection(sourcePublicRoot, candidatePublicRoot, ar
   }
 }
 
+export async function localizeModelViewerFallbacks(artifactRoot) {
+  const replacements = new Map([
+    ["https://www.gstatic.com/draco/versioned/decoders/1.5.6/", "/draco/"],
+    ["https://www.gstatic.com/basis-universal/versioned/2021-04-15-ba1c3e4/", "/basis/"],
+    ["https://cdn.jsdelivr.net/npm/three@0.149.0/examples/jsm/loaders/LottieLoader.js", "/lottie/LottieLoader.js"],
+  ]);
+  const counts = new Map([...replacements.keys()].map((value) => [value, 0]));
+  async function visit(directory) {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      const filePath = path.join(directory, entry.name);
+      if (entry.isDirectory()) {
+        await visit(filePath);
+        continue;
+      }
+      if (!entry.name.endsWith(".js")) continue;
+      const original = await readFile(filePath, "utf8");
+      let localized = original;
+      for (const [remote, local] of replacements) {
+        const matches = localized.split(remote).length - 1;
+        if (!matches) continue;
+        counts.set(remote, counts.get(remote) + matches);
+        localized = localized.replaceAll(remote, local);
+      }
+      if (localized !== original) await writeFile(filePath, localized, "utf8");
+    }
+  }
+  await visit(path.join(artifactRoot, "_next", "static", "chunks"));
+  for (const [remote, count] of counts) {
+    if (!count) throw new Error(`Missing model-viewer fallback during localization: ${remote}`);
+  }
+}
+
 async function main() {
   const candidateRoot = process.env.F1_CANDIDATE_ROOT;
   if (!candidateRoot) {
     await run("npm", ["run", "next:build", "-w", "@f1-racing/web"], process.env);
+    await localizeModelViewerFallbacks(path.join(workspaceRoot, "apps", "web", "out"));
     return;
   }
   const paths = await assertCandidateRoot(candidateRoot);
@@ -52,6 +85,7 @@ async function main() {
     await mkdir(path.dirname(paths.artifactRoot), { recursive: true });
     await cp(buildRoot, paths.artifactRoot, { recursive: true, force: true });
     await replacePublicProjection(path.join(appRoot, "public"), paths.publicRoot, paths.artifactRoot);
+    await localizeModelViewerFallbacks(paths.artifactRoot);
     await rm(paths.releaseManifest, { force: true });
   } finally {
     await rm(buildRoot, { recursive: true, force: true });

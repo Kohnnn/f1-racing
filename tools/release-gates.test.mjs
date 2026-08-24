@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { localizeModelViewerFallbacks } from "./build-static.mjs";
 import {
   allowedNetworkOrigins,
   assertResponseHeaderPolicy,
@@ -209,6 +210,19 @@ assert.throws(() => parseCommand(["parity", "https://f1-demo.netlify.app", "--de
 
 const root = await mkdtemp(path.join(os.tmpdir(), "release-gates-test-"));
 try {
+  const chunks = path.join(root, "_next", "static", "chunks");
+  const fallbackChunk = path.join(chunks, "model-viewer.js");
+  await mkdir(chunks, { recursive: true });
+  await writeFile(fallbackChunk, [
+    "https://www.gstatic.com/draco/versioned/decoders/1.5.6/",
+    "https://www.gstatic.com/basis-universal/versioned/2021-04-15-ba1c3e4/",
+    "https://cdn.jsdelivr.net/npm/three@0.149.0/examples/jsm/loaders/LottieLoader.js",
+  ].join("\n"), "utf8");
+  await localizeModelViewerFallbacks(root);
+  assert.equal(await readFile(fallbackChunk, "utf8"), "/draco/\n/basis/\n/lottie/LottieLoader.js");
+  await writeFile(fallbackChunk, "dependency drift", "utf8");
+  await assert.rejects(localizeModelViewerFallbacks(root), /Missing model-viewer fallback/);
+
   const paths = { root };
   const releaseId = `sha256-${"a".repeat(64)}`;
   const manifestSha256 = "b".repeat(64);

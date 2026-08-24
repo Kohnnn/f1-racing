@@ -697,6 +697,12 @@ async function exerciseBrowsers(paths, target, evidence, report) {
                 await assertVisibleFocus(inspect, "Modelview Inspect");
                 await inspect.press("Enter");
                 if (await inspect.getAttribute("aria-pressed") !== "true") throw new Error("Modelview Inspect did not expose selected state.");
+                const explodedImage = page.getByAltText("Exploded technical view");
+                await explodedImage.waitFor({ state: "visible", timeout: 10000 });
+                await page.waitForFunction(() => {
+                  const image = document.querySelector('img[alt="Exploded technical view"]');
+                  return image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0;
+                }, null, { timeout: 10000 });
                 const zoomIn = page.getByRole("button", { name: "Zoom in", exact: true });
                 await zoomIn.focus();
                 await zoomIn.press("Enter");
