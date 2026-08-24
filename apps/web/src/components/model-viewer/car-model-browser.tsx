@@ -49,7 +49,7 @@ function ExplodedViewLayer({
       >
         {expanded ? "Collapse" : "Expand"}
       </button>
-      <img src={url} alt="Exploded technical view" loading="lazy" onError={() => setAvailable(false)} />
+      <img src={url} alt="Exploded technical view" loading="eager" onError={() => setAvailable(false)} />
       <figcaption>Exploded view · subsystems pulled apart along assembly axes</figcaption>
     </figure>
   );

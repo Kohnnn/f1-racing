@@ -455,6 +455,28 @@ export async function localServer(root) {
   return { server, url: `http://127.0.0.1:${address.port}` };
 }
 
+export async function fulfillLocalArtifact(route, root) {
+  try {
+    let filePath = resolveLocal(root, route.request().url());
+    if (!filePath) throw new Error("forbidden");
+    if ((await stat(filePath)).isDirectory()) filePath = path.join(filePath, "index.html");
+    const relativePath = path.relative(root, filePath).split(path.sep).join("/");
+    const data = await readFile(filePath);
+    await route.fulfill({
+      status: 200,
+      headers: {
+        "Content-Type": mimeType(relativePath),
+        "Content-Length": String(data.length),
+        "Cache-Control": cachePolicy(relativePath),
+        ...Object.fromEntries(Object.entries(reviewedSecurityHeaders).map(([name, value]) => [name, value])),
+      },
+      body: route.request().method() === "HEAD" ? undefined : data,
+    });
+  } catch {
+    await route.fulfill({ status: 404 });
+  }
+}
+
 async function fetchChecked(url, requestPath, options = {}) {
   normalizePathname(requestPath);
   const response = await fetch(`${url}${requestPath}`, { redirect: options.redirect || "error", headers: { "Accept-Encoding": "identity" } });
@@ -513,7 +535,7 @@ async function assertVisibleFocus(locator, label) {
   if (!visible) throw new Error(`${label} lacks visible keyboard focus.`);
 }
 
-async function browserFailureProbes(browser, baseUrl, replayPath, evidence, browserName) {
+async function browserFailureProbes(browser, baseUrl, replayPath, evidence, browserName, artifactRoot = null) {
   const probes = [
     ...(replayPath ? [
       { name: "replay-chunk", route: replayPath, match: "/replay.frames/" },
@@ -536,6 +558,10 @@ async function browserFailureProbes(browser, baseUrl, replayPath, evidence, brow
       if (new URL(route.request().url()).pathname.includes(probe.match)) {
         injected += 1;
         await route.fulfill({ status: 503, contentType: "text/plain", body: "release gate injected failure" });
+        return;
+      }
+      if (artifactRoot && new URL(route.request().url()).origin === baseUrl) {
+        await fulfillLocalArtifact(route, artifactRoot);
         return;
       }
       await route.continue();
@@ -603,11 +629,9 @@ async function exerciseBrowsers(paths, target, evidence, report) {
   const cases = [...new Set(["/", "/replay/", ...(replayPath ? [replayPath] : []), ...(sharePath ? [sharePath] : []), "/race-desk/", "/compare/", "/stints/", "/learn/", "/cars/current-spec/", ...redirectTargets.keys()])];
   const policy = headerPolicyFromText(await readFile(path.join(paths.artifactRoot, "_headers"), "utf8"));
   const allowedOrigins = allowedNetworkOrigins(policy.security["content-security-policy"]);
-  const local = !target ? await localServer(paths.artifactRoot) : null;
-  const baseUrl = target || local.url;
+  const baseUrl = target || "http://f1.test";
   const results = report.results;
-  try {
-    if (target) {
+  if (target) {
       report.redirects = [];
       for (const [from, to] of releaseRedirects(latest)) report.redirects.push(await assertPermanentRedirect(target, from, to, "?browser=1"));
     }
@@ -622,6 +646,7 @@ async function exerciseBrowsers(paths, target, evidence, report) {
         for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844 }]) {
           for (const route of cases) {
             const page = await browser.newPage({ viewport, reducedMotion: "reduce" });
+            if (!target) await page.route(`${baseUrl}/**`, (route) => fulfillLocalArtifact(route, paths.artifactRoot));
             const events = [];
             const badRequests = [];
             const privacyViolations = [];
@@ -743,15 +768,12 @@ async function exerciseBrowsers(paths, target, evidence, report) {
             results.push({ browser: name, version: browser.version(), route, viewport, reducedMotion: "reduce", status: "passed" });
           }
         }
-        const failureResults = await browserFailureProbes(browser, baseUrl, replayPath, evidence, name);
+        const failureResults = await browserFailureProbes(browser, baseUrl, replayPath, evidence, name, target ? null : paths.artifactRoot);
         results.push(...failureResults.map((result) => ({ browser: name, version: browser.version(), viewport: { width: 1440, height: 1000 }, reducedMotion: "reduce", failureProbe: result })));
       } finally {
         if (browser) await browser.close();
       }
     }
-  } finally {
-    if (local) await new Promise((resolve, reject) => local.server.close((error) => error ? reject(error) : resolve()));
-  }
 }
 
 async function browserGate(paths, target) {

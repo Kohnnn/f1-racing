@@ -7,6 +7,7 @@ import {
   allowedNetworkOrigins,
   assertResponseHeaderPolicy,
   auditEvidence,
+  fulfillLocalArtifact,
   createSecretScanner,
   evidenceFileName,
   headerPolicyFromText,
@@ -235,6 +236,19 @@ try {
   } finally {
     await new Promise((resolve, reject) => local.server.close((error) => error ? reject(error) : resolve()));
   }
+  const fulfilled = [];
+  const route = (url, method = "GET") => ({
+    request: () => ({ url: () => url, method: () => method }),
+    fulfill: async (response) => fulfilled.push(response),
+  });
+  await fulfillLocalArtifact(route("http://f1.test/head-fixture.txt"), root);
+  assert.equal(fulfilled.at(-1).status, 200);
+  assert.equal(fulfilled.at(-1).body.toString(), "fixture");
+  await fulfillLocalArtifact(route("http://f1.test/head-fixture.txt", "HEAD"), root);
+  assert.equal(fulfilled.at(-1).headers["Content-Length"], "7");
+  assert.equal(fulfilled.at(-1).body, undefined);
+  await fulfillLocalArtifact(route("http://f1.test/missing.txt"), root);
+  assert.equal(fulfilled.at(-1).status, 404);
 
   const paths = { root };
   const releaseId = `sha256-${"a".repeat(64)}`;
