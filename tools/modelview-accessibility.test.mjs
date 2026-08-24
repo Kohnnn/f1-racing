@@ -6,10 +6,11 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const source = (relativePath) => readFile(path.join(root, relativePath), "utf-8");
 
-const [loader, browserSource, windTunnel, styles, headers] = await Promise.all([
+const [loader, browserSource, windTunnel, replayScene, styles, headers] = await Promise.all([
   source("apps/web/src/lib/model-viewer-loader.ts"),
   source("apps/web/src/components/model-viewer/car-model-browser.tsx"),
   source("apps/web/src/components/wind/canvas-wind-tunnel.tsx"),
+  source("apps/web/src/components/replay/three/ReplayScene3D.tsx"),
   source("apps/web/src/app/globals.css"),
   source("apps/web/public/_headers"),
 ]);
@@ -20,6 +21,8 @@ for (const file of ["draco_decoder.js", "draco_decoder.wasm", "draco_wasm_wrappe
 
 assert.match(loader, /new URL\(`\$\{basePath\}\/draco\/`, scriptUrl\.origin\)/);
 assert.doesNotMatch(loader, /gstatic|googleapis/);
+assert.doesNotMatch(replayScene, /useGLTF/);
+assert.match(replayScene, /useLoader\(GLTFLoader,/);
 assert.doesNotMatch(headers, /gstatic|googleapis/);
 for (const label of ["Camera zoom controls", "Zoom in", "Zoom out", "Reset view"]) {
   assert.ok(browserSource.includes(label), `Missing accessible camera control: ${label}`);

@@ -7,13 +7,13 @@ import {
   OrbitControls,
   PerformanceMonitor,
   Text,
-  useGLTF,
   useProgress,
   useTexture,
 } from "@react-three/drei";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Canvas, useFrame, useLoader, useThree } from "@react-three/fiber";
 import { Component, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import * as THREE from "three";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { configureTextBuilder } from "troika-three-text";
 import type { ReplayDriver, ReplayFrame, ReplayPack } from "@/lib/data";
 import { createReplayInterpolator, type InterpolatedDriverState, type ReplayInterpolator } from "../interpolation";
@@ -567,7 +567,7 @@ function CircuitProp({
   mapping: WorldMapping;
   placement: AssetPlacement;
 }) {
-  const { scene } = useGLTF(placement.asset) as { scene: THREE.Group };
+  const { scene } = useLoader(GLTFLoader, placement.asset) as { scene: THREE.Group };
   const object = useMemo(() => scene.clone(true), [scene]);
   const world = useMemo(
     () => worldPlacement(geometry, mapping, placement.ratio, placement.offset, placement.lift),
@@ -724,7 +724,7 @@ function ReplayFleet({
   onDriverSelect?: ReplayScene3DProps["onDriverSelect"];
   onShotStatus: (status: ShotStatus) => void;
 }) {
-  const { scene } = useGLTF(FORMULA_CAR_URL) as { scene: THREE.Group };
+  const { scene } = useLoader(GLTFLoader, FORMULA_CAR_URL) as { scene: THREE.Group };
   const parts = useMemo<FleetPart[]>(() => {
     scene.updateMatrixWorld(true);
     const result: FleetPart[] = [];

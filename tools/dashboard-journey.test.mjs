@@ -8,8 +8,9 @@ const candidateRoot = process.env.F1_CANDIDATE_ROOT ? path.resolve(process.env.F
 const outRoot = candidateRoot ? path.join(candidateRoot, "apps", "web", "out") : path.join(root, "apps", "web", "out");
 const source = (relativePath) => readFile(path.join(root, relativePath), "utf-8");
 
-const [pageSource, handoffSource, generatorSource, styles, packageSource] = await Promise.all([
+const [pageSource, raceDeskSource, handoffSource, generatorSource, styles, packageSource] = await Promise.all([
   source("apps/web/src/app/page.tsx"),
+  source("apps/web/src/app/race-desk/page.tsx"),
   source("apps/web/src/components/story/dashboard-handoff.tsx"),
   source("pipeline/export/src/build-evidence-briefs.mjs"),
   source("apps/web/src/app/globals.css"),
@@ -19,6 +20,7 @@ const [pageSource, handoffSource, generatorSource, styles, packageSource] = awai
 assert.match(pageSource, /getEvidenceBriefIndex\(\)/);
 assert.match(pageSource, /<LearningTrail \/>/);
 assert.match(pageSource, /canonical: "\/"/);
+assert.match(raceDeskSource, /<span>Historical replay simulation — not live timing<\/span>/);
 assert.doesNotMatch(pageSource, /const featuredBrief|const nextBriefs/);
 assert.match(handoffSource, /saveApprovedBriefInBrowser\(trail\)/);
 assert.equal((generatorSource.match(/learningOutcome:/g) ?? []).length, 3);

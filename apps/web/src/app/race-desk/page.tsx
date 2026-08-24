@@ -15,7 +15,7 @@ export default async function RaceDeskPage() {
           <section className="hero hero--compact">
             <p className="eyebrow">Historical Race Desk</p>
             <h1>No current featured race pack.</h1>
-            <p className="lead">Historical replay simulation — not live timing. Race Desk needs a verified featured race; historical sessions remain available in Replay.</p>
+            <p className="lead"><span>Historical replay simulation — not live timing</span>. Race Desk needs a verified featured race; historical sessions remain available in Replay.</p>
             <a className="button" href="/replay">Browse historical Replay</a>
           </section>
         </div>
@@ -59,7 +59,7 @@ export default async function RaceDeskPage() {
         <section className="hero hero--compact" role="alert">
           <p className="eyebrow">Historical Race Desk</p>
           <h1>Historical replay unavailable</h1>
-          <p className="lead">Historical replay simulation — not live timing. The featured race pack could not be opened; retry the page or browse another verified session.</p>
+          <p className="lead"><span>Historical replay simulation — not live timing</span>. The featured race pack could not be opened; retry the page or browse another verified session.</p>
           <div className="hero-actions">
             <a className="button" href="/race-desk">Retry historical replay</a>
             <a className="button button--secondary" href="/replay">Replay library</a>
