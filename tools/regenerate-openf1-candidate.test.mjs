@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { assertApprovedRights, captureTerminalOutcomes, createRegenerationPlan, restoreBaselinePacks, terminalEvidence } from "./regenerate-openf1-candidate.mjs";
+import { assertApprovedRights, captureTerminalOutcomes, createRegenerationPlan, restoreBaselineInputs, terminalEvidence } from "./regenerate-openf1-candidate.mjs";
 import { candidateMarker, candidatePaths, candidatesRoot, workspaceRoot } from "./release-data.mjs";
 
 const index = JSON.parse(await readFile(path.join(workspaceRoot, "data", "manifests", "seasons.json"), "utf8"));
@@ -82,7 +82,7 @@ try {
     mkdir(restorePaths.canonicalData, { recursive: true }),
     mkdir(restorePaths.publicData, { recursive: true }),
   ]);
-  await restoreBaselinePacks(restorePaths);
+  await restoreBaselineInputs(restorePaths);
   for (const relativePath of [
     "packs/cars/catalog.json",
     "packs/sims/fs-cfd-database-source.json",
@@ -92,6 +92,11 @@ try {
     const source = await readFile(path.join(workspaceRoot, "data", relativePath));
     assert.deepEqual(await readFile(path.join(restorePaths.canonicalData, relativePath)), source);
     assert.deepEqual(await readFile(path.join(restorePaths.publicData, relativePath)), source);
+  }
+  const catalog = JSON.parse(await readFile(path.join(workspaceRoot, "data", "packs", "cars", "catalog.json"), "utf8"));
+  for (const relativePath of catalog.models.flatMap((model) => [model.file, model.poster]).map((value) => value.slice(1))) {
+    const source = await readFile(path.join(workspaceRoot, "apps", "web", "public", relativePath));
+    assert.deepEqual(await readFile(path.join(restorePaths.publicRoot, relativePath)), source);
   }
 } finally {
   await rm(restoreRoot, { recursive: true, force: true });

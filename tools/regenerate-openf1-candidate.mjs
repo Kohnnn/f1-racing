@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { openF1Fetch, readOpenF1Evidence } from "../pipeline/ingest/src/openf1-client.mjs";
@@ -380,22 +380,34 @@ async function clearSeasonPacks(paths) {
   }
 }
 
-export async function restoreBaselinePacks(paths) {
-  const relativePaths = [
-    "packs/cars/catalog.json",
-    "packs/sims/fs-cfd-database-source.json",
-    "packs/sims/f1-cfd-overlay.schema.example.json",
-    "packs/sims/openfoam-starter-case.json",
-  ];
-  for (const relativePath of relativePaths) {
-    const payload = await readFile(path.join(workspaceRoot, "data", relativePath));
-    for (const dataRoot of [paths.canonicalData, paths.publicData]) {
-      const target = path.join(dataRoot, relativePath);
-      await assertCandidateOutputPath(paths.root, target);
-      await mkdir(path.dirname(target), { recursive: true });
-      await assertCandidateOutputPath(paths.root, target);
-      await writeFile(target, payload);
+async function copyCandidateEntry(paths, source, target, directory) {
+  await assertCandidateOutputPath(paths.root, target, directory ? "directory" : "file");
+  await mkdir(path.dirname(target), { recursive: true });
+  await assertCandidateOutputPath(paths.root, target, directory ? "directory" : "file");
+  await cp(source, target, { recursive: directory, force: true });
+}
+
+export async function restoreBaselineInputs(paths) {
+  const dataRoot = path.join(workspaceRoot, "data");
+  for (const entry of await readdir(dataRoot, { withFileTypes: true })) {
+    if (entry.name === "manifests") continue;
+    if (entry.name === "packs") {
+      for (const pack of await readdir(path.join(dataRoot, entry.name), { withFileTypes: true })) {
+        if (pack.name === "seasons") continue;
+        for (const targetRoot of [paths.canonicalData, paths.publicData]) {
+          await copyCandidateEntry(paths, path.join(dataRoot, entry.name, pack.name), path.join(targetRoot, entry.name, pack.name), pack.isDirectory());
+        }
+      }
+      continue;
     }
+    for (const targetRoot of [paths.canonicalData, paths.publicData]) {
+      await copyCandidateEntry(paths, path.join(dataRoot, entry.name), path.join(targetRoot, entry.name), entry.isDirectory());
+    }
+  }
+  const publicRoot = path.join(workspaceRoot, "apps", "web", "public");
+  for (const entry of await readdir(publicRoot, { withFileTypes: true })) {
+    if (entry.name === "data") continue;
+    await copyCandidateEntry(paths, path.join(publicRoot, entry.name), path.join(paths.publicRoot, entry.name), entry.isDirectory());
   }
 }
 
@@ -444,7 +456,7 @@ async function main() {
       }
     }
     if (!eligible.length) throw new Error("No indexed OpenF1 session produced a complete candidate pack.");
-    await restoreBaselinePacks(paths);
+    await restoreBaselineInputs(paths);
     await updateSourceManifests(paths, manifests, new Set(eligible.map((session) => session.path)), generatedAt);
     await writeLedger(paths, eligible, entries, generatedAt);
     const excluded = plan.sessions.filter((session) => !terminals.get(session.path).eligible);
