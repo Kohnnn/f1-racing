@@ -219,12 +219,11 @@ export function mimeType(relativePath) {
 }
 
 export function cachePolicy(relativePath) {
-  if (relativePath === "release-manifest.json" || relativePath.endsWith(".html")) return "no-cache";
   if (relativePath.startsWith("_next/static/")) return "public, max-age=31536000, immutable";
   if (relativePath.startsWith("data/manifests/")) return "public, max-age=60";
   if (relativePath.startsWith("data/packs/") || relativePath.startsWith("data/silhouettes/")) return "public, max-age=300";
   if (relativePath.startsWith("models/") || relativePath.startsWith("posters/")) return "public, max-age=86400";
-  return "no-cache";
+  return "public, max-age=0, must-revalidate";
 }
 
 function isReplayJsonPath(entryPath) {

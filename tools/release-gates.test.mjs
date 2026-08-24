@@ -43,7 +43,6 @@ assert.equal(normalizeContentType("Application/JSON; charset=utf-8"), "applicati
 assert.equal(normalizeCacheControl("immutable, Public, max-age=31536000"), "immutable, max-age=31536000, public");
 
 const headerText = `/*
-  Cache-Control: no-cache
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   X-Frame-Options: SAMEORIGIN
@@ -79,6 +78,7 @@ assertResponseHeaderPolicy({
   "cache-control": "public, max-age=60",
 }, headerPolicy, "/data/manifests/latest.json");
 assert.throws(() => headerPolicyFromText(headerText.replace("X-Frame-Options: SAMEORIGIN", "X-Frame-Options: DENY")), /exact x-frame-options/);
+assert.throws(() => headerPolicyFromText(headerText.replace("/*\n", "/*\n  Cache-Control: no-cache\n")), /default static Cache-Control/);
 assert.throws(() => headerPolicyFromText(headerText.replace(/\/\*[\s\S]+?(?=\n\/_next)/, "").concat(headerText.slice(0, headerText.indexOf("\n/_next")))), /must follow/);
 assert.throws(() => assertResponseHeaderPolicy({ "cache-control": "no-cache" }, headerPolicy, "/"), /content-security-policy/);
 assert.throws(() => assertResponseHeaderPolicy({

@@ -11,6 +11,7 @@ import {
   assertCandidateOutputPath,
   assertCandidateRoot,
   auditCandidate,
+  cachePolicy,
   candidateMarker,
   candidatePaths,
   candidatesRoot,
@@ -24,6 +25,10 @@ import {
 
 const now = Date.parse("2026-07-02T00:00:00.000Z");
 const nowText = new Date(now).toISOString();
+assert.equal(cachePolicy("index.html"), "public, max-age=0, must-revalidate");
+assert.equal(cachePolicy("release-manifest.json"), "public, max-age=0, must-revalidate");
+assert.equal(cachePolicy("favicon.svg"), "public, max-age=0, must-revalidate");
+assert.equal(cachePolicy("_next/static/chunks/app.js"), "public, max-age=31536000, immutable");
 const candidateCommands = [
   "npm run build:briefs",
   "npm run quality",

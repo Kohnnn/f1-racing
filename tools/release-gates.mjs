@@ -254,7 +254,6 @@ const reviewedCacheRules = Object.freeze({
   "/data/silhouettes/*": "public, max-age=300",
   "/models/*": "public, max-age=86400",
   "/posters/*": "public, max-age=86400",
-  "/*": "no-cache",
 });
 
 function headerValue(headers, name) {
@@ -265,6 +264,7 @@ export function headerPolicyFromText(text) {
   const rules = parseHeaders(text);
   const root = rules.get("/*");
   if (!root) throw new Error("_headers lacks a reviewed /* rule.");
+  if (root.has("cache-control")) throw new Error("_headers /* must use Netlify's default static Cache-Control.");
   for (const [name, expected] of Object.entries(reviewedSecurityHeaders)) {
     if (root.get(name) !== expected) throw new Error(`_headers must set exact ${name}.`);
   }
