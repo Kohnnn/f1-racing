@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { readFile, readdir } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { assertApprovedRights, captureTerminalOutcomes, createRegenerationPlan, terminalEvidence } from "./regenerate-openf1-candidate.mjs";
-import { candidatesRoot, workspaceRoot } from "./release-data.mjs";
+import { assertApprovedRights, captureTerminalOutcomes, createRegenerationPlan, restoreBaselinePacks, terminalEvidence } from "./regenerate-openf1-candidate.mjs";
+import { candidateMarker, candidatePaths, candidatesRoot, workspaceRoot } from "./release-data.mjs";
 
 const index = JSON.parse(await readFile(path.join(workspaceRoot, "data", "manifests", "seasons.json"), "utf8"));
 const years = [...new Set(index.seasons.flatMap((season) => season.grandsPrix.flatMap((grandPrix) => grandPrix.sessions.map((session) => session.season))))].sort();
@@ -73,6 +73,29 @@ assert.deepEqual(captureOrder, [
 ]);
 assert.equal(capturedOutcomes.size, 2);
 assert.equal(capturedOutcomes.get(sourceSession.path).eligible, true);
+await mkdir(candidatesRoot, { recursive: true });
+const restoreRoot = await mkdtemp(path.join(candidatesRoot, "restore-baseline-test-"));
+const restorePaths = candidatePaths(restoreRoot);
+try {
+  await writeFile(restorePaths.marker, `${JSON.stringify(candidateMarker)}\n`, "utf8");
+  await Promise.all([
+    mkdir(restorePaths.canonicalData, { recursive: true }),
+    mkdir(restorePaths.publicData, { recursive: true }),
+  ]);
+  await restoreBaselinePacks(restorePaths);
+  for (const relativePath of [
+    "packs/cars/catalog.json",
+    "packs/sims/fs-cfd-database-source.json",
+    "packs/sims/f1-cfd-overlay.schema.example.json",
+    "packs/sims/openfoam-starter-case.json",
+  ]) {
+    const source = await readFile(path.join(workspaceRoot, "data", relativePath));
+    assert.deepEqual(await readFile(path.join(restorePaths.canonicalData, relativePath)), source);
+    assert.deepEqual(await readFile(path.join(restorePaths.publicData, relativePath)), source);
+  }
+} finally {
+  await rm(restoreRoot, { recursive: true, force: true });
+}
 
 async function candidateNames() {
   try {

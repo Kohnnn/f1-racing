@@ -380,6 +380,25 @@ async function clearSeasonPacks(paths) {
   }
 }
 
+export async function restoreBaselinePacks(paths) {
+  const relativePaths = [
+    "packs/cars/catalog.json",
+    "packs/sims/fs-cfd-database-source.json",
+    "packs/sims/f1-cfd-overlay.schema.example.json",
+    "packs/sims/openfoam-starter-case.json",
+  ];
+  for (const relativePath of relativePaths) {
+    const payload = await readFile(path.join(workspaceRoot, "data", relativePath));
+    for (const dataRoot of [paths.canonicalData, paths.publicData]) {
+      const target = path.join(dataRoot, relativePath);
+      await assertCandidateOutputPath(paths.root, target);
+      await mkdir(path.dirname(target), { recursive: true });
+      await assertCandidateOutputPath(paths.root, target);
+      await writeFile(target, payload);
+    }
+  }
+}
+
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const { manifests, plan } = await loadPlan();
@@ -425,6 +444,7 @@ async function main() {
       }
     }
     if (!eligible.length) throw new Error("No indexed OpenF1 session produced a complete candidate pack.");
+    await restoreBaselinePacks(paths);
     await updateSourceManifests(paths, manifests, new Set(eligible.map((session) => session.path)), generatedAt);
     await writeLedger(paths, eligible, entries, generatedAt);
     const excluded = plan.sessions.filter((session) => !terminals.get(session.path).eligible);
