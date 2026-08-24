@@ -7,6 +7,7 @@ import {
   allowedNetworkOrigins,
   assertResponseHeaderPolicy,
   auditEvidence,
+  cacheControlMatches,
   fulfillLocalArtifact,
   createSecretScanner,
   evidenceFileName,
@@ -41,6 +42,9 @@ for (const value of ["https://f1-demo.netlify.app", "https://build-123--f1-demo.
 }
 assert.equal(normalizeContentType("Application/JSON; charset=utf-8"), "application/json");
 assert.equal(normalizeCacheControl("immutable, Public, max-age=31536000"), "immutable, max-age=31536000, public");
+assert.equal(cacheControlMatches("no-cache", "public, max-age=31536000, immutable", { allowNoCache: true }), true);
+assert.equal(cacheControlMatches("no-cache", "public, max-age=31536000, immutable"), false);
+assert.equal(cacheControlMatches("public, immutable, max-age=31536000", "public, max-age=31536000, immutable"), true);
 
 const headerText = `/*
   X-Content-Type-Options: nosniff
@@ -48,6 +52,9 @@ const headerText = `/*
   X-Frame-Options: SAMEORIGIN
   Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' blob:; connect-src 'self' blob: https://f1-api.129.150.58.64.sslip.io wss://f1-api.129.150.58.64.sslip.io; worker-src 'self' blob:; child-src 'self' blob:
   Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), fullscreen=(self), xr-spatial-tracking=(self)
+
+/fonts/*.woff
+  Content-Type: font/woff
 
 /_next/static/*
   Cache-Control: public, max-age=31536000, immutable
@@ -63,6 +70,13 @@ const headerText = `/*
 
 /models/*
   Cache-Control: public, max-age=86400
+  Content-Type: model/gltf-binary
+
+/replay-3d/formula-car.glb
+  Content-Type: model/gltf-binary
+
+/replay-3d/props/*
+  Content-Type: model/gltf-binary
 
 /posters/*
   Cache-Control: public, max-age=86400
@@ -78,6 +92,8 @@ assertResponseHeaderPolicy({
   "cache-control": "public, max-age=60",
 }, headerPolicy, "/data/manifests/latest.json");
 assert.throws(() => headerPolicyFromText(headerText.replace("X-Frame-Options: SAMEORIGIN", "X-Frame-Options: DENY")), /exact x-frame-options/);
+assert.throws(() => headerPolicyFromText(headerText.replace("Content-Type: font/woff", "Content-Type: application/font-woff")), /exact font\/woff/);
+assert.throws(() => headerPolicyFromText(headerText.replace("Content-Type: model/gltf-binary", "Content-Type: application/octet-stream")), /exact GLB MIME/);
 assert.throws(() => headerPolicyFromText(headerText.replace("/*\n", "/*\n  Cache-Control: no-cache\n")), /default static Cache-Control/);
 assert.throws(() => headerPolicyFromText(headerText.replace(/\/\*[\s\S]+?(?=\n\/_next)/, "").concat(headerText.slice(0, headerText.indexOf("\n/_next")))), /must follow/);
 assert.throws(() => assertResponseHeaderPolicy({ "cache-control": "no-cache" }, headerPolicy, "/"), /content-security-policy/);

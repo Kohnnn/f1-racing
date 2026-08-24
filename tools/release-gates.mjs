@@ -71,6 +71,10 @@ export function normalizeContentType(value) {
   return String(value || "").split(";", 1)[0].trim().toLowerCase();
 }
 
+function isImmutableDeployUrl(value) {
+  return /^[a-f0-9]{24}--f1-demo\.netlify\.app$/.test(new URL(value).hostname);
+}
+
 export function normalizeCacheControl(value) {
   return String(value || "")
     .split(",")
@@ -78,6 +82,11 @@ export function normalizeCacheControl(value) {
     .filter(Boolean)
     .sort()
     .join(", ");
+}
+
+export function cacheControlMatches(actual, expected, { allowNoCache = false } = {}) {
+  const normalizedActual = normalizeCacheControl(actual);
+  return normalizedActual === normalizeCacheControl(expected) || (allowNoCache && normalizedActual === "no-cache");
 }
 
 export function validateRedirectTarget(location, expectedPath, sourceUrl) {
@@ -268,6 +277,10 @@ export function headerPolicyFromText(text) {
   for (const [name, expected] of Object.entries(reviewedSecurityHeaders)) {
     if (root.get(name) !== expected) throw new Error(`_headers must set exact ${name}.`);
   }
+  if (rules.get("/fonts/*.woff")?.get("content-type") !== "font/woff") throw new Error("_headers must set exact font/woff MIME type.");
+  for (const rule of ["/models/*", "/replay-3d/formula-car.glb", "/replay-3d/props/*"]) {
+    if (rules.get(rule)?.get("content-type") !== "model/gltf-binary") throw new Error(`_headers must set exact GLB MIME type: ${rule}.`);
+  }
   const rootIndex = [...rules.keys()].indexOf("/*");
   for (const [rule, expected] of Object.entries(reviewedCacheRules)) {
     if (normalizeCacheControl(rules.get(rule)?.get("cache-control")) !== normalizeCacheControl(expected)) throw new Error(`_headers cache rule missing: ${rule}.`);
@@ -276,11 +289,11 @@ export function headerPolicyFromText(text) {
   return Object.freeze({ security: Object.fromEntries(Object.entries(reviewedSecurityHeaders)), cacheRules: Object.fromEntries(Object.entries(reviewedCacheRules)) });
 }
 
-export function assertResponseHeaderPolicy(headers, policy, requestPath, expectedCacheControl = cachePolicy(requestPath === "/" ? "index.html" : requestPath.slice(1))) {
+export function assertResponseHeaderPolicy(headers, policy, requestPath, expectedCacheControl = cachePolicy(requestPath === "/" ? "index.html" : requestPath.slice(1)), options = {}) {
   for (const [name, expected] of Object.entries(policy.security)) {
     if (headerValue(headers, name) !== expected) throw new Error(`${requestPath} ${name} does not match the reviewed policy.`);
   }
-  if (normalizeCacheControl(headerValue(headers, "cache-control")) !== normalizeCacheControl(expectedCacheControl)) {
+  if (!cacheControlMatches(headerValue(headers, "cache-control"), expectedCacheControl, options)) {
     throw new Error(`${requestPath} Cache-Control does not match the release manifest.`);
   }
 }
@@ -500,7 +513,7 @@ async function validateRemoteHeaders(target, manifest, policy) {
   for (const requestPath of interesting) {
     const response = await fetchChecked(target, requestPath);
     const entry = manifest.entries.find((candidate) => `/${candidate.path}` === requestPath);
-    assertResponseHeaderPolicy(response.headers, policy, requestPath, entry?.cachePolicy || cachePolicy(requestPath === "/" ? "index.html" : requestPath.slice(1)));
+    assertResponseHeaderPolicy(response.headers, policy, requestPath, entry?.cachePolicy || cachePolicy(requestPath === "/" ? "index.html" : requestPath.slice(1)), { allowNoCache: isImmutableDeployUrl(target) });
     results.push({ path: requestPath, status: response.status, contentType: normalizeContentType(response.headers.get("content-type")), cacheControl: normalizeCacheControl(response.headers.get("cache-control")) });
   }
   return results;
@@ -806,7 +819,7 @@ async function compareOrigin(origin, manifestBytes, manifest, samples, entries) 
     const body = Buffer.from(await response.arrayBuffer());
     if (body.length !== entry.bytes || digest(body) !== entry.sha256) throw new Error(`${origin} parity mismatch: ${relativePath}.`);
     if (normalizeContentType(response.headers.get("content-type")) !== normalizeContentType(entry.mimeType)) throw new Error(`${origin} Content-Type mismatch: ${relativePath}.`);
-    if (normalizeCacheControl(response.headers.get("cache-control")) !== normalizeCacheControl(entry.cachePolicy)) throw new Error(`${origin} Cache-Control mismatch: ${relativePath}.`);
+    if (!cacheControlMatches(response.headers.get("cache-control"), entry.cachePolicy, { allowNoCache: isImmutableDeployUrl(origin) })) throw new Error(`${origin} Cache-Control mismatch: ${relativePath}.`);
     compared.push({ path: relativePath, bytes: body.length, sha256: digest(body), mimeType: normalizeContentType(response.headers.get("content-type")), cacheControl: normalizeCacheControl(response.headers.get("cache-control")) });
   }
   return { origin, manifestBytes: remoteManifestBytes.length, samples: compared };

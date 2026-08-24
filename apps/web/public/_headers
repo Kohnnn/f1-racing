@@ -5,6 +5,9 @@
   Content-Security-Policy: default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; media-src 'self' blob:; connect-src 'self' blob: https://f1-api.129.150.58.64.sslip.io wss://f1-api.129.150.58.64.sslip.io; worker-src 'self' blob:; child-src 'self' blob:
   Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=(), fullscreen=(self), xr-spatial-tracking=(self)
 
+/fonts/*.woff
+  Content-Type: font/woff
+
 /data/manifests/*
   Cache-Control: public, max-age=60
 
@@ -19,6 +22,13 @@
 
 /models/*
   Cache-Control: public, max-age=86400
+  Content-Type: model/gltf-binary
+
+/replay-3d/formula-car.glb
+  Content-Type: model/gltf-binary
+
+/replay-3d/props/*
+  Content-Type: model/gltf-binary
 
 /posters/*
   Cache-Control: public, max-age=86400
