@@ -431,7 +431,7 @@ function resolveLocal(root, requestUrl) {
   return filePath;
 }
 
-async function localServer(root) {
+export async function localServer(root) {
   const server = createServer(async (request, response) => {
     try {
       let filePath = resolveLocal(root, request.url || "/");
@@ -441,9 +441,10 @@ async function localServer(root) {
       const data = await readFile(filePath);
       response.writeHead(200, {
         "Content-Type": mimeType(relativePath),
+        "Content-Length": data.length,
         "Cache-Control": cachePolicy(relativePath),
         ...Object.fromEntries(Object.entries(reviewedSecurityHeaders).map(([name, value]) => [name, value])),
-      }).end(data);
+      }).end(request.method === "HEAD" ? undefined : data);
     } catch {
       response.writeHead(404).end();
     }

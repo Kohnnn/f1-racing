@@ -27,6 +27,8 @@ assert.doesNotMatch(headers, /gstatic|googleapis/);
 for (const label of ["Camera zoom controls", "Zoom in", "Zoom out", "Reset view"]) {
   assert.ok(browserSource.includes(label), `Missing accessible camera control: ${label}`);
 }
+assert.doesNotMatch(browserSource, /fetch\(url, \{ method: "HEAD" \}\)/);
+assert.match(browserSource, /onError=\{\(\) => setAvailable\(false\)\}/);
 assert.match(browserSource, /aria-pressed=\{Boolean\(compareSlug\)\}/);
 assert.match(browserSource, /aria-pressed=\{interactionMode === "inspect"\}/);
 assert.match(browserSource, /aria-pressed=\{studioQuality === "studio"\}/);

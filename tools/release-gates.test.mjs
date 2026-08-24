@@ -12,6 +12,7 @@ import {
   headerPolicyFromText,
   isAnalyticsRequest,
   loadNetlifyDeployMetadata,
+  localServer,
   netlifySiteId,
   normalizeCacheControl,
   normalizeContentType,
@@ -222,6 +223,18 @@ try {
   assert.equal(await readFile(fallbackChunk, "utf8"), "/draco/\n/basis/\n/lottie/LottieLoader.js");
   await writeFile(fallbackChunk, "dependency drift", "utf8");
   await assert.rejects(localizeModelViewerFallbacks(root), /Missing model-viewer fallback/);
+
+  const headFixture = path.join(root, "head-fixture.txt");
+  await writeFile(headFixture, "fixture", "utf8");
+  const local = await localServer(root);
+  try {
+    const headResponse = await fetch(`${local.url}/head-fixture.txt`, { method: "HEAD" });
+    assert.equal(headResponse.status, 200);
+    assert.equal(headResponse.headers.get("content-length"), "7");
+    assert.equal((await headResponse.arrayBuffer()).byteLength, 0);
+  } finally {
+    await new Promise((resolve, reject) => local.server.close((error) => error ? reject(error) : resolve()));
+  }
 
   const paths = { root };
   const releaseId = `sha256-${"a".repeat(64)}`;

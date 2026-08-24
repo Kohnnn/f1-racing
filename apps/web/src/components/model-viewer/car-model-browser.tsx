@@ -25,33 +25,17 @@ function ExplodedViewLayer({
   expanded: boolean;
   onToggle: () => void;
 }) {
-  const [available, setAvailable] = useState<boolean | null>(null);
+  const [available, setAvailable] = useState(true);
   const url = `/exploded-views/${season}/${constructorSlug}.png`;
-  useEffect(() => {
-    let cancelled = false;
-    setAvailable(null);
-    fetch(url, { method: "HEAD" })
-      .then((response) => {
-        if (cancelled) return;
-        setAvailable(response.ok);
-      })
-      .catch(() => {
-        if (!cancelled) setAvailable(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [url]);
 
-  if (available === false) {
+  useEffect(() => setAvailable(true), [url]);
+
+  if (!available) {
     return (
       <div className="car-viewer-inspect-overlay__hint">
         Exploded view is not available for this constructor yet. Try another constructor or keep using hotspot inspect mode.
       </div>
     );
-  }
-  if (!available) {
-    return null;
   }
   return (
     <figure
@@ -65,7 +49,7 @@ function ExplodedViewLayer({
       >
         {expanded ? "Collapse" : "Expand"}
       </button>
-      <img src={url} alt="Exploded technical view" loading="lazy" />
+      <img src={url} alt="Exploded technical view" loading="lazy" onError={() => setAvailable(false)} />
       <figcaption>Exploded view · subsystems pulled apart along assembly axes</figcaption>
     </figure>
   );
