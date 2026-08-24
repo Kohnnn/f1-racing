@@ -4,7 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promis
 import os from "node:os";
 import path from "node:path";
 import { candidatesRoot } from "../../../tools/release-data.mjs";
-import { openF1Fetch, readOpenF1Evidence } from "./openf1-client.mjs";
+import { openF1Fetch, readOpenF1Evidence, renameWithRetry } from "./openf1-client.mjs";
 
 const root = await mkdtemp(path.join(os.tmpdir(), "openf1-client-test-"));
 await mkdir(candidatesRoot, { recursive: true });
@@ -129,6 +129,17 @@ try {
     sleep: async (delay) => validationWaits.push(delay),
   }), []);
   assert.deepEqual(validationWaits, [1000]);
+  const renameWaits = [];
+  let renameCount = 0;
+  await renameWithRetry("temporary", "final", {
+    rename: async () => {
+      renameCount += 1;
+      if (renameCount === 1) throw Object.assign(new Error("locked"), { code: "EBUSY" });
+    },
+    sleep: async (delay) => renameWaits.push(delay),
+  });
+  assert.equal(renameCount, 2);
+  assert.deepEqual(renameWaits, [100]);
   await assert.rejects(() => openF1Fetch("laps", { session_key: 500 }, {
     fetch: async () => new Response("not-json", { status: 400, statusText: "Bad Request" }),
   }), /invalid JSON/);

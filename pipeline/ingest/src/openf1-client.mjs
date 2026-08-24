@@ -9,6 +9,20 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+export async function renameWithRetry(source, target, options = {}) {
+  const renameImpl = options.rename ?? rename;
+  const wait = options.sleep ?? sleep;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await renameImpl(source, target);
+      return;
+    } catch (error) {
+      if (error?.code !== "EBUSY" || attempt === 2) throw error;
+      await wait(100 * 2 ** attempt);
+    }
+  }
+}
+
 function digest(value) {
   return createHash("sha256").update(value).digest("hex");
 }
@@ -192,7 +206,7 @@ async function writeCachedResponse(paths, body, metadata) {
       writeFile(path.join(temporaryEntry, "metadata.json"), `${JSON.stringify(metadata, null, 2)}\n`, { encoding: "utf8", flag: "wx" }),
     ]);
     try {
-      await rename(temporaryEntry, paths.entry);
+      await renameWithRetry(temporaryEntry, paths.entry);
     } catch (error) {
       if (!new Set(["EEXIST", "ENOTEMPTY", "EPERM"]).has(error?.code)) throw error;
       let winnerInfo;
