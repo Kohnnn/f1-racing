@@ -6,11 +6,15 @@ import { fileURLToPath } from "node:url";
 import { buildEvidenceBriefs, generateEvidenceBriefs, validateBriefIndex } from "./build-evidence-briefs.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const sourcePublicDataRoot = path.join(root, "apps", "web", "public", "data");
 const publicDataRoot = process.env.F1_CANDIDATE_ROOT
   ? path.join(path.resolve(process.env.F1_CANDIDATE_ROOT), "public", "data")
-  : path.join(root, "apps", "web", "public", "data");
-const index = await buildEvidenceBriefs({ publicDataRoot });
+  : sourcePublicDataRoot;
+const candidateIndex = await buildEvidenceBriefs({ publicDataRoot });
+const index = await buildEvidenceBriefs({ publicDataRoot: sourcePublicDataRoot, omitUnavailable: false });
 
+assert.ok(candidateIndex.briefs.length > 0);
+assert.deepEqual(candidateIndex.briefs.map(({ id }) => id), index.briefs.filter(({ id }) => candidateIndex.briefs.some((brief) => brief.id === id)).map(({ id }) => id));
 assert.equal(index.version, 1);
 assert.equal(index.templateVersion, "evidence-brief-v1");
 assert.deepEqual(index.briefs.map(({ id }) => id), ["monza-braking", "mexico-aero", "zandvoort-strategy-tyres"]);
@@ -60,7 +64,7 @@ assert.throws(() => validateBriefIndex(overclaim), /Forbidden causal overclaim/)
 const tempRoot = await mkdtemp(path.join(os.tmpdir(), "f1-evidence-briefs-"));
 try {
   const tempData = path.join(tempRoot, "data");
-  await cp(path.join(publicDataRoot, "packs"), path.join(tempData, "packs"), { recursive: true });
+  await cp(path.join(sourcePublicDataRoot, "packs"), path.join(tempData, "packs"), { recursive: true });
   const destinations = [
     path.join(tempRoot, "canonical", "data", "briefs", "index.json"),
     path.join(tempRoot, "public", "data", "briefs", "index.json"),
@@ -71,6 +75,14 @@ try {
   await rm(destinations[0]);
   await assert.rejects(generateEvidenceBriefs({ check: true, publicDataRoot: tempData, destinations }), /Missing generated evidence briefs/);
   await generateEvidenceBriefs({ publicDataRoot: tempData, destinations });
+
+  const mexicoPath = path.join(tempData, "packs", "seasons", "2025", "mexico-city-grand-prix", "race", "compare", "nor-lec.json");
+  const originalMexico = await readFile(mexicoPath, "utf8");
+  await rm(mexicoPath);
+  await assert.rejects(buildEvidenceBriefs({ publicDataRoot: tempData, omitUnavailable: false }), /Missing evidence source/);
+  const availableIndex = await buildEvidenceBriefs({ publicDataRoot: tempData, omitUnavailable: true });
+  assert.deepEqual(availableIndex.briefs.map(({ id }) => id), ["monza-braking", "zandvoort-strategy-tyres"]);
+  await writeFile(mexicoPath, originalMexico, "utf8");
 
   async function changedAnchor(relativePath, mutate, expectedError) {
     const filePath = path.join(tempData, ...relativePath.split("/"));

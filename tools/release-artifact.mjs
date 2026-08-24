@@ -178,6 +178,7 @@ export async function buildAndFinalizeCandidate(candidateRoot, { now, generatedA
     PYTHONPYCACHEPREFIX: path.join(paths.root, ".pycache"),
   };
   const commands = [
+    { command: "npm run build:briefs", run: () => runNpm("build:briefs", env) },
     { command: "npm run quality", run: () => runNpm("quality", env) },
     { command: "npm run check:featured", run: () => runNpm("check:featured", env) },
     { command: "python -m py_compile backend/main.py", run: () => runPython(["-m", "py_compile", "backend/main.py"], env) },

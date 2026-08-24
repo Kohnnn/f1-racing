@@ -1028,6 +1028,7 @@ async function auditReleaseRecord(paths, errors, now) {
   if (JSON.stringify(record.featured) !== JSON.stringify(expectedFeatured)) fail(errors, "release-record.json: featured state does not match audited release data.");
   const commands = record.gateEvidence?.commands;
   const expectedCommands = [
+    "npm run build:briefs",
     "npm run quality",
     "npm run check:featured",
     "python -m py_compile backend/main.py",

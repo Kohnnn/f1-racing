@@ -63,13 +63,16 @@ function resolvePointer(value, pointer) {
   }, value);
 }
 
+class MissingEvidenceSourceError extends Error {}
+
 async function readSource(publicDataRoot, sourcePath) {
   if (typeof sourcePath !== "string" || !sourcePath.startsWith("packs/seasons/") || sourcePath.includes("..")) throw new Error(`Malformed source path: ${String(sourcePath)}`);
   let raw;
   try {
     raw = await readFile(path.join(publicDataRoot, ...sourcePath.split("/")), "utf8");
-  } catch {
-    throw new Error(`Missing evidence source: ${sourcePath}`);
+  } catch (error) {
+    if (error?.code === "ENOENT") throw new MissingEvidenceSourceError(`Missing evidence source: ${sourcePath}`);
+    throw error;
   }
   try {
     return JSON.parse(raw);
@@ -212,8 +215,11 @@ function validateAnchorGroup(item, claimId, key) {
   }
 }
 
-export function validateBriefIndex(index) {
-  if (!isRecord(index) || index.version !== 1 || index.templateVersion !== "evidence-brief-v1" || !Array.isArray(index.briefs) || index.briefs.length !== 3 || JSON.stringify(index.briefs.map(({ id }) => id)) !== JSON.stringify(canonicalBriefIds)) throw new Error("Malformed evidence brief index.");
+export function validateBriefIndex(index, { allowSubset = false } = {}) {
+  const briefIds = Array.isArray(index?.briefs) ? index.briefs.map(({ id }) => id) : [];
+  const canonicalSubset = briefIds.length > 0
+    && briefIds.every((id, index) => id === canonicalBriefIds.filter((candidateId) => briefIds.includes(candidateId))[index]);
+  if (!isRecord(index) || index.version !== 1 || index.templateVersion !== "evidence-brief-v1" || !Array.isArray(index.briefs) || (allowSubset ? !canonicalSubset : JSON.stringify(briefIds) !== JSON.stringify(canonicalBriefIds))) throw new Error("Malformed evidence brief index.");
   for (const briefItem of index.briefs) {
     if (typeof briefItem.title !== "string" || !briefItem.title || !Array.isArray(briefItem.subsystem) || !briefItem.subsystem.length || briefItem.subsystem.some((item) => typeof item !== "string" || !item) || typeof briefItem.question !== "string" || !briefItem.question || typeof briefItem.learningOutcome !== "string" || !briefItem.learningOutcome) throw new Error(`Incomplete learner brief for ${briefItem.id}.`);
     validateHandoffs(briefItem);
@@ -238,31 +244,37 @@ export function evidenceBriefTemplates() {
   return validateBriefIndex(templates());
 }
 
-export async function buildEvidenceBriefs({ publicDataRoot = defaultPublicDataRoot } = {}) {
+export async function buildEvidenceBriefs({ publicDataRoot = defaultPublicDataRoot, omitUnavailable = Boolean(candidateRoot) } = {}) {
   const index = evidenceBriefTemplates();
   const sources = new Map();
   async function getSource(sourcePath) {
     if (!sources.has(sourcePath)) sources.set(sourcePath, await readSource(publicDataRoot, sourcePath));
     return sources.get(sourcePath);
   }
+  const briefs = [];
   for (const briefItem of index.briefs) {
-    for (const claim of briefItem.evidence) {
-      for (const item of [...claim.sourceAnchors, ...claim.provenance]) {
-        const payload = await getSource(item.path);
-        for (const anchor of item.anchors) {
-          const actual = resolvePointer(payload, anchor.pointer);
-          if (JSON.stringify(actual) !== JSON.stringify(anchor.expected)) throw new Error(`Evidence anchor changed: ${item.path}#${anchor.pointer}`);
+    try {
+      for (const claim of briefItem.evidence) {
+        for (const item of [...claim.sourceAnchors, ...claim.provenance]) {
+          const payload = await getSource(item.path);
+          for (const anchor of item.anchors) {
+            const actual = resolvePointer(payload, anchor.pointer);
+            if (JSON.stringify(actual) !== JSON.stringify(anchor.expected)) throw new Error(`Evidence anchor changed: ${item.path}#${anchor.pointer}`);
+          }
+        }
+        for (const item of claim.absentAnchors) {
+          const payload = await getSource(item.path);
+          for (const pointer of item.pointers) {
+            if (hasPointer(payload, pointer)) throw new Error(`Unknown evidence is now present: ${item.path}#${pointer}`);
+          }
         }
       }
-      for (const item of claim.absentAnchors) {
-        const payload = await getSource(item.path);
-        for (const pointer of item.pointers) {
-          if (hasPointer(payload, pointer)) throw new Error(`Unknown evidence is now present: ${item.path}#${pointer}`);
-        }
-      }
+      briefs.push(briefItem);
+    } catch (error) {
+      if (!omitUnavailable || !(error instanceof MissingEvidenceSourceError)) throw error;
     }
   }
-  return index;
+  return validateBriefIndex({ ...index, briefs }, { allowSubset: omitUnavailable });
 }
 
 function jsonText(value) {

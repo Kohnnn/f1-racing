@@ -25,6 +25,7 @@ import {
 const now = Date.parse("2026-07-02T00:00:00.000Z");
 const nowText = new Date(now).toISOString();
 const candidateCommands = [
+  "npm run build:briefs",
   "npm run quality",
   "npm run check:featured",
   "python -m py_compile backend/main.py",

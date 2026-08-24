@@ -63,10 +63,11 @@ const EvidenceBriefHandoffs = {
 const EvidenceBriefIndexSchema = z.object({
   version: z.literal(1),
   templateVersion: z.literal("evidence-brief-v1"),
-  briefs: z.array(EvidenceBriefSchema).length(3),
+  briefs: z.array(EvidenceBriefSchema).min(1),
 }).superRefine((value, context) => {
-  const expected = EvidenceBriefIdSchema.options;
-  if (value.briefs.some((brief, index) => brief.id !== expected[index])) {
+  const actual = value.briefs.map(({ id }) => id);
+  const expected = EvidenceBriefIdSchema.options.filter((id) => actual.includes(id));
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ["briefs"], message: "Evidence briefs are not in canonical order." });
   }
   for (const [index, brief] of value.briefs.entries()) {
