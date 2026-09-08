@@ -1,6 +1,6 @@
 # Verify recorded stint attribution parity
 
-Status: review
+Status: resolved
 Blocked by: none
 Spec: /media/compute_01/New Volume/PersonalWebsite/interactive-note/.scratch/f1-racing-quality-benchmark/spec.md
 
@@ -39,4 +39,4 @@ bwrap --ro-bind / / --unshare-net --die-with-parent \
 
 ## Remaining release dependency
 
-Source acceptance is ready for review, not release completion. All ten stale packs still need authorized private-candidate regeneration using legitimately captured source evidence, recomputed dependent strategy outputs, exact indexed membership checks and release provenance. This fixture does not establish that the 753 recorded violations have been repaired, nor transfer release ownership. No integration-script change is required.
+Source acceptance passed review and the merged session-pack rerun at 77fee324; this ticket is resolved only for its source fixture/parity scope, not release completion. All ten stale packs still need authorized private-candidate regeneration using legitimately captured source evidence, recomputed dependent strategy outputs, exact indexed membership checks and release provenance. This fixture does not establish that the 753 recorded violations have been repaired, nor transfer release ownership. No integration-script change is required.

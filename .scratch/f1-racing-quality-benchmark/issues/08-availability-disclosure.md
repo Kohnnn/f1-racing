@@ -1,6 +1,6 @@
 # Disclose observational availability
 
-Status: ready-for-review
+Status: resolved
 Blocked by: none
 Spec: /media/compute_01/New Volume/PersonalWebsite/interactive-note/.scratch/f1-racing-quality-benchmark/spec.md
 
@@ -14,4 +14,4 @@ Read-only local probe observed synthetic positions with empty timing/controls in
 
 Review fixes: validate timing identity/value fields and race-control timestamp/category/message before claiming availability. Discovery scans sessions sequentially as well as chunks. Replay weather retains the required numeric schema with optional observedFields metadata: new exporter output distinguishes observed zero from placeholders; legacy zero fields remain conservatively unavailable even beside valid humidity/rainfall. Replay and historical-live labels use field-level evidence and no ambiguous summary fallback.
 
-Review validation: isolated availability tests pass through exporter, schema, labels and server aggregation, including malformed controls/timing, rainfall-only, humidity-only, observed zero and missing chunks. Wired into quality:source. Changed-source Chromium desktop/mobile discovery and summary plus playback/canvas checks passed (240 assertions total across both widths). Browser uses real mixed data; synthetic/mixed/recorded fixture distinctions pass server/helper tests, but the full three-class desktop/mobile UI fixture matrix remains untested. No release acceptance, install, full build or ingestion. Aggregate quality:source stops at missing FastAPI; subsequent modelview and keyboard source checks passed separately. Evidence: /tmp/opencode/f1-quality-review-checks/.
+Review validation: isolated availability tests pass through exporter, schema, labels and server aggregation, including malformed controls/timing, rainfall-only, humidity-only, observed zero and missing chunks. Wired into quality:source. Changed-source Chromium desktop/mobile discovery and summary plus playback/canvas checks passed (240 assertions total across both widths). The initial browser run used real mixed data. Final merged validation at 77fee324 additionally passed 42 assertions across recorded/mixed/synthetic fixtures, two widths and discovery/summary surfaces (12 cells). Fixtures exercised actual server/helper code through isolated read-only data mounts, not published classifications. Exact commands and per-class results remain in /tmp/opencode/f1-quality-validation/merged/; final report is /tmp/opencode/f1-quality-validation/FINAL.md. No release acceptance, install, full build or ingestion. Aggregate quality:source stops at missing FastAPI; subsequent modelview and keyboard source checks passed separately. Evidence: /tmp/opencode/f1-quality-review-checks/.
