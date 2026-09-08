@@ -4,7 +4,7 @@ import { derivePitCycleOutcomes, formatLapTime } from "@f1-racing/telemetry-util
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ComparePack, DriverSummary, LapRecord, ReplayPack, SessionManifest, SessionSummary, StintPack, StrategyPack } from "@/lib/data";
-import { availabilityLabel, hasWeatherEvidence, type ObservationAvailability } from "@/lib/observation-availability";
+import { availabilityLabel, weatherLabels, type ObservationAvailability } from "@/lib/observation-availability";
 import { saveActiveReplayHrefInBrowser } from "@/lib/learning-trail";
 import { getFocusPoint } from "@/components/model-viewer/focus-points";
 import { Leaderboard, type ReplayLeaderboardRow } from "./Leaderboard";
@@ -1000,17 +1000,7 @@ export function ReplayView({ replay, availability, manifest, summary, compare, i
       .sort((left, right) => right.index - left.index);
     return filtered;
   }, [raceControlFilter, replay.raceControlMessages]);
-  const currentWeather = hasWeatherEvidence(currentFrame?.weather) ? currentFrame?.weather : null;
-  const weatherLabel = currentWeather
-    ? `${currentWeather.airTempC}C air · ${currentWeather.trackTempC}C track`
-    : availability?.weather === "available" && summary.weatherSummary.airTempC !== null && summary.weatherSummary.trackTempC !== null
-      ? `${summary.weatherSummary.airTempC}C air · ${summary.weatherSummary.trackTempC}C track`
-      : "Unavailable";
-  const windLabel = currentWeather
-    ? `${currentWeather.windSpeedMps.toFixed(1)} m/s · ${Math.round(currentWeather.windDirectionDeg)}°`
-    : availability?.weather === "available" && summary.weatherSummary.rainRiskPct !== null
-      ? `Rain risk ${summary.weatherSummary.rainRiskPct}%`
-      : "Unavailable";
+  const { weatherLabel, windLabel } = weatherLabels(currentFrame?.weather);
   const selectedDriverLabel = selectedDrivers.length
     ? selectedDrivers.join(" · ")
     : "No drivers selected";
@@ -1621,7 +1611,7 @@ export function ReplayView({ replay, availability, manifest, summary, compare, i
             <strong>{weatherLabel}</strong>
           </article>
           <article className="replay-session-banner__fact">
-            <span>{currentWeather ? "Wind" : "Forecast"}</span>
+            <span>Wind</span>
             <strong>{windLabel}</strong>
           </article>
         </div>

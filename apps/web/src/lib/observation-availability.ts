@@ -17,7 +17,7 @@ export function classifyPositions(sources: Iterable<unknown>): PositionAvailabil
 }
 
 export function timingAvailability(laps: ReplayLap[] | null): ObservationAvailability["timing"] {
-  if (!Array.isArray(laps) || laps.some((lap) => !lap || typeof lap !== "object")) return "unknown";
+  if (!Array.isArray(laps) || laps.some((lap) => !lap || typeof lap.driverCode !== "string" || !lap.driverCode.trim() || !Number.isInteger(lap.lapNumber) || lap.lapNumber <= 0 || (lap.lapTime !== null && (typeof lap.lapTime !== "number" || !Number.isFinite(lap.lapTime) || lap.lapTime < 0)))) return "unknown";
   return laps.some((lap) => typeof lap.lapTime === "number" && Number.isFinite(lap.lapTime) && lap.lapTime > 0)
     ? "available" : "unavailable";
 }
@@ -29,9 +29,25 @@ export function framePositionSources(frames: ReplayFrame[]): unknown[] {
   }))];
 }
 
+export function weatherMeasurement(weather: ReplayWeatherSample | null | undefined, field: "airTempC" | "trackTempC" | "humidityPct" | "windSpeedMps" | "windDirectionDeg"): number | null {
+  const value = weather?.[field];
+  return typeof value === "number" && Number.isFinite(value) && (weather?.observedFields ? weather.observedFields.includes(field) : value !== 0) ? value : null;
+}
+
 export function hasWeatherEvidence(weather?: ReplayWeatherSample | null): boolean {
-  return Boolean(weather && [weather.airTempC, weather.trackTempC, weather.humidityPct, weather.windSpeedMps, weather.windDirectionDeg]
-    .some((value) => Number.isFinite(value) && value !== 0));
+  return Boolean(weather && (weather.rainfall === true || weather.observedFields?.includes("rainfall") ||
+    (["airTempC", "trackTempC", "humidityPct", "windSpeedMps", "windDirectionDeg"] as const).some((field) => weatherMeasurement(weather, field) !== null)));
+}
+
+export function weatherLabels(weather?: ReplayWeatherSample | null) {
+  const air = weatherMeasurement(weather, "airTempC");
+  const track = weatherMeasurement(weather, "trackTempC");
+  const speed = weatherMeasurement(weather, "windSpeedMps");
+  const direction = weatherMeasurement(weather, "windDirectionDeg");
+  return {
+    weatherLabel: [air === null ? null : `${air}C air`, track === null ? null : `${track}C track`].filter(Boolean).join(" · ") || "Unavailable",
+    windLabel: [speed === null ? null : `${speed.toFixed(1)} m/s`, direction === null ? null : `${Math.round(direction)}°`].filter(Boolean).join(" · ") || "Unavailable",
+  };
 }
 
 export function availabilityLabel(availability?: ObservationAvailability): string {

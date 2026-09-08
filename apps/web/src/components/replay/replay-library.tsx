@@ -12,12 +12,15 @@ export async function ReplayLibrary({ aliasMode = false }: ReplayLibraryProps) {
     getSeasonIndex(),
   ]);
 
-  const availability = Object.fromEntries(await Promise.all(index.seasons.flatMap((season) =>
-    season.grandsPrix.flatMap((grandPrix) => grandPrix.sessions.map(async (session) => [
-      session.path,
-      await getObservationAvailability(session.season, session.grandPrixSlug, session.sessionSlug),
-    ] as const))
-  )));
+  const entries = [];
+  for (const season of index.seasons) {
+    for (const grandPrix of season.grandsPrix) {
+      for (const session of grandPrix.sessions) {
+        entries.push([session.path, await getObservationAvailability(session.season, session.grandPrixSlug, session.sessionSlug)] as const);
+      }
+    }
+  }
+  const availability = Object.fromEntries(entries);
 
   return <ReplayLibraryClient aliasMode={aliasMode} latestManifest={latestManifest} index={index} availability={availability} />;
 }

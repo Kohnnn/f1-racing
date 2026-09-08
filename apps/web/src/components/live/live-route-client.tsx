@@ -9,6 +9,7 @@ import { ReplayTelemetryStrip } from "@/components/replay/replay-telemetry-strip
 import { ReplayLapWaterfall } from "@/components/replay/replay-insights";
 import { TrackCanvas } from "@/components/replay/TrackCanvas";
 import { getCircuitArt } from "@/lib/art";
+import { weatherLabels } from "@/lib/observation-availability";
 
 export interface LiveSessionRef {
   season: number;
@@ -739,12 +740,7 @@ export function LiveRouteClient({
     ? circuitArt.circuit.displayName
     : formatSlugLabel(activeSession.trackId);
   const grandPrixLabel = circuitArt.circuit.grandPrix !== "Unknown Grand Prix" ? circuitArt.circuit.grandPrix : null;
-  const weatherLabel = currentFrame?.weather
-    ? `${currentFrame.weather.airTempC}C air · ${currentFrame.weather.trackTempC}C track`
-    : `${formatWeatherValue(summary.weatherSummary.airTempC, "C")} air · ${formatWeatherValue(summary.weatherSummary.trackTempC, "C")} track`;
-  const windLabel = currentFrame?.weather
-    ? `${currentFrame.weather.windSpeedMps.toFixed(1)} m/s · ${Math.round(currentFrame.weather.windDirectionDeg)}°`
-    : `Rain risk ${formatWeatherValue(summary.weatherSummary.rainRiskPct, "%")}`;
+  const { weatherLabel, windLabel } = weatherLabels(currentFrame?.weather);
   const selectedDriverLabel = selectedTelemetryDrivers.length
     ? selectedTelemetryDrivers.map((driver) => driver.abbr).join(" · ")
     : "No drivers selected";

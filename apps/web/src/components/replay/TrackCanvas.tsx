@@ -778,7 +778,7 @@ export function TrackCanvas({
         aria-description="Use arrow keys to pan, plus or minus to zoom, and zero to reset the track view."
         tabIndex={0}
         className="replay-track-canvas"
-        style={{ width: "100%", height: "100%", display: "block", touchAction: "pan-y" }}
+        style={{ position: "absolute", inset: 0, width: "100%", height: "100%", display: "block", touchAction: "pan-y" }}
       />
       {hover && hoverTarget ? (
         <div
