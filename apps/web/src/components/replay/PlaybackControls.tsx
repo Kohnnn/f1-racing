@@ -336,6 +336,7 @@ export function PlaybackControls({
               key={speed}
               type="button"
               className={`replay-controls-v2__speed${playbackSpeed === speed ? " replay-controls-v2__speed--active" : ""}`}
+              aria-pressed={playbackSpeed === speed}
               onClick={() => onSpeedChange(speed)}
               title={`Set playback speed to ${speed}x`}
             >

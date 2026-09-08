@@ -8,7 +8,7 @@ const candidateRoot = process.env.F1_CANDIDATE_ROOT ? path.resolve(process.env.F
 const outRoot = candidateRoot ? path.join(candidateRoot, "apps", "web", "out") : path.join(root, "apps", "web", "out");
 const source = (relativePath) => readFile(path.join(root, relativePath), "utf-8");
 
-const [routeClientSource, replayViewSource, replayPageSource, raceDeskPageSource, liveRouteSource, styles, packageSource] = await Promise.all([
+const [routeClientSource, replayViewSource, replayPageSource, raceDeskPageSource, liveRouteSource, styles, packageSource, playbackControlsSource] = await Promise.all([
   source("apps/web/src/components/replay/replay-route-client.tsx"),
   source("apps/web/src/components/replay/ReplayView.tsx"),
   source("apps/web/src/app/replay/[season]/[grandPrix]/[session]/page.tsx"),
@@ -16,6 +16,7 @@ const [routeClientSource, replayViewSource, replayPageSource, raceDeskPageSource
   source("apps/web/src/components/live/live-route-client.tsx"),
   source("apps/web/src/app/globals.css"),
   source("package.json"),
+  source("apps/web/src/components/replay/PlaybackControls.tsx"),
 ]);
 
 assert.match(routeClientSource, /previous\.chunkFailures\.filter\(\(failure\) => failure\.chunkIndex !== chunkIndex\)/);
@@ -28,6 +29,7 @@ assert.match(replayViewSource, /data-driver-code=\{driver\.driverCode\}/);
 assert.match(replayViewSource, /event\.shiftKey \|\| event\.metaKey \|\| event\.ctrlKey/);
 assert.match(replayViewSource, /aria-pressed=\{isSelected\}/);
 assert.match(replayViewSource, /aria-live="polite"/);
+assert.match(playbackControlsSource, /aria-pressed=\{playbackSpeed === speed\}/);
 assert.match(replayPageSource, /href=\{`\/replay\/\$\{season\}\/\$\{grandPrix\}\/\$\{session\}`\}>Retry replay/);
 assert.doesNotMatch(raceDeskPageSource, /notFound\(\)/);
 assert.match(raceDeskPageSource, /href="\/race-desk">Retry historical replay/);
@@ -309,6 +311,31 @@ async function assertSelection(page, expected) {
   assert.ok((await page.locator(".replay-track-panel__chips").textContent()).includes(`Selected ${expected.length}`));
 }
 
+const speedPresets = [0.1, 0.2, 0.5, 1, 2, 4, 8, 16, 20];
+
+async function assertSpeedSelection(page, speed) {
+  const buttons = page.locator(".replay-controls-v2__speeds").getByRole("button");
+  await waitUntil(
+    async () => await page.locator(".replay-controls-v2__speeds").getByRole("button", { name: `${speed}x`, exact: true }).getAttribute("aria-pressed") === "true",
+    `Playback speed ${speed}x did not become pressed.`,
+  );
+  assert.deepEqual(await buttons.evaluateAll((nodes) => nodes.map((node) => ({
+    label: node.textContent.trim(),
+    title: node.title,
+    tag: node.tagName,
+    type: node.type,
+    pressed: node.getAttribute("aria-pressed"),
+    active: node.classList.contains("replay-controls-v2__speed--active"),
+  }))), speedPresets.map((preset) => ({
+    label: `${preset}x`,
+    title: `Set playback speed to ${preset}x`,
+    tag: "BUTTON",
+    type: "button",
+    pressed: String(preset === speed),
+    active: preset === speed,
+  })));
+}
+
 const { chromium } = await import("playwright");
 let browser;
 try {
@@ -320,6 +347,7 @@ try {
   const initialTime = Math.min(chunkEntries[0].toTime, chunkEntries[0].fromTime + 120);
   await page.goto(`${origin}${fixture.routePath}?tab=telemetry&t=${initialTime}`, { waitUntil: "domcontentloaded" });
   await page.locator(".replay-driver-picker__option").first().waitFor({ timeout: 30_000 });
+  await assertSpeedSelection(page, 1);
   const [firstDriver, secondDriver] = fixture.replay.drivers.slice(0, 2).map((driver) => driver.driverCode);
   const firstOption = page.locator(`.replay-driver-picker__option[data-driver-code="${firstDriver}"]`);
   const secondOption = page.locator(`.replay-driver-picker__option[data-driver-code="${secondDriver}"]`);
@@ -389,6 +417,33 @@ try {
   await secondOption.press("Enter");
   await page.waitForFunction(() => !new URL(window.location.href).searchParams.has("drivers"));
   assert.deepEqual(await selectedCodes(page), []);
+
+  const speedButtons = page.locator(".replay-controls-v2__speeds");
+  for (const activation of ["click", "Enter", "Space"]) {
+    for (const speed of speedPresets) {
+      const button = speedButtons.getByRole("button", { name: `${speed}x`, exact: true });
+      if (activation === "click") {
+        await button.click();
+      } else {
+        await button.focus();
+        await button.press(activation);
+      }
+      await assertSpeedSelection(page, speed);
+      assert.equal(await button.evaluate((node) => node === document.activeElement), true, `${activation} at ${speed}x lost focus.`);
+      assert.equal(await page.getByRole("button", { name: "Play", exact: true }).isVisible(), true, "Speed activation started playback.");
+      await button.press("Digit2");
+      await assertSpeedSelection(page, speed);
+    }
+  }
+  const sessionTitle = page.locator("#replay-session-title");
+  await sessionTitle.focus();
+  for (const [index, speed] of [0.5, 1, 2, 4, 8].entries()) {
+    await sessionTitle.press(`Digit${index + 1}`);
+    await assertSpeedSelection(page, speed);
+    assert.equal(await sessionTitle.evaluate((node) => node === document.activeElement), true, "Speed shortcut stole focus.");
+  }
+  await sessionTitle.press("Digit2");
+  await assertSpeedSelection(page, 1);
 
   const trackCanvas = page.getByLabel("Interactive 2D race track map");
   await trackCanvas.focus();
