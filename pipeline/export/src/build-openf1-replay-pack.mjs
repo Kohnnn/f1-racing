@@ -286,16 +286,18 @@ function buildRaceControlTimeline(messages, sessionStartTime) {
     .sort((left, right) => left.t - right.t);
 }
 
-function buildWeatherTimeline(samples, sessionStartTime) {
+export function buildWeatherTimeline(samples, sessionStartTime) {
+  const fields = { airTempC: "air_temperature", trackTempC: "track_temperature", humidityPct: "humidity", rainfall: "rainfall", windSpeedMps: "wind_speed", windDirectionDeg: "wind_direction" };
   return samples
     .map((sample) => ({
       t: isoToMs(sample.date) - sessionStartTime,
-      airTempC: Number(sample.air_temperature ?? 0),
-      trackTempC: Number(sample.track_temperature ?? 0),
-      humidityPct: Number(sample.humidity ?? 0),
-      rainfall: Boolean(sample.rainfall),
-      windSpeedMps: Number(sample.wind_speed ?? 0),
-      windDirectionDeg: Number(sample.wind_direction ?? 0),
+      observedFields: Object.entries(fields).filter(([, key]) => typeof sample[key] === "number" && Number.isFinite(sample[key]) || key === "rainfall" && typeof sample[key] === "boolean").map(([field]) => field),
+      airTempC: Number.isFinite(sample.air_temperature) ? sample.air_temperature : 0,
+      trackTempC: Number.isFinite(sample.track_temperature) ? sample.track_temperature : 0,
+      humidityPct: Number.isFinite(sample.humidity) ? sample.humidity : 0,
+      rainfall: sample.rainfall === true || typeof sample.rainfall === "number" && sample.rainfall > 0,
+      windSpeedMps: Number.isFinite(sample.wind_speed) ? sample.wind_speed : 0,
+      windDirectionDeg: Number.isFinite(sample.wind_direction) ? sample.wind_direction : 0,
     }))
     .filter((sample) => sample.t >= 0)
     .sort((left, right) => left.t - right.t);

@@ -412,6 +412,7 @@ export const ReplayFrameDriverSchema = z.object({
 });
 
 export const ReplayWeatherSampleSchema = z.object({
+  observedFields: z.array(z.enum(["airTempC", "trackTempC", "humidityPct", "rainfall", "windSpeedMps", "windDirectionDeg"])).optional(),
   airTempC: z.number(),
   trackTempC: z.number(),
   humidityPct: z.number(),

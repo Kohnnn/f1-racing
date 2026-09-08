@@ -28,7 +28,7 @@ export async function getObservationAvailability(season: number | string, grandP
     provider: meta?.source ?? "unknown",
     positions: complete ? classifyPositions(sources) : "unknown",
     timing: timingAvailability(laps),
-    controls: Array.isArray(controls) ? (controls.length ? "available" : "unavailable") : "unknown",
+    controls: !Array.isArray(controls) || controls.some((control) => !control || !Number.isFinite(control.t) || control.t < 0 || typeof control.category !== "string" || !control.category.trim() || typeof control.message !== "string" || !control.message.trim()) ? "unknown" : controls.length ? "available" : "unavailable",
     weather: weather ? "available" : complete && !unknownWeather ? "unavailable" : "unknown",
   };
 }
