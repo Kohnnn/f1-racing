@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { generationTimestamp, normalizeTimestamp } from "../../normalize/src/normalize-session.mjs";
-import { groupByDriverNumber } from "./build-openf1-replay-pack.mjs";
-import { normalizeResults, normalizeStints, normalizeWeather } from "./build-openf1-session-pack.mjs";
+import { buildStintTimelines, enrichReplayLapsWithStints, groupByDriverNumber } from "./build-openf1-replay-pack.mjs";
+import { buildLapRecords, buildStintPack, normalizeResults, normalizeStints, normalizeWeather } from "./build-openf1-session-pack.mjs";
 
 const generatedAt = "2026-08-22T12:34:56.789Z";
 assert.equal(generationTimestamp(generatedAt), generatedAt);
@@ -89,5 +89,65 @@ assert.deepEqual([...groupByDriverNumber([
     { driver_number: "4", date: "second" },
   ]],
 ]);
+
+const recordedStints = [
+  { driver_number: 1, stint_number: 4, lap_start: 4, lap_end: 34, compound: "INTERMEDIATE", tyre_age_at_start: 0 },
+  { driver_number: 1, stint_number: 5, lap_start: 34, lap_end: 46, compound: "MEDIUM", tyre_age_at_start: 0 },
+];
+const recordedLaps = [
+  [31, 88.127],
+  [32, 88.208],
+  [33, 88.046],
+  [34, 128.598],
+  [35, 124.508],
+  [36, 116.334],
+].map(([lap_number, lap_duration]) => ({ driver_number: 1, lap_number, lap_duration }));
+const drivers = [{ driverNumber: 1, driverCode: "VER", team: "Red Bull Racing" }];
+const originalStints = structuredClone(recordedStints);
+const normalizedStints = normalizeStints(recordedStints);
+assert.deepEqual(normalizedStints, [
+  { ...recordedStints[0], lap_end: 33 },
+  recordedStints[1],
+]);
+const sessionLaps = buildLapRecords(recordedLaps, new Map(), normalizedStints)
+  .map((lap) => ({ ...lap, driverCode: "VER" }));
+const stintPack = buildStintPack("melbourne", 9693, drivers, normalizedStints, sessionLaps);
+assert.deepEqual(stintPack.drivers, [{
+  driverCode: "VER",
+  team: "Red Bull Racing",
+  stints: [
+    { stintNumber: 4, compound: "INTERMEDIATE", lapStart: 4, lapEnd: 33, tyreAgeAtStart: 0, averageLapTime: 88.127, trendPerLap: -0.04, lapTimes: [88.127, 88.208, 88.046] },
+    { stintNumber: 5, compound: "MEDIUM", lapStart: 34, lapEnd: 46, tyreAgeAtStart: 0, averageLapTime: 123.147, trendPerLap: -6.132, lapTimes: [128.598, 124.508, 116.334] },
+  ],
+}]);
+for (const lap of sessionLaps) {
+  const owners = stintPack.drivers[0].stints.filter((stint) => lap.lapNumber >= stint.lapStart && lap.lapNumber <= stint.lapEnd);
+  assert.equal(owners.length, 1, `VER lap ${lap.lapNumber} must have exactly one owner`);
+  assert.equal(lap.stint, owners[0].stintNumber);
+  assert.equal(lap.compound, owners[0].compound);
+}
+assert.equal(stintPack.drivers[0].stints.flatMap((stint) => stint.lapTimes).filter((time) => time === 128.598).length, 1);
+const replayTimeline = buildStintTimelines(recordedStints);
+const replayLaps = enrichReplayLapsWithStints(recordedLaps.map((lap) => ({
+  driverCode: "VER",
+  lapNumber: lap.lap_number,
+  lapTime: lap.lap_duration,
+  compound: null,
+})), drivers, replayTimeline);
+assert.equal(replayLaps.find((lap) => lap.lapNumber === 34).compound, "MEDIUM", "Recorded VER lap 34 must belong to the later Replay stint");
+assert.deepEqual(replayLaps.map((lap) => [lap.lapNumber, lap.compound, lap.stintNumber]),
+  sessionLaps.map((lap) => [lap.lapNumber, lap.compound, lap.stint]));
+assert.deepEqual(replayTimeline.get(1), stintPack.drivers[0].stints.map(({ stintNumber, lapStart, lapEnd, compound, tyreAgeAtStart }) => ({ stintNumber, lapStart, lapEnd, compound, tyreAgeAtStart })));
+assert.deepEqual(recordedStints, originalStints);
+assert.deepEqual(buildStintTimelines([...recordedStints].reverse()), replayTimeline);
+assert.deepEqual(buildStintTimelines(normalizedStints), replayTimeline);
+for (const lapEnd of [35, 36]) {
+  const overlapping = [{ ...recordedStints[0], lap_end: lapEnd }, recordedStints[1]];
+  assert.throws(() => normalizeStints(overlapping), /Driver 1 has overlapping stint ranges/);
+  assert.throws(() => buildStintTimelines(overlapping), /Driver 1 has overlapping stint ranges/);
+}
+const recordedUsedTyres = [{ driver_number: 1, stint_number: 2, lap_start: 2, lap_end: 3, compound: "INTERMEDIATE", tyre_age_at_start: 2 }];
+assert.equal(normalizeStints(recordedUsedTyres)[0].tyre_age_at_start, 2);
+assert.equal(buildStintTimelines(recordedUsedTyres).get(1)[0].tyreAgeAtStart, 2);
 
 process.stdout.write("OpenF1 session pack normalization tests passed.\n");

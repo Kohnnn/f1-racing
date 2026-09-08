@@ -16,6 +16,7 @@ import {
 import { generationTimestamp, slugify } from "../../normalize/src/normalize-session.mjs";
 import { assertCandidateOutputPath, assertCandidateRoot } from "../../../tools/release-data.mjs";
 import { writeSplitReplayPack } from "./split-replay-packs.mjs";
+import { normalizeStints } from "./build-openf1-session-pack.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const candidateRoot = process.env.F1_CANDIDATE_ROOT ? path.resolve(process.env.F1_CANDIDATE_ROOT) : null;
@@ -230,7 +231,7 @@ function getStintForLap(stintTimeline, lapNumber) {
     || null;
 }
 
-function enrichReplayLapsWithStints(replayLaps, drivers, stintTimelines) {
+export function enrichReplayLapsWithStints(replayLaps, drivers, stintTimelines) {
   const numberByCode = new Map(drivers.map((driver) => [driver.driverCode, driver.driverNumber]));
 
   return replayLaps.map((lap) => {
@@ -245,10 +246,10 @@ function enrichReplayLapsWithStints(replayLaps, drivers, stintTimelines) {
   });
 }
 
-function buildStintTimelines(stintsRaw) {
+export function buildStintTimelines(stintsRaw) {
   const byDriver = new Map();
 
-  for (const stint of stintsRaw) {
+  for (const stint of normalizeStints(stintsRaw)) {
     const driverNumber = Number(stint.driver_number);
     if (!byDriver.has(driverNumber)) {
       byDriver.set(driverNumber, []);
