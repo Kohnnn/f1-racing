@@ -1,4 +1,5 @@
 import { getLatestManifest, getSeasonIndex } from "@/lib/data";
+import { getObservationAvailability } from "@/lib/observation-availability-server";
 import { ReplayLibraryClient } from "./replay-library-client";
 
 interface ReplayLibraryProps {
@@ -11,5 +12,12 @@ export async function ReplayLibrary({ aliasMode = false }: ReplayLibraryProps) {
     getSeasonIndex(),
   ]);
 
-  return <ReplayLibraryClient aliasMode={aliasMode} latestManifest={latestManifest} index={index} />;
+  const availability = Object.fromEntries(await Promise.all(index.seasons.flatMap((season) =>
+    season.grandsPrix.flatMap((grandPrix) => grandPrix.sessions.map(async (session) => [
+      session.path,
+      await getObservationAvailability(session.season, session.grandPrixSlug, session.sessionSlug),
+    ] as const))
+  )));
+
+  return <ReplayLibraryClient aliasMode={aliasMode} latestManifest={latestManifest} index={index} availability={availability} />;
 }
