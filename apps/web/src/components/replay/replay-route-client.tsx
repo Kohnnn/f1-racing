@@ -2,12 +2,14 @@
 
 import { startTransition, useCallback, useEffect, useRef, useState } from "react";
 import type { ComparePack, DriverSummary, LapRecord, ReplayFrameChunk, ReplayLap, ReplayPack, ReplayRaceControlMessage, SessionManifest, SessionSummary, StintPack, StrategyPack } from "@/lib/data";
+import type { ObservationAvailability } from "@/lib/observation-availability";
 import { buildClientDataUrl, buildClientWebSocketUrl } from "@/lib/client-data";
 import { loadReplayChunkQueue, validateReplayFrameChunk } from "./replay-chunks";
 import { ReplayView } from "./ReplayView";
 
 interface ReplayRouteClientProps {
   initialReplay: ReplayPack;
+  availability: ObservationAvailability;
   manifest: SessionManifest;
   summary: SessionSummary;
   route: {
@@ -186,7 +188,7 @@ function getChunkWindow(
   );
 }
 
-export function ReplayRouteClient({ initialReplay, manifest, summary, route }: ReplayRouteClientProps) {
+export function ReplayRouteClient({ initialReplay, manifest, summary, route, availability }: ReplayRouteClientProps) {
   const [state, setState] = useState<ReplayRouteState>({
     status: "ready",
     replay: normalizeReplayRaceControl(initialReplay),
@@ -618,6 +620,7 @@ export function ReplayRouteClient({ initialReplay, manifest, summary, route }: R
           replay={state.replay}
           manifest={manifest}
           summary={summary}
+          availability={availability}
           compare={insights.compare}
           insightsReady={insights.status !== "loading"}
           insightsStatus={insights.status}

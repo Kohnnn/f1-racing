@@ -1,3 +1,4 @@
+import { getObservationAvailability } from "@/lib/observation-availability-server";
 import { ReplayRouteClient } from "@/components/replay/replay-route-client";
 import { getReplayFrameChunk, getReplayMetaPack, getSeasonIndex, getSessionManifest, getSessionSummary } from "@/lib/data";
 
@@ -58,6 +59,7 @@ export default async function ReplayPage({ params }: ReplayPageProps) {
     return (
       <ReplayRouteClient
         initialReplay={initialReplay}
+        availability={await getObservationAvailability(season, grandPrix, session)}
         manifest={manifest}
         summary={summary}
         route={{ season, grandPrix, session }}
