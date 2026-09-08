@@ -266,7 +266,7 @@ function buildDriverSummaries(drivers, laps, stints, sessionResult = []) {
   });
 }
 
-function buildLapRecords(laps, fastestByDriver, stints) {
+export function buildLapRecords(laps, fastestByDriver, stints) {
   const stintLookup = buildStintLookup(stints);
   const records = laps
     .filter((lap) => Number.isFinite(lap.lap_duration))
@@ -545,7 +545,7 @@ function buildStrategyPack(trackId, stints, weatherSummary) {
   };
 }
 
-function buildStintPack(trackId, sessionKey, drivers, stints, lapRecords) {
+export function buildStintPack(trackId, sessionKey, drivers, stints, lapRecords) {
   return {
     trackId,
     sessionKey,
