@@ -4,6 +4,7 @@ import { derivePitCycleOutcomes, formatLapTime } from "@f1-racing/telemetry-util
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ComparePack, DriverSummary, LapRecord, ReplayPack, SessionManifest, SessionSummary, StintPack, StrategyPack } from "@/lib/data";
+import { availabilityLabel, weatherLabels, type ObservationAvailability } from "@/lib/observation-availability";
 import { saveActiveReplayHrefInBrowser } from "@/lib/learning-trail";
 import { getFocusPoint } from "@/components/model-viewer/focus-points";
 import { Leaderboard, type ReplayLeaderboardRow } from "./Leaderboard";
@@ -50,6 +51,7 @@ function isAnalysisTab(value: string | null): value is AnalysisTab {
 
 interface ReplayViewProps {
   replay: ReplayPack;
+  availability?: ObservationAvailability;
   manifest: SessionManifest;
   summary: SessionSummary;
   compare: ComparePack | null;
@@ -329,7 +331,7 @@ function findLastIndexBeforeOrAt(time: number, values: number[]) {
   return result;
 }
 
-export function ReplayView({ replay, manifest, summary, compare, insightsReady, insightsStatus = insightsReady ? "ready" : "loading", route, stintPack, driverSummaries, lapRecords, strategy, fullLoadProgress = 0, fullRaceLoaded = false, onEnsureTimeLoaded, onLoadFullRace }: ReplayViewProps) {
+export function ReplayView({ replay, availability, manifest, summary, compare, insightsReady, insightsStatus = insightsReady ? "ready" : "loading", route, stintPack, driverSummaries, lapRecords, strategy, fullLoadProgress = 0, fullRaceLoaded = false, onEnsureTimeLoaded, onLoadFullRace }: ReplayViewProps) {
   const initialTime = replay.frames[0]?.t || 0;
   const defaultAnalysisTab = Object.keys(manifest.compare ?? {}).length ? "compare" as const : manifest.stints ? "stints" as const : "telemetry" as const;
   const [playbackState, setPlaybackState] = useState(() => ({
@@ -540,7 +542,7 @@ export function ReplayView({ replay, manifest, summary, compare, insightsReady, 
     if (gpsSamples && syntheticSamples) return "GPS + projected positions";
     if (gpsSamples) return "GPS-projected positions";
     if (syntheticSamples || useSyntheticTrackMotion) return "Projected timing positions";
-    return "Published track positions";
+    return "Position coverage unknown";
   }, [replay.frames, useSyntheticTrackMotion]);
   const replayPackLabel = replay.frameCount
     ? `${replay.frameCount.toLocaleString()} frames · ${replay.frameChunkIndex?.length ?? replay.frameChunks?.length ?? 1} file${(replay.frameChunkIndex?.length ?? replay.frameChunks?.length ?? 1) === 1 ? "" : "s"}`
@@ -998,17 +1000,7 @@ export function ReplayView({ replay, manifest, summary, compare, insightsReady, 
       .sort((left, right) => right.index - left.index);
     return filtered;
   }, [raceControlFilter, replay.raceControlMessages]);
-  const currentWeather = currentFrame?.weather || null;
-  const weatherLabel = currentWeather
-    ? `${currentWeather.airTempC}C air · ${currentWeather.trackTempC}C track`
-    : summary.weatherSummary.airTempC !== null && summary.weatherSummary.trackTempC !== null
-      ? `${summary.weatherSummary.airTempC}C air · ${summary.weatherSummary.trackTempC}C track`
-      : "Unavailable";
-  const windLabel = currentWeather
-    ? `${currentWeather.windSpeedMps.toFixed(1)} m/s · ${Math.round(currentWeather.windDirectionDeg)}°`
-    : summary.weatherSummary.rainRiskPct !== null
-      ? `Rain risk ${summary.weatherSummary.rainRiskPct}%`
-      : "Unavailable";
+  const { weatherLabel, windLabel } = weatherLabels(currentFrame?.weather);
   const selectedDriverLabel = selectedDrivers.length
     ? selectedDrivers.join(" · ")
     : "No drivers selected";
@@ -1619,7 +1611,7 @@ export function ReplayView({ replay, manifest, summary, compare, insightsReady, 
             <strong>{weatherLabel}</strong>
           </article>
           <article className="replay-session-banner__fact">
-            <span>{currentWeather ? "Wind" : "Forecast"}</span>
+            <span>Wind</span>
             <strong>{windLabel}</strong>
           </article>
         </div>
@@ -1627,9 +1619,10 @@ export function ReplayView({ replay, manifest, summary, compare, insightsReady, 
           <p className="replay-session-banner__note">
             {replayBannerNote}
           </p>
+          <p className="replay-session-banner__note">{availabilityLabel(availability)}</p>
           <div className="replay-session-banner__trust" aria-label="Replay data provenance">
-            <span>{replaySourceLabel}</span>
-            <span>{positionCoverage}</span>
+            <span>Provider lineage: {replaySourceLabel}</span>
+            <span>Loaded window: {positionCoverage}</span>
             <span>{replayPackLabel}</span>
             <span>Generated {replay.generatedAt.slice(0, 10)}</span>
           </div>

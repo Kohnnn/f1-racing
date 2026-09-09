@@ -578,6 +578,7 @@ export interface ReplayFrameDriver {
 }
 
 export interface ReplayWeatherSample {
+  observedFields?: string[];
   airTempC: number;
   trackTempC: number;
   humidityPct: number;

@@ -2,12 +2,14 @@
 
 import { useMemo, useState } from "react";
 import type { LatestManifest, SeasonIndex } from "@/lib/data";
+import { availabilityLabel, type ObservationAvailability } from "@/lib/observation-availability";
 import { getCircuitArt, getRaceWeekend, getSessionDate, formatSessionDate, formatWeekendRange } from "@/lib/art";
 
 interface ReplayLibraryClientProps {
   aliasMode: boolean;
   latestManifest: LatestManifest;
   index: SeasonIndex;
+  availability: Record<string, ObservationAvailability>;
 }
 
 const SESSION_PRIORITY: Record<string, number> = {
@@ -52,13 +54,6 @@ function buildCoverageLabel(sessions: Array<{ sessionName: string }>) {
   return `${sessions.length} session${sessions.length === 1 ? "" : "s"}`;
 }
 
-function buildSessionMeta(season: number, sessionName: string) {
-  if (season > 2025) {
-    return `${season} ${sessionName.toLowerCase()} · exported OpenF1 replay pack`;
-  }
-  return `${sessionName} replay`;
-}
-
 function buildCoverageNote(label: string, names: string[]) {
   if (label.includes("full coverage")) {
     return `${names.join(", ")} all exported.`;
@@ -81,7 +76,7 @@ function buildCoverageNote(label: string, names: string[]) {
   return "Coverage reflects the current exported OpenF1 archive.";
 }
 
-export function ReplayLibraryClient({ aliasMode, latestManifest, index }: ReplayLibraryClientProps) {
+export function ReplayLibraryClient({ aliasMode, latestManifest, index, availability }: ReplayLibraryClientProps) {
   const latestReplayHref = latestManifest.latest
     ? latestManifest.latest.path.replace(/^\/sessions\//, "/replay/")
     : null;
@@ -122,6 +117,7 @@ export function ReplayLibraryClient({ aliasMode, latestManifest, index }: Replay
               <span>Featured Replay</span>
               <strong>{latestManifest.latest.grandPrixName}</strong>
               <small>{latestManifest.latest.sessionName} replay workspace</small>
+              <small>{availabilityLabel(availability[latestManifest.latest.path])}</small>
             </a>
           ) : (
             <div className="discover-action-card">
@@ -253,7 +249,8 @@ export function ReplayLibraryClient({ aliasMode, latestManifest, index }: Replay
                             href={`/replay/${session.season}/${session.grandPrixSlug}/${session.sessionSlug}`}
                           >
                             <strong>{session.sessionName}</strong>
-                            <span>{buildSessionMeta(session.season, session.sessionName)}</span>
+                            <span>Provider lineage: {availability[session.path]?.provider ?? "unknown"}</span>
+                            <span>{availabilityLabel(availability[session.path])}</span>
                             {sessionDate ? <span className="replay-session-link__date">{sessionDate}</span> : null}
                           </a>
                         );

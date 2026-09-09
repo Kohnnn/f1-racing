@@ -16,6 +16,7 @@ import {
 import { generationTimestamp, slugify } from "../../normalize/src/normalize-session.mjs";
 import { assertCandidateOutputPath, assertCandidateRoot } from "../../../tools/release-data.mjs";
 import { writeSplitReplayPack } from "./split-replay-packs.mjs";
+import { normalizeStints } from "./build-openf1-session-pack.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 const candidateRoot = process.env.F1_CANDIDATE_ROOT ? path.resolve(process.env.F1_CANDIDATE_ROOT) : null;
@@ -230,7 +231,7 @@ function getStintForLap(stintTimeline, lapNumber) {
     || null;
 }
 
-function enrichReplayLapsWithStints(replayLaps, drivers, stintTimelines) {
+export function enrichReplayLapsWithStints(replayLaps, drivers, stintTimelines) {
   const numberByCode = new Map(drivers.map((driver) => [driver.driverCode, driver.driverNumber]));
 
   return replayLaps.map((lap) => {
@@ -245,10 +246,10 @@ function enrichReplayLapsWithStints(replayLaps, drivers, stintTimelines) {
   });
 }
 
-function buildStintTimelines(stintsRaw) {
+export function buildStintTimelines(stintsRaw) {
   const byDriver = new Map();
 
-  for (const stint of stintsRaw) {
+  for (const stint of normalizeStints(stintsRaw)) {
     const driverNumber = Number(stint.driver_number);
     if (!byDriver.has(driverNumber)) {
       byDriver.set(driverNumber, []);
@@ -285,16 +286,18 @@ function buildRaceControlTimeline(messages, sessionStartTime) {
     .sort((left, right) => left.t - right.t);
 }
 
-function buildWeatherTimeline(samples, sessionStartTime) {
+export function buildWeatherTimeline(samples, sessionStartTime) {
+  const fields = { airTempC: "air_temperature", trackTempC: "track_temperature", humidityPct: "humidity", rainfall: "rainfall", windSpeedMps: "wind_speed", windDirectionDeg: "wind_direction" };
   return samples
     .map((sample) => ({
       t: isoToMs(sample.date) - sessionStartTime,
-      airTempC: Number(sample.air_temperature ?? 0),
-      trackTempC: Number(sample.track_temperature ?? 0),
-      humidityPct: Number(sample.humidity ?? 0),
-      rainfall: Boolean(sample.rainfall),
-      windSpeedMps: Number(sample.wind_speed ?? 0),
-      windDirectionDeg: Number(sample.wind_direction ?? 0),
+      observedFields: Object.entries(fields).filter(([, key]) => typeof sample[key] === "number" && Number.isFinite(sample[key]) || key === "rainfall" && typeof sample[key] === "boolean").map(([field]) => field),
+      airTempC: Number.isFinite(sample.air_temperature) ? sample.air_temperature : 0,
+      trackTempC: Number.isFinite(sample.track_temperature) ? sample.track_temperature : 0,
+      humidityPct: Number.isFinite(sample.humidity) ? sample.humidity : 0,
+      rainfall: sample.rainfall === true || typeof sample.rainfall === "number" && sample.rainfall > 0,
+      windSpeedMps: Number.isFinite(sample.wind_speed) ? sample.wind_speed : 0,
+      windDirectionDeg: Number.isFinite(sample.wind_direction) ? sample.wind_direction : 0,
     }))
     .filter((sample) => sample.t >= 0)
     .sort((left, right) => left.t - right.t);
