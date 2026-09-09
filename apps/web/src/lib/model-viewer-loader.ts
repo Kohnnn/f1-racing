@@ -14,6 +14,11 @@ const BASE_DELAY_MS = 400;
 export class WebGLUnavailableError extends Error {}
 
 export function ensureModelViewerLoaded(retries = DEFAULT_RETRIES): Promise<void> {
+  if (typeof window !== "undefined" && window.customElements?.get("model-viewer")) {
+    return Promise.resolve();
+  }
+  if (loadPromise) return loadPromise;
+
   try {
     const gl = document.createElement("canvas").getContext("webgl2");
     if (!gl) return Promise.reject(new WebGLUnavailableError("WebGL 2 is unavailable"));
@@ -22,13 +27,7 @@ export function ensureModelViewerLoaded(retries = DEFAULT_RETRIES): Promise<void
     return Promise.reject(new WebGLUnavailableError("WebGL 2 is unavailable"));
   }
 
-  if (typeof window !== "undefined" && window.customElements?.get("model-viewer")) {
-    return Promise.resolve();
-  }
-
-  if (!loadPromise) {
-    loadPromise = loadWithRetry(retries);
-  }
+  loadPromise = loadWithRetry(retries);
 
   return loadPromise;
 }

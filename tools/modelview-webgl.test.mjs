@@ -1,7 +1,35 @@
 import assert from "node:assert/strict";
 import { readFile, stat } from "node:fs/promises";
 import path from "node:path";
-import { chromium, firefox } from "playwright";
+import vm from "node:vm";
+import ts from "typescript";
+
+const loaderSource = await readFile(new URL("../apps/web/src/lib/model-viewer-loader.ts", import.meta.url), "utf8");
+const compiled = ts.transpileModule(loaderSource, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
+for (const registered of [true, false]) {
+  let probes = 0;
+  let ready = registered;
+  const context = {
+    exports: {},
+    URL,
+    window: { location: { origin: "http://f1.test" }, customElements: { get: () => ready ? {} : undefined } },
+    document: { scripts: [], createElement: () => ({ getContext: () => {
+      probes += 1;
+      return probes === 1 && !registered ? { getExtension: () => null } : null;
+    } }) },
+    require: () => { ready = true; return {}; },
+  };
+  vm.runInNewContext(compiled, context);
+  const first = context.exports.ensureModelViewerLoaded(0);
+  const second = context.exports.ensureModelViewerLoaded(0);
+  await Promise.all([first, second]);
+  if (!registered) assert.equal(first, second, "Concurrent callers must share the import promise");
+  await context.exports.ensureModelViewerLoaded(0);
+  assert.equal(probes, registered ? 0 : 1, "Cached loaders must not allocate another WebGL context");
+}
+console.log("2 loader cache regression cases passed.");
+if (process.argv.includes("--loader-only")) process.exit(0);
+const { chromium, firefox } = await import("playwright");
 
 const out = path.resolve(process.env.F1_CANDIDATE_ROOT || ".", "apps/web/out");
 let passed = 0;
@@ -43,8 +71,16 @@ for (const [name, engine, blocked] of [["chromium-no-webgl", chromium, true], ["
       assert.ok(await poster.evaluate((image) => image.complete && image.naturalWidth > 0));
       assert.equal(await page.locator("model-viewer").count(), 0);
       assert.equal(await page.locator(".car-viewer-loading__spinner").count(), 0);
+      const inspect = page.getByRole("button", { name: "Inspect", exact: true });
+      await inspect.focus();
+      assert.equal(await inspect.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return element === document.activeElement && ((style.outlineStyle !== "none" && style.outlineWidth !== "0px") || style.boxShadow !== "none");
+      }), true, "Modelview Inspect lacks visible keyboard focus.");
+      await inspect.press("Enter");
+      assert.equal(await inspect.getAttribute("aria-pressed"), "true");
       const component = page.locator(".car-focus-item").first();
-      await component.focus();
+      assert.equal(await component.evaluate((element) => element === document.activeElement), true, "Inspect must focus the component list without WebGL");
       await component.press("Enter");
       assert.equal(await component.getAttribute("aria-pressed"), "true");
       assert.ok(await page.locator(".car-inspector-copy").first().isVisible());

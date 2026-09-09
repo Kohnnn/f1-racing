@@ -115,6 +115,7 @@ function writeSelectionToUrl(season: number, constructorSlug: string, focusId: s
 export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserProps) {
   const searchParams = useSearchParams();
   const viewerRef = useRef<ModelViewerElement | null>(null);
+  const focusListRef = useRef<HTMLDivElement | null>(null);
   const [modelReady, setModelReady] = useState(false);
   const [modelLoadFailed, setModelLoadFailed] = useState(false);
   const [modelRetryKey, setModelRetryKey] = useState(0);
@@ -467,11 +468,13 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
             </button>
             <button
               type="button"
-              disabled={webglUnavailable}
               aria-pressed={interactionMode === "inspect"}
               className={`camera-preset${interactionMode === "inspect" ? " camera-preset--active" : ""}`}
-              onClick={() => setInteractionMode("inspect")}
-              title="Click hotspots without orbiting"
+              onClick={() => {
+                setInteractionMode("inspect");
+                if (webglUnavailable) focusListRef.current?.querySelector("button")?.focus();
+              }}
+              title={webglUnavailable ? "Inspect the component list" : "Click hotspots without orbiting"}
             >
               Inspect
             </button>
@@ -747,7 +750,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
                 </button>
               </div>
             ) : null}
-            <div className="car-focus-list">
+            <div className="car-focus-list" ref={focusListRef}>
               {focusPoints.map((point) => (
                 <button
                   key={point.id}
