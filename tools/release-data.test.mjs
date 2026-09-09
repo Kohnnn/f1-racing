@@ -364,6 +364,35 @@ assert.throws(() => assertReleaseNodeVersion("24.1.0"), /requires Node\.js 22/);
 const root = await seedCandidate();
 try {
   await auditCandidate(root, { now });
+  for (const status of ["DNF", "DNS"]) {
+    const paths = candidatePaths(root);
+    for (const dataRoot of [paths.canonicalData, paths.publicData, path.join(paths.artifactRoot, "data")]) {
+      await mutateJson(path.join(dataRoot, sessionBase, "results.json"), rows => { rows[1] = { driverCode: "ALT", position: null, status }; });
+      const hash = await sha256(path.join(dataRoot, sessionBase, "results.json"));
+      await mutateJson(path.join(dataRoot, "release", "provenance-ledger.json"), ledger => {
+        const session = ledger.sessions[0];
+        session.artifacts[`${sessionBase}/results.json`] = hash;
+        session.packSha256 = digest(`${JSON.stringify(Object.keys(session.artifacts).sort().map(key => [key, session.artifacts[key]]))}\n`);
+      });
+    }
+    await finalizeCandidate(root, { sourceCommitValue: "a".repeat(40), generatedAt: "2026-07-01T01:04:00.000Z", gateEvidence: candidateGateEvidence });
+    await auditCandidate(root, { now });
+    for (const dataRoot of [paths.canonicalData, paths.publicData, path.join(paths.artifactRoot, "data")]) {
+      await mutateJson(path.join(dataRoot, sessionBase, "results.json"), rows => { delete rows[1].status; });
+    }
+    await finalizeCandidate(root, { sourceCommitValue: "a".repeat(40), generatedAt: "2026-07-01T01:04:00.000Z", gateEvidence: candidateGateEvidence });
+    await assert.rejects(() => auditCandidate(root, { now }), /session results/);
+    for (const dataRoot of [paths.canonicalData, paths.publicData, path.join(paths.artifactRoot, "data")]) {
+      await mutateJson(path.join(dataRoot, sessionBase, "results.json"), rows => { rows[1] = { driverCode: "ALT", position: 2 }; });
+      const hash = await sha256(path.join(dataRoot, sessionBase, "results.json"));
+      await mutateJson(path.join(dataRoot, "release", "provenance-ledger.json"), ledger => {
+        const session = ledger.sessions[0];
+        session.artifacts[`${sessionBase}/results.json`] = hash;
+        session.packSha256 = digest(`${JSON.stringify(Object.keys(session.artifacts).sort().map(key => [key, session.artifacts[key]]))}\n`);
+      });
+    }
+    await finalizeCandidate(root, { sourceCommitValue: "a".repeat(40), generatedAt: "2026-07-01T01:04:00.000Z", gateEvidence: candidateGateEvidence });
+  }
   const firstManifest = JSON.parse(await readFile(candidatePaths(root).releaseManifest, "utf8"));
   const releaseMeasurements = await summarizeArtifactMeasurements(firstManifest.entries, candidatePaths(root).artifactRoot);
   const replayMeta = JSON.parse(await readFile(path.join(candidatePaths(root).artifactRoot, "data", sessionBase, "replay.meta.json"), "utf8"));

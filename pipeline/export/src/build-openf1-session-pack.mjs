@@ -86,13 +86,15 @@ export function normalizeResults(drivers, sessionResult) {
     if (!isRecord(result)) throw new Error("Session result records must be objects.");
     return {
       driverCode: driverCodes.get(integerField(result.driver_number, "Result driver number", 1)),
-      position: integerField(result.position, "Result position", 1),
+      position: result.position === null && (result.dnf === true || result.dns === true) ? null : integerField(result.position, "Result position", 1),
+      ...(result.position === null && (result.dnf === true || result.dns === true) ? { status: result.dns === true ? "DNS" : "DNF" } : {}),
     };
   });
   if (results.some((result) => typeof result.driverCode !== "string" || !result.driverCode.length)) throw new Error("Session results contain an unknown driver.");
   if (new Set(results.map((result) => result.driverCode)).size !== driverCodes.size || results.length !== driverCodes.size) throw new Error("Session result coverage does not match drivers.");
-  if (new Set(results.map((result) => result.position)).size !== results.length) throw new Error("Session result positions must be unique.");
-  return results.sort((left, right) => left.position - right.position || compareCodeUnits(left.driverCode, right.driverCode));
+  const classified = results.filter((result) => result.position !== null);
+  if (new Set(classified.map((result) => result.position)).size !== classified.length) throw new Error("Session result positions must be unique.");
+  return results.sort((left, right) => (left.position ?? Infinity) - (right.position ?? Infinity) || compareCodeUnits(left.driverCode, right.driverCode));
 }
 
 export function normalizeWeather(samples) {
@@ -170,6 +172,7 @@ export function normalizeStints(stints) {
     for (let index = 0; index < ordered.length; index += 1) {
       const stint = ordered[index];
       const stintNumber = integerField(stint.stint_number, "Stint number", 1);
+      if (stint.lap_start === null && stint.lap_end === null && ordered.length === 1) continue;
       const lapStart = integerField(stint.lap_start, "Stint lap start", 1);
       const rawLapEnd = integerField(stint.lap_end, "Stint lap end", 1);
       const nextLapStart = index + 1 < ordered.length ? integerField(ordered[index + 1].lap_start, "Stint lap start", 1) : null;
@@ -214,10 +217,7 @@ function buildStintLookup(stints) {
 
 function findStintForLap(stintLookup, driverNumber, lapNumber) {
   const entries = stintLookup.get(Number(driverNumber)) ?? [];
-  return entries.find((stint) => lapNumber >= stint.lapStart && lapNumber <= stint.lapEnd)
-    || entries.find((stint) => lapNumber <= stint.lapEnd)
-    || entries.at(-1)
-    || null;
+  return entries.find((stint) => lapNumber >= stint.lapStart && lapNumber <= stint.lapEnd) || null;
 }
 
 function displayStintNumber(value) {
@@ -273,6 +273,7 @@ export function buildLapRecords(laps, fastestByDriver, stints) {
     .map((lap) => {
       const lapNumber = Number(lap.lap_number);
       const stint = findStintForLap(stintLookup, lap.driver_number, lapNumber);
+      if (!stint) throw new Error(`Driver ${lap.driver_number} lap ${lapNumber} lacks stint coverage.`);
 
       return {
         driverCode: "",
@@ -584,17 +585,12 @@ export function buildStintPack(trackId, sessionKey, drivers, stints, lapRecords)
           })
           .filter((stint) => stint.lapTimes.length > 0);
 
-        if (!driverStints.length) {
-          return null;
-        }
-
         return {
           driverCode: driver.driverCode,
           team: driver.team,
           stints: driverStints,
         };
-      })
-      .filter(Boolean),
+      }),
   };
 }
 

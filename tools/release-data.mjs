@@ -19,6 +19,7 @@ import {
   SeasonIndexSchema,
   SessionManifestSchema,
   SessionSummarySchema,
+  SessionResultSchema,
   StintPackSchema,
   StrategyPackSchema,
   WindOverlayPackSchema,
@@ -688,11 +689,11 @@ async function auditSession(paths, ref, sourceSession, provenance, errors, now) 
   }
   const resultsPayload = payloads.get("results.json");
   if (!Array.isArray(resultsPayload) || !resultsPayload.length
-    || resultsPayload.some((entry) => !isRecord(entry) || typeof entry.driverCode !== "string" || !entry.driverCode.length || !Number.isInteger(entry.position) || entry.position < 1)) {
+    || resultsPayload.some((entry) => !SessionResultSchema.safeParse(entry).success)) {
     fail(errors, `${relativeBase}/results.json: expected normalized non-empty session results.`);
   } else {
     requireUnique(resultsPayload.map((entry) => entry.driverCode), errors, `${relativeBase}/results.json driverCode`);
-    requireUnique(resultsPayload.map((entry) => entry.position), errors, `${relativeBase}/results.json position`);
+    requireUnique(resultsPayload.filter((entry) => entry.position !== null).map((entry) => entry.position), errors, `${relativeBase}/results.json position`);
     if (!sameUniqueStrings(resultsPayload.map((entry) => entry.driverCode), driverCodes)) fail(errors, `${relativeBase}/results.json: driver coverage does not match drivers.json.`);
   }
   const weatherPayload = payloads.get("weather.json");

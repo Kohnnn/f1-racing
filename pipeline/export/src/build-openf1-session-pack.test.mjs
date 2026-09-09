@@ -3,6 +3,36 @@ import { generationTimestamp, normalizeTimestamp } from "../../normalize/src/nor
 import { buildStintTimelines, enrichReplayLapsWithStints, groupByDriverNumber } from "./build-openf1-replay-pack.mjs";
 import { buildLapRecords, buildStintPack, normalizeResults, normalizeStints, normalizeWeather } from "./build-openf1-session-pack.mjs";
 
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
+import { cachedResults, cachedEmptyStints } from "./cached-unclassified.fixture.mjs";
+import { SessionResultSchema, StintPackSchema } from "../../../packages/schemas/src/index.js";
+
+if (process.env.F1_CACHED_RESPONSES) {
+  for (const fixture of [...cachedResults, ...cachedEmptyStints]) {
+    const body = await readFile(`${process.env.F1_CACHED_RESPONSES}/${fixture.pointer}`);
+    assert.equal(createHash("sha256").update(body).digest("hex"), fixture.sha256);
+    const rows = JSON.parse(body);
+    for (const row of fixture.rows) assert.ok(rows.some(source => JSON.stringify(source) === JSON.stringify(row)), fixture.pointer);
+  }
+}
+
+for (const fixture of cachedResults) {
+  const drivers = fixture.rows.map(row => ({ driver_number: row.driver_number, name_acronym: String(row.driver_number) }));
+  const results = normalizeResults(drivers, fixture.rows);
+  assert.equal(results.length, drivers.length);
+  for (const result of results) {
+    assert.equal(result.position, null);
+    assert.equal(result.status, fixture.rows.find(row => String(row.driver_number) === result.driverCode).dns ? "DNS" : "DNF");
+    assert.equal(SessionResultSchema.safeParse(result).success, true);
+  }
+  for (const change of [{ dnf: false, dns: false }, { dnf: "true", dns: false }, { position: undefined }, { position: -1 }, { position: 0 }]) {
+    assert.throws(() => normalizeResults(drivers, fixture.rows.map((row, index) => index ? row : { ...row, ...change })), /Result position/);
+  }
+}
+assert.equal(SessionResultSchema.safeParse({ driverCode: "TST", position: null }).success, false);
+assert.equal(SessionResultSchema.safeParse({ driverCode: "TST", position: null, status: "FINISHED" }).success, false);
+
 const generatedAt = "2026-08-22T12:34:56.789Z";
 assert.equal(generationTimestamp(generatedAt), generatedAt);
 assert.equal(generationTimestamp("2026-08-22T14:34:56.789+02:00"), generatedAt);
@@ -76,6 +106,18 @@ assert.throws(() => normalizeStints([
   { driver_number: 4, stint_number: 1, lap_start: 1, lap_end: 5 },
   { driver_number: 4, stint_number: 2, lap_start: 3, lap_end: 7 },
 ]), /overlapping/);
+
+for (const fixture of cachedEmptyStints) {
+  assert.deepEqual(normalizeStints(fixture.rows), []);
+  const driver = { driverCode: "TST", driverNumber: fixture.rows[0].driver_number, team: "Test" };
+  const pack = buildStintPack("test", fixture.rows[0].session_key, [driver], normalizeStints(fixture.rows), []);
+  assert.deepEqual(pack.drivers.map(row => row.stints), [[]]);
+  assert.equal(StintPackSchema.safeParse(pack).success, true);
+  assert.throws(() => buildLapRecords([{ driver_number: driver.driverNumber, lap_number: 1, lap_duration: 90 }], new Map(), []), /stint coverage/);
+  for (const change of [{ lap_start: 1 }, { lap_end: 1 }, { lap_start: -1, lap_end: -1 }, { lap_start: undefined }]) {
+    assert.throws(() => normalizeStints([{ ...fixture.rows[0], ...change }]), /Stint lap/);
+  }
+}
 
 assert.deepEqual([...groupByDriverNumber([
   { driver_number: 81, date: "later" },

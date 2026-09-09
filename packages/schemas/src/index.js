@@ -101,6 +101,11 @@ export const DriverSummarySchema = z.object({
   stintCount: z.number().int(),
 });
 
+export const SessionResultSchema = z.union([
+  z.object({ driverCode: z.string().min(1), position: z.number().int().positive() }),
+  z.object({ driverCode: z.string().min(1), position: z.null(), status: z.enum(["DNF", "DNS"]) }),
+]);
+
 export const LapRecordSchema = z.object({
   driverCode: z.string(),
   driverNumber: z.number().int(),
