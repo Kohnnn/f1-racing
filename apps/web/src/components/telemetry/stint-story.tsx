@@ -5,7 +5,8 @@ interface StintStoryProps {
   stintPack: StintPack;
 }
 
-function buildTrendLabel(value: number) {
+function buildTrendLabel(value: number | null) {
+  if (value === null) return "Unavailable";
   if (value > 0.08) {
     return "heavy fade";
   }
@@ -46,11 +47,11 @@ export function StintStory({ stintPack }: StintStoryProps) {
                   <div className="metric-grid">
                     <div className="metric-chip">
                       <span>Average</span>
-                      <strong>{formatLapTime(stint.averageLapTime)}</strong>
+                      <strong>{stint.averageLapTime === null ? "Unavailable" : formatLapTime(stint.averageLapTime)}</strong>
                     </div>
                     <div className="metric-chip">
                       <span>Trend / lap</span>
-                      <strong>{stint.trendPerLap.toFixed(3)} s</strong>
+                      <strong>{stint.trendPerLap === null ? "Unavailable" : `${stint.trendPerLap.toFixed(3)} s`}</strong>
                     </div>
                     <div className="metric-chip">
                       <span>Shape</span>
@@ -75,7 +76,7 @@ export function StintStory({ stintPack }: StintStoryProps) {
                     <li>
                       <strong>Window read</strong>
                       <span>
-                        This stint looks {buildTrendLabel(stint.trendPerLap)}. Use it to explain whether tyre life or track evolution is driving the pace shape.
+                        {stint.trendPerLap === null ? "Pace trend is unavailable for this recorded stint." : `This stint looks ${buildTrendLabel(stint.trendPerLap)}. Use it to explain whether tyre life or track evolution is driving the pace shape.`}
                       </span>
                     </li>
                   </ul>

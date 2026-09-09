@@ -86,13 +86,15 @@ export function normalizeResults(drivers, sessionResult) {
     if (!isRecord(result)) throw new Error("Session result records must be objects.");
     return {
       driverCode: driverCodes.get(integerField(result.driver_number, "Result driver number", 1)),
-      position: integerField(result.position, "Result position", 1),
+      position: result.position === null && (result.dnf === true || result.dns === true) ? null : integerField(result.position, "Result position", 1),
+      ...(result.position === null && (result.dnf === true || result.dns === true) ? { status: result.dns === true ? "DNS" : "DNF" } : {}),
     };
   });
   if (results.some((result) => typeof result.driverCode !== "string" || !result.driverCode.length)) throw new Error("Session results contain an unknown driver.");
   if (new Set(results.map((result) => result.driverCode)).size !== driverCodes.size || results.length !== driverCodes.size) throw new Error("Session result coverage does not match drivers.");
-  if (new Set(results.map((result) => result.position)).size !== results.length) throw new Error("Session result positions must be unique.");
-  return results.sort((left, right) => left.position - right.position || compareCodeUnits(left.driverCode, right.driverCode));
+  const classified = results.filter((result) => result.position !== null);
+  if (new Set(classified.map((result) => result.position)).size !== classified.length) throw new Error("Session result positions must be unique.");
+  return results.sort((left, right) => (left.position ?? Infinity) - (right.position ?? Infinity) || compareCodeUnits(left.driverCode, right.driverCode));
 }
 
 export function normalizeWeather(samples) {
@@ -152,7 +154,7 @@ function globalFastestLap(laps) {
     .sort((left, right) => left.lapTime - right.lapTime)[0] ?? null;
 }
 
-export function normalizeStints(stints) {
+export function normalizeStints(stints, laps) {
   const byDriver = new Map();
   if (!Array.isArray(stints)) throw new Error("Stints must be an array.");
   for (const stint of stints) {
@@ -170,6 +172,11 @@ export function normalizeStints(stints) {
     for (let index = 0; index < ordered.length; index += 1) {
       const stint = ordered[index];
       const stintNumber = integerField(stint.stint_number, "Stint number", 1);
+      if (stint.lap_start === null && stint.lap_end === null && ordered.length === 1) {
+        if (!Array.isArray(laps)) throw new Error("Null stint bounds require raw laps to establish absence.");
+        if (laps.some((lap) => lap.driver_number === driverNumber)) throw new Error(`Driver ${driverNumber} has raw laps with unavailable stint coverage.`);
+        continue;
+      }
       const lapStart = integerField(stint.lap_start, "Stint lap start", 1);
       const rawLapEnd = integerField(stint.lap_end, "Stint lap end", 1);
       const nextLapStart = index + 1 < ordered.length ? integerField(ordered[index + 1].lap_start, "Stint lap start", 1) : null;
@@ -182,6 +189,16 @@ export function normalizeStints(stints) {
       if (lapEnd < lapStart) continue;
       normalized.push({ ...stint, lap_start: lapStart, lap_end: lapEnd });
       previousLapEnd = lapEnd;
+    }
+  }
+  if (laps !== undefined) {
+    if (!Array.isArray(laps)) throw new Error("Raw laps must be an array.");
+    for (const lap of laps) {
+      if (!isRecord(lap)) throw new Error("Raw laps must be objects.");
+      const driverNumber = integerField(lap.driver_number, "Lap driver number", 1);
+      const lapNumber = integerField(lap.lap_number, "Lap number", 1);
+      const owners = normalized.filter((stint) => stint.driver_number === driverNumber && lapNumber >= stint.lap_start && lapNumber <= stint.lap_end);
+      if (owners.length !== 1) throw new Error(`Driver ${driverNumber} lap ${lapNumber} requires exactly one stint coverage.`);
     }
   }
   return normalized;
@@ -214,10 +231,8 @@ function buildStintLookup(stints) {
 
 function findStintForLap(stintLookup, driverNumber, lapNumber) {
   const entries = stintLookup.get(Number(driverNumber)) ?? [];
-  return entries.find((stint) => lapNumber >= stint.lapStart && lapNumber <= stint.lapEnd)
-    || entries.find((stint) => lapNumber <= stint.lapEnd)
-    || entries.at(-1)
-    || null;
+  const owners = entries.filter((stint) => lapNumber >= stint.lapStart && lapNumber <= stint.lapEnd);
+  return owners.length === 1 ? owners[0] : null;
 }
 
 function displayStintNumber(value) {
@@ -268,22 +283,24 @@ function buildDriverSummaries(drivers, laps, stints, sessionResult = []) {
 
 export function buildLapRecords(laps, fastestByDriver, stints) {
   const stintLookup = buildStintLookup(stints);
-  const records = laps
-    .filter((lap) => Number.isFinite(lap.lap_duration))
-    .map((lap) => {
-      const lapNumber = Number(lap.lap_number);
+  if (!Array.isArray(laps)) throw new Error("Raw laps must be an array.");
+  const records = laps.map((lap) => {
+      if (!isRecord(lap)) throw new Error("Raw laps must be objects.");
+      integerField(lap.driver_number, "Lap driver number", 1);
+      const lapNumber = integerField(lap.lap_number, "Lap number", 1);
       const stint = findStintForLap(stintLookup, lap.driver_number, lapNumber);
+      if (!stint) throw new Error(`Driver ${lap.driver_number} lap ${lapNumber} lacks stint coverage.`);
 
       return {
         driverCode: "",
         driverNumber: lap.driver_number,
         lapNumber,
-        lapTime: Number(lap.lap_duration),
-        sector1: Number(lap.duration_sector_1 ?? 0),
-        sector2: Number(lap.duration_sector_2 ?? 0),
-        sector3: Number(lap.duration_sector_3 ?? 0),
+        lapTime: optionalNumber(lap.lap_duration, "Lap duration"),
+        sector1: optionalNumber(lap.duration_sector_1, "Sector 1"),
+        sector2: optionalNumber(lap.duration_sector_2, "Sector 2"),
+        sector3: optionalNumber(lap.duration_sector_3, "Sector 3"),
         compound: lap.compound ?? stint?.compound ?? "UNKNOWN",
-        stint: displayStintNumber(lap.stint_number ?? stint?.stintNumber),
+        stint: stint.stintNumber,
         isFastest: fastestByDriver.get(lap.driver_number)?.lap_number === lap.lap_number,
       };
     });
@@ -566,10 +583,10 @@ export function buildStintPack(trackId, sessionKey, drivers, stints, lapRecords)
 
             const averageLapTime = lapTimes.length
               ? lapTimes.reduce((sum, value) => sum + value, 0) / lapTimes.length
-              : 0;
+              : null;
             const trendPerLap = lapTimes.length > 1
               ? (lapTimes[lapTimes.length - 1] - lapTimes[0]) / (lapTimes.length - 1)
-              : 0;
+              : lapTimes.length ? 0 : null;
 
             return {
               stintNumber: displayStintNumber(stint.stint_number),
@@ -577,24 +594,18 @@ export function buildStintPack(trackId, sessionKey, drivers, stints, lapRecords)
               lapStart: Number(stint.lap_start ?? 0),
               lapEnd: Number(stint.lap_end ?? 0),
               tyreAgeAtStart: Number(stint.tyre_age_at_start ?? 0),
-              averageLapTime: Number(averageLapTime.toFixed(3)),
-              trendPerLap: Number(trendPerLap.toFixed(3)),
+              averageLapTime: averageLapTime === null ? null : Number(averageLapTime.toFixed(3)),
+              trendPerLap: trendPerLap === null ? null : Number(trendPerLap.toFixed(3)),
               lapTimes,
             };
-          })
-          .filter((stint) => stint.lapTimes.length > 0);
-
-        if (!driverStints.length) {
-          return null;
-        }
+          });
 
         return {
           driverCode: driver.driverCode,
           team: driver.team,
           stints: driverStints,
         };
-      })
-      .filter(Boolean),
+      }),
   };
 }
 
@@ -691,7 +702,7 @@ async function main() {
     fetchStints({ sessionKey: ref.sessionKey }),
     fetchCarData({ sessionKey: ref.sessionKey, driverNumbers }),
   ]);
-  const stintsRaw = normalizeStints(stintsResponse);
+  const stintsRaw = normalizeStints(stintsResponse, lapsRaw);
   const results = normalizeResults(driversRaw, sessionResultRaw);
   const weather = normalizeWeather(weatherRaw);
 

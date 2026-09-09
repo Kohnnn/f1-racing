@@ -19,6 +19,7 @@ import {
   SeasonIndexSchema,
   SessionManifestSchema,
   SessionSummarySchema,
+  SessionResultSchema,
   StintPackSchema,
   StrategyPackSchema,
   WindOverlayPackSchema,
@@ -688,11 +689,11 @@ async function auditSession(paths, ref, sourceSession, provenance, errors, now) 
   }
   const resultsPayload = payloads.get("results.json");
   if (!Array.isArray(resultsPayload) || !resultsPayload.length
-    || resultsPayload.some((entry) => !isRecord(entry) || typeof entry.driverCode !== "string" || !entry.driverCode.length || !Number.isInteger(entry.position) || entry.position < 1)) {
+    || resultsPayload.some((entry) => !SessionResultSchema.safeParse(entry).success)) {
     fail(errors, `${relativeBase}/results.json: expected normalized non-empty session results.`);
   } else {
     requireUnique(resultsPayload.map((entry) => entry.driverCode), errors, `${relativeBase}/results.json driverCode`);
-    requireUnique(resultsPayload.map((entry) => entry.position), errors, `${relativeBase}/results.json position`);
+    requireUnique(resultsPayload.filter((entry) => entry.position !== null).map((entry) => entry.position), errors, `${relativeBase}/results.json position`);
     if (!sameUniqueStrings(resultsPayload.map((entry) => entry.driverCode), driverCodes)) fail(errors, `${relativeBase}/results.json: driver coverage does not match drivers.json.`);
   }
   const weatherPayload = payloads.get("weather.json");
@@ -716,6 +717,11 @@ async function auditSession(paths, ref, sourceSession, provenance, errors, now) 
   if (stints) {
     if (stints.sessionKey !== ref.sessionKey || stints.trackId !== ref.trackId) fail(errors, `${relativeBase}/stints.json: sessionKey or trackId mismatch.`);
     requireUnique(stints.drivers.map((driver) => driver.driverCode), errors, `${relativeBase}/stints.json driverCode`);
+    if (!sameUniqueStrings(stints.drivers.map((driver) => driver.driverCode), driverCodes)) fail(errors, `${relativeBase}/stints.json: driver coverage does not match drivers.json.`);
+    for (const lap of laps) {
+      const owners = stints.drivers.find((driver) => driver.driverCode === lap.driverCode)?.stints.filter((stint) => lap.lapNumber >= stint.lapStart && lap.lapNumber <= stint.lapEnd) ?? [];
+      if (owners.length !== 1 || owners[0].stintNumber !== lap.stint) fail(errors, `${relativeBase}/stints.json: ${lap.driverCode} lap ${lap.lapNumber} requires exactly one matching stint coverage.`);
+    }
     for (const driver of stints.drivers) {
       if (!driverCodes.includes(driver.driverCode)) fail(errors, `${relativeBase}/stints.json: unknown driver ${driver.driverCode}.`);
       requireUnique(driver.stints.map((stint) => stint.stintNumber), errors, `${relativeBase}/stints.json ${driver.driverCode} stintNumber`);
@@ -828,6 +834,7 @@ async function auditSession(paths, ref, sourceSession, provenance, errors, now) 
           fail(errors, `${relativeBase}/${entry.path}: frame driver coverage does not match replay metadata.`);
         }
         for (const [driverCode, driver] of Object.entries(frame.drivers)) {
+          if (driver.position === null && !(Array.isArray(resultsPayload) && resultsPayload.some((result) => result.driverCode === driverCode && result.position === null && ["DNF", "DNS"].includes(result.status)))) fail(errors, `${relativeBase}/${entry.path}: null position requires unclassified result evidence.`);
           const replayDriver = replayDriversByCode.get(driverCode);
           if (!replayDriver
             || driver.driverCode !== driverCode
@@ -858,6 +865,10 @@ async function auditSession(paths, ref, sourceSession, provenance, errors, now) 
   }
   if (replayLaps && !sameUniqueStrings(replayLaps.map((lap) => `${lap.driverCode}:${lap.lapNumber}`), laps.map((lap) => `${lap.driverCode}:${lap.lapNumber}`))) {
     fail(errors, `${relativeBase}/replay.laps.json: driver/lap coverage does not match laps.json.`);
+  }
+  for (const replayLap of replayLaps ?? []) {
+    const lap = laps.find((entry) => entry.driverCode === replayLap.driverCode && entry.lapNumber === replayLap.lapNumber);
+    if (lap && lap.lapTime !== replayLap.lapTime) fail(errors, `${relativeBase}/replay.laps.json: ${replayLap.driverCode} lap ${replayLap.lapNumber} timing does not match laps.json.`);
   }
   const expectedDriverCodes = replayMeta?.drivers.map((driver) => driver.driverCode) ?? drivers.map((driver) => driver.driverCode);
   const observedDriverCodes = [...new Set(frames.flatMap((frame) => Object.keys(frame.drivers)))];

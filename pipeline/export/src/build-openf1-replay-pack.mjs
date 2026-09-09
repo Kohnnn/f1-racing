@@ -168,15 +168,14 @@ function findLatestIndex(entries, target, getTime = (entry) => entry.t) {
   return result;
 }
 
-function buildReplayLaps(lapsRaw, drivers) {
+export function buildReplayLaps(lapsRaw, drivers) {
   const driverCodeByNumber = new Map(drivers.map((driver) => [driver.driverNumber, driver.driverCode]));
 
   return lapsRaw
-    .filter((lap) => Number.isFinite(lap.lap_duration))
     .map((lap) => ({
       driverCode: driverCodeByNumber.get(Number(lap.driver_number)) || String(lap.driver_number),
       lapNumber: Number(lap.lap_number),
-      lapTime: Number(lap.lap_duration),
+      lapTime: lap.lap_duration ?? null,
       compound: lap.compound ?? null,
       sector1: Number.isFinite(lap.duration_sector_1) ? Number(lap.duration_sector_1) : null,
       sector2: Number.isFinite(lap.duration_sector_2) ? Number(lap.duration_sector_2) : null,
@@ -246,10 +245,10 @@ export function enrichReplayLapsWithStints(replayLaps, drivers, stintTimelines) 
   });
 }
 
-export function buildStintTimelines(stintsRaw) {
+export function buildStintTimelines(stintsRaw, lapsRaw) {
   const byDriver = new Map();
 
-  for (const stint of normalizeStints(stintsRaw)) {
+  for (const stint of normalizeStints(stintsRaw, lapsRaw)) {
     const driverNumber = Number(stint.driver_number);
     if (!byDriver.has(driverNumber)) {
       byDriver.set(driverNumber, []);
@@ -1226,7 +1225,7 @@ async function buildReplayPack(sessionKey, drivers, ref) {
 
   const sessionStartTime = getReplayStartTime(ref, lapsRaw, carDataByDriver, allPositionData);
   const lapTimelines = buildLapTimelines(lapsRaw);
-  const stintTimelines = buildStintTimelines(stintsRaw);
+  const stintTimelines = buildStintTimelines(stintsRaw, lapsRaw);
   const raceControlTimeline = buildRaceControlTimeline(raceControlMessages, sessionStartTime);
   const weatherSummary = summarizeWeather(weatherRaw);
   const weatherTimeline = buildWeatherTimeline(weatherRaw, sessionStartTime);

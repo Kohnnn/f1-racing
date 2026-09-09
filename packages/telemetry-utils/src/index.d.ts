@@ -1,9 +1,9 @@
-export function formatLapTime(seconds: number): string;
+export function formatLapTime(seconds: number | null): string;
 export function formatDeltaMs(value: number): string;
 export function formatPercent(value: number): string;
 export function bestSectorLabel(sector1: number, sector2: number, sector3: number): string;
 export function personalBestSector(
-  laps: Array<{ sector1?: number; sector2?: number; sector3?: number }>,
+  laps: Array<{ sector1?: number | null; sector2?: number | null; sector3?: number | null }>,
 ): { label: string; seconds: number | null };
 
 export interface PitCycleOutcome {
@@ -61,7 +61,7 @@ export function derivePitCycleOutcomes(input: {
   lapRecords: Array<{
     driverCode: string;
     lapNumber: number;
-    lapTime: number;
+    lapTime: number | null;
   }> | null;
   raceControlMessages?: Array<{
     flag?: string | null;

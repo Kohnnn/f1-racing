@@ -101,14 +101,19 @@ export const DriverSummarySchema = z.object({
   stintCount: z.number().int(),
 });
 
+export const SessionResultSchema = z.union([
+  z.object({ driverCode: z.string().min(1), position: z.number().int().positive() }),
+  z.object({ driverCode: z.string().min(1), position: z.null(), status: z.enum(["DNF", "DNS"]) }),
+]);
+
 export const LapRecordSchema = z.object({
   driverCode: z.string(),
   driverNumber: z.number().int(),
   lapNumber: z.number().int(),
-  lapTime: z.number(),
-  sector1: z.number(),
-  sector2: z.number(),
-  sector3: z.number(),
+  lapTime: z.number().nullable(),
+  sector1: z.number().nullable(),
+  sector2: z.number().nullable(),
+  sector3: z.number().nullable(),
   compound: z.string(),
   stint: z.number().int(),
   isFastest: z.boolean(),
@@ -193,8 +198,8 @@ export const StintPackSchema = z.object({
           lapStart: z.number().int(),
           lapEnd: z.number().int(),
           tyreAgeAtStart: z.number().int(),
-          averageLapTime: z.number(),
-          trendPerLap: z.number(),
+          averageLapTime: z.number().nullable(),
+          trendPerLap: z.number().nullable(),
           lapTimes: z.array(z.number()),
         })
       ),
@@ -393,7 +398,7 @@ export const ReplayFrameDriverSchema = z.object({
   driverCode: z.string(),
   driverNumber: z.number().int(),
   team: z.string(),
-  position: z.number().int(),
+  position: z.number().int().nullable(),
   x: z.number().nullable(),
   y: z.number().nullable(),
   speed: z.number().nullable(),

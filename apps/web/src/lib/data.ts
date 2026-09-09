@@ -130,10 +130,10 @@ export interface LapRecord {
   driverCode: string;
   driverNumber: number;
   lapNumber: number;
-  lapTime: number;
-  sector1: number;
-  sector2: number;
-  sector3: number;
+  lapTime: number | null;
+  sector1: number | null;
+  sector2: number | null;
+  sector3: number | null;
   compound: string;
   stint: number;
   isFastest: boolean;
@@ -234,8 +234,8 @@ export interface StintPack {
       lapStart: number;
       lapEnd: number;
       tyreAgeAtStart: number;
-      averageLapTime: number;
-      trendPerLap: number;
+      averageLapTime: number | null;
+      trendPerLap: number | null;
       lapTimes: number[];
     }>;
   }>;

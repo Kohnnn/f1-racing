@@ -101,7 +101,7 @@ export default async function ComparePage({ params }: ComparePageProps) {
             <div className="metric-chip">
               <span>Net gap</span>
               <strong>
-                {leftLap && rightLap ? formatDeltaMs((rightLap.lapTime - leftLap.lapTime) * 1000) : "-"}
+                {leftLap?.lapTime != null && rightLap?.lapTime != null ? formatDeltaMs((rightLap.lapTime - leftLap.lapTime) * 1000) : "Unavailable"}
               </strong>
             </div>
           </div>

@@ -6,6 +6,7 @@ export const OpenF1SeasonManifestSchema: z.ZodType<any>;
 export const SeasonIndexSchema: z.ZodObject<any>;
 export const SessionSummarySchema: z.ZodObject<any>;
 export const DriverSummarySchema: z.ZodObject<any>;
+export const SessionResultSchema: z.ZodType<{ driverCode: string; position: number } | { driverCode: string; position: null; status: "DNF" | "DNS" }>;
 export const LapRecordSchema: z.ZodObject<any>;
 export const TelemetryPointSchema: z.ZodObject<any>;
 export const TelemetryTraceSchema: z.ZodObject<any>;
