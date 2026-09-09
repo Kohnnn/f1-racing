@@ -4,7 +4,7 @@ import { createElement, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { CarModelCatalog } from "@/lib/data";
 import { saveActiveModelviewHrefInBrowser } from "@/lib/learning-trail";
-import { ensureModelViewerLoaded } from "@/lib/model-viewer-loader";
+import { ensureModelViewerLoaded, WebGLUnavailableError } from "@/lib/model-viewer-loader";
 import { focusPoints, getFocusPoint } from "./focus-points";
 import { CanvasWindTunnel } from "@/components/wind/canvas-wind-tunnel";
 
@@ -119,6 +119,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
   const [modelLoadFailed, setModelLoadFailed] = useState(false);
   const [modelRetryKey, setModelRetryKey] = useState(0);
   const [viewerBootFailed, setViewerBootFailed] = useState(false);
+  const [webglUnavailable, setWebglUnavailable] = useState(false);
 
   const seasons = useMemo(
     () => Array.from(new Set(catalog.models.map((m) => m.season))).sort((a, b) => b - a),
@@ -161,8 +162,11 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
       .then(() => {
         if (!cancelled) setViewerBootFailed(false);
       })
-      .catch(() => {
-        if (!cancelled) setViewerBootFailed(true);
+      .catch((error) => {
+        if (!cancelled) {
+          setWebglUnavailable(error instanceof WebGLUnavailableError);
+          setViewerBootFailed(true);
+        }
       });
     return () => {
       cancelled = true;
@@ -375,7 +379,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
       viewer.removeEventListener("load", markLoaded);
       viewer.removeEventListener("error", markFailed);
     };
-  }, [modelRetryKey, selected]);
+  }, [modelRetryKey, selected, webglUnavailable]);
 
   if (!selected) {
     return <div className="panel">No models available.</div>;
@@ -439,6 +443,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
               key={preset.id}
               type="button"
               className={`camera-preset${preset.id === activeCameraId ? " camera-preset--active" : ""}`}
+              disabled={webglUnavailable}
               aria-pressed={preset.id === activeCameraId}
               onClick={() => {
                 setActiveCameraId(preset.id);
@@ -452,6 +457,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
           <div className="camera-preset-row__group" aria-label="Interaction mode">
             <button
               type="button"
+              disabled={webglUnavailable}
               aria-pressed={interactionMode === "orbit"}
               className={`camera-preset${interactionMode === "orbit" ? " camera-preset--active" : ""}`}
               onClick={() => setInteractionMode("orbit")}
@@ -461,6 +467,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
             </button>
             <button
               type="button"
+              disabled={webglUnavailable}
               aria-pressed={interactionMode === "inspect"}
               className={`camera-preset${interactionMode === "inspect" ? " camera-preset--active" : ""}`}
               onClick={() => setInteractionMode("inspect")}
@@ -473,6 +480,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
           <div className="camera-preset-row__group" aria-label="Studio quality">
             <button
               type="button"
+              disabled={webglUnavailable}
               aria-pressed={studioQuality === "clean"}
               className={`camera-preset${studioQuality === "clean" ? " camera-preset--active" : ""}`}
               onClick={() => setStudioQuality("clean")}
@@ -482,6 +490,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
             </button>
             <button
               type="button"
+              disabled={webglUnavailable}
               aria-pressed={studioQuality === "studio"}
               className={`camera-preset${studioQuality === "studio" ? " camera-preset--active" : ""}`}
               onClick={() => setStudioQuality("studio")}
@@ -494,6 +503,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
           <button
             type="button"
             className={`camera-preset${compareSlug ? " camera-preset--active" : ""}`}
+            disabled={webglUnavailable}
             aria-pressed={Boolean(compareSlug)}
             onClick={() => {
               if (compareSlug) {
@@ -525,7 +535,12 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
           <div
             className={`car-viewer-canvas${compareSlug ? " car-viewer-canvas--compare" : ""} car-viewer-canvas--mode-${interactionMode}`}
           >
-            {createElement(
+            {webglUnavailable ? (
+              <figure style={{ margin: 0, width: "100%" }}>
+                <img src={selected.poster} alt={`${selected.displayName} static reference`} style={{ width: "100%", height: "min(60vh, 600px)", objectFit: "contain" }} />
+                <figcaption role="status">WebGL 2 is unavailable. Showing a static reference image; use the component list to inspect the car.</figcaption>
+              </figure>
+            ) : createElement(
               "model-viewer",
               {
                 key: `${selected.id}-${modelRetryKey}`,
@@ -612,7 +627,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
               </div>
             ) : null}
 
-            {!modelReady ? (
+            {!modelReady && !webglUnavailable ? (
               <div className="car-viewer-loading" role="status" aria-live="polite">
                 <span className="car-viewer-loading__spinner" aria-hidden="true" />
                 {viewerBootFailed ? (
@@ -623,7 +638,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
                 ) : `Loading ${selected.displayName} · ${selected.sizeLabel}`}
               </div>
             ) : null}
-            {modelLoadFailed ? (
+            {modelLoadFailed && !webglUnavailable ? (
               <div className="car-viewer-loading car-viewer-loading--failed" role="alert">
                 <span>3D model could not finish loading.</span>
                 <button type="button" className="button button--secondary" onClick={retryModel}>
@@ -632,7 +647,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
               </div>
             ) : null}
 
-            {compareSlug ? (
+            {compareSlug && !webglUnavailable ? (
               <div className="car-viewer-canvas__compare-pane">
                 <div className="car-viewer-canvas__compare-toolbar">
                   <span>Compare with</span>
