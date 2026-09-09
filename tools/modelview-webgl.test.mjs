@@ -85,11 +85,31 @@ for (const [name, engine, blocked] of [["chromium-no-webgl", chromium, true], ["
       assert.equal(await component.getAttribute("aria-pressed"), "true");
       assert.ok(await page.locator(".car-inspector-copy").first().isVisible());
       assert.ok(new URL(page.url()).searchParams.has("focus"));
+      const image = page.getByAltText("Exploded technical view");
+      await image.waitFor({ state: "visible" });
+      await page.waitForFunction(() => {
+        const image = document.querySelector('img[alt="Exploded technical view"]');
+        return image?.complete && image.naturalWidth > 0;
+      });
+      assert.match(await image.getAttribute("src"), /^\/exploded-views\/\d{4}\/[^/]+\.png$/);
+      const width = await image.evaluate((element) => element.getBoundingClientRect().width);
+      const zoomIn = page.getByRole("button", { name: "Zoom in", exact: true });
+      await zoomIn.focus();
+      await zoomIn.press("Enter");
+      assert.ok(await image.evaluate((element) => element.getBoundingClientRect().width) > width);
+      const reset = page.getByRole("button", { name: "Reset view", exact: true });
+      await reset.focus();
+      await reset.press("Enter");
+      assert.equal(await image.evaluate((element) => element.getBoundingClientRect().width), width);
+      assert.equal(await page.locator("model-viewer[auto-rotate]").count(), 0);
+      const paused = page.locator(".wind-tunnel__action-button", { hasText: "Paused" });
+      await paused.waitFor({ state: "visible" });
+      assert.ok(await paused.isDisabled());
       const selections = page.locator(".car-viewer-toolbar select");
       if (await selections.count() > 1) await selections.first().selectOption("2025");
       await page.locator(".car-viewer-toolbar select").last().selectOption("ferrari");
       await page.getByRole("img", { name: "Ferrari SF-25 static reference" }).waitFor();
-      assert.equal(await page.getByRole("button", { name: "Zoom in", exact: true }).count(), 0);
+      await page.getByRole("group", { name: "2D illustration zoom controls" }).waitFor();
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
     }
     assert.deepEqual(errors, []);

@@ -19,16 +19,24 @@ function ExplodedViewLayer({
   season,
   expanded,
   onToggle,
+  imageControls = false,
 }: {
   constructorSlug: string;
   season: number;
   expanded: boolean;
   onToggle: () => void;
+  imageControls?: boolean;
 }) {
   const [available, setAvailable] = useState(true);
+  const [loaded, setLoaded] = useState(false);
+  const [zoom, setZoom] = useState(1);
   const url = `/exploded-views/${season}/${constructorSlug}.png`;
 
-  useEffect(() => setAvailable(true), [url]);
+  useEffect(() => {
+    setAvailable(true);
+    setLoaded(false);
+    setZoom(1);
+  }, [url]);
 
   if (!available) {
     return (
@@ -49,8 +57,21 @@ function ExplodedViewLayer({
       >
         {expanded ? "Collapse" : "Expand"}
       </button>
-      <img src={url} alt="Exploded technical view" loading="eager" onError={() => setAvailable(false)} />
-      <figcaption>Exploded view · subsystems pulled apart along assembly axes</figcaption>
+      {imageControls ? (
+        <>
+          <div style={{ overflow: "auto" }} tabIndex={0} role="region" aria-label="Exploded illustration viewport">
+            <img src={url} alt="Exploded technical view" loading="eager" onLoad={() => setLoaded(true)} onError={() => setAvailable(false)} style={{ width: `${zoom * 100}%`, maxWidth: "none" }} />
+          </div>
+          {loaded ? (
+            <div role="group" aria-label="2D illustration zoom controls">
+              <button type="button" className="camera-preset" aria-label="Zoom in" disabled={zoom >= 3} onClick={() => setZoom((value) => Math.min(3, value + 0.25))}>+</button>
+              <button type="button" className="camera-preset" aria-label="Zoom out" disabled={zoom <= 1} onClick={() => setZoom((value) => Math.max(1, value - 0.25))}>-</button>
+              <button type="button" className="camera-preset" aria-label="Reset view" onClick={() => setZoom(1)}>Reset</button>
+            </div>
+          ) : null}
+        </>
+      ) : <img src={url} alt="Exploded technical view" loading="eager" onError={() => setAvailable(false)} />}
+      <figcaption>{imageControls ? "2D illustration · " : ""}Exploded view · subsystems pulled apart along assembly axes</figcaption>
     </figure>
   );
 }
@@ -615,13 +636,16 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
             ) : null}
 
             {/* Exploded-view annotation pin overlay shown only in Inspect mode. */}
-            {interactionMode === "inspect" && modelReady && !modelLoadFailed ? (
+            {interactionMode === "inspect" && (webglUnavailable || (modelReady && !modelLoadFailed)) ? (
               <div
                 className={`car-viewer-inspect-overlay${explodedExpanded ? " car-viewer-inspect-overlay--expanded" : ""}`}
+                style={webglUnavailable ? { position: "relative", inset: "auto", width: "100%", boxSizing: "border-box" } : undefined}
               >
                 <p className="car-viewer-inspect-overlay__title">Inspect mode</p>
-                <p>Click any hotspot to lock the camera. Orbit drag is disabled so the click lands cleanly.</p>
+                <p>{webglUnavailable ? "Inspect the 2D technical illustration or select a component from the list. Image zoom does not rotate the car." : "Click any hotspot to lock the camera. Orbit drag is disabled so the click lands cleanly."}</p>
                 <ExplodedViewLayer
+                  key={selected.id}
+                  imageControls={webglUnavailable}
                   constructorSlug={selected.constructorSlug}
                   season={selected.season}
                   expanded={explodedExpanded}
