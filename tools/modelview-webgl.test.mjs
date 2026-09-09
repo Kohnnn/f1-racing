@@ -30,6 +30,7 @@ for (const registered of [true, false]) {
 console.log("2 loader cache regression cases passed.");
 if (process.argv.includes("--loader-only")) process.exit(0);
 const { chromium, firefox } = await import("playwright");
+const { assertCapabilityInspection } = await import("./release-gates.mjs");
 
 const out = path.resolve(process.env.F1_CANDIDATE_ROOT || ".", "apps/web/out");
 let passed = 0;
@@ -141,6 +142,17 @@ for (const [name, engine, blocked] of [["chromium-no-webgl", chromium, true], ["
       await page.getByRole("img", { name: "Ferrari SF-25 static reference" }).waitFor();
       await page.getByRole("group", { name: "2D illustration zoom controls" }).waitFor();
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true);
+      if (name === "firefox-no-webgl") {
+        page.setDefaultTimeout(1500);
+        await page.evaluate(() => {
+          Object.defineProperty(window, "__releaseWebglProbes", { get: () => window.webglProbeCount });
+          const retry = [...document.querySelectorAll("button")].find((button) => button.textContent === "Retry 3D viewer");
+          retry.addEventListener("click", (event) => event.stopImmediatePropagation(), true);
+        });
+        await assert.rejects(assertCapabilityInspection(page), /did not recheck WebGL/);
+        await retry.evaluate((button) => { button.disabled = true; });
+        await assert.rejects(assertCapabilityInspection(page), /focus|Timeout/);
+      }
     }
     assert.deepEqual(errors, []);
     passed += 1;

@@ -5,6 +5,7 @@ import path from "node:path";
 import { localizeModelViewerFallbacks } from "./build-static.mjs";
 import {
   allowedNetworkOrigins,
+  assertModelProbeCompleteness,
   assertResponseHeaderPolicy,
   auditEvidence,
   cacheControlMatches,
@@ -28,6 +29,19 @@ import {
   validateRedirectTarget,
   validateTargetUrl,
 } from "./release-gates.mjs";
+
+const fallbackProbe = { name: "model-capability-fallback", capability: false, injected: 0, retryChecked: true, inspectionChecked: true, status: "passed" };
+const networkProbes = ["model-script", "model-glb"].map((name) => ({ name, capability: true, injected: 1, recovered: true, status: "passed" }));
+assert.throws(() => assertModelProbeCompleteness([fallbackProbe], undefined), /coverage/);
+assert.throws(() => assertModelProbeCompleteness([...networkProbes, networkProbes[0]], true), /coverage/);
+assert.doesNotThrow(() => assertModelProbeCompleteness([fallbackProbe], false));
+assert.doesNotThrow(() => assertModelProbeCompleteness(networkProbes, true));
+for (const results of [[], [fallbackProbe], networkProbes.slice(1), networkProbes.map((probe) => ({ ...probe, injected: 0 })), networkProbes.map((probe) => ({ ...probe, recovered: false }))]) {
+  assert.throws(() => assertModelProbeCompleteness(results, true), /coverage/);
+}
+for (const results of [[], networkProbes, [{ ...fallbackProbe, injected: 1 }], [{ ...fallbackProbe, retryChecked: false }], [{ ...fallbackProbe, inspectionChecked: false }], [{ ...fallbackProbe, capability: true }]]) {
+  assert.throws(() => assertModelProbeCompleteness(results, false), /coverage/);
+}
 
 const deployId = "6a62d1baea5f475a562d2f46";
 const deployPermalink = `https://${deployId}--f1-demo.netlify.app`;
