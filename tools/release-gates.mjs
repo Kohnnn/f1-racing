@@ -664,7 +664,12 @@ export async function browserFailureProbes(browser, baseUrl, replayPath, evidenc
     page.on("pageerror", (error) => diagnostics.push({ type: "pageerror", text: error.message }));
     page.on("crash", () => diagnostics.push({ type: "crash" }));
     await page.route("**/*", async (route) => {
-      const pathname = new URL(route.request().url()).pathname;
+      const requestUrl = new URL(route.request().url());
+      if (!["http:", "https:"].includes(requestUrl.protocol)) {
+        await route.continue();
+        return;
+      }
+      const pathname = requestUrl.pathname;
       let matches = pathname.includes(probe.match);
       if (probe.name === "model-script" && matches) {
         const body = artifactRoot
