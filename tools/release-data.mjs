@@ -717,6 +717,11 @@ async function auditSession(paths, ref, sourceSession, provenance, errors, now) 
   if (stints) {
     if (stints.sessionKey !== ref.sessionKey || stints.trackId !== ref.trackId) fail(errors, `${relativeBase}/stints.json: sessionKey or trackId mismatch.`);
     requireUnique(stints.drivers.map((driver) => driver.driverCode), errors, `${relativeBase}/stints.json driverCode`);
+    if (!sameUniqueStrings(stints.drivers.map((driver) => driver.driverCode), driverCodes)) fail(errors, `${relativeBase}/stints.json: driver coverage does not match drivers.json.`);
+    for (const lap of laps) {
+      const owners = stints.drivers.find((driver) => driver.driverCode === lap.driverCode)?.stints.filter((stint) => lap.lapNumber >= stint.lapStart && lap.lapNumber <= stint.lapEnd) ?? [];
+      if (owners.length !== 1 || owners[0].stintNumber !== lap.stint) fail(errors, `${relativeBase}/stints.json: ${lap.driverCode} lap ${lap.lapNumber} requires exactly one matching stint coverage.`);
+    }
     for (const driver of stints.drivers) {
       if (!driverCodes.includes(driver.driverCode)) fail(errors, `${relativeBase}/stints.json: unknown driver ${driver.driverCode}.`);
       requireUnique(driver.stints.map((stint) => stint.stintNumber), errors, `${relativeBase}/stints.json ${driver.driverCode} stintNumber`);
@@ -829,6 +834,7 @@ async function auditSession(paths, ref, sourceSession, provenance, errors, now) 
           fail(errors, `${relativeBase}/${entry.path}: frame driver coverage does not match replay metadata.`);
         }
         for (const [driverCode, driver] of Object.entries(frame.drivers)) {
+          if (driver.position === null && !(Array.isArray(resultsPayload) && resultsPayload.some((result) => result.driverCode === driverCode && result.position === null && ["DNF", "DNS"].includes(result.status)))) fail(errors, `${relativeBase}/${entry.path}: null position requires unclassified result evidence.`);
           const replayDriver = replayDriversByCode.get(driverCode);
           if (!replayDriver
             || driver.driverCode !== driverCode

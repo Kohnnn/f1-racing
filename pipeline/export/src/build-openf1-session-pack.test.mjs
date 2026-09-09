@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
 import { generationTimestamp, normalizeTimestamp } from "../../normalize/src/normalize-session.mjs";
-import { buildStintTimelines, enrichReplayLapsWithStints, groupByDriverNumber } from "./build-openf1-replay-pack.mjs";
+import { buildReplayLaps, buildStintTimelines, enrichReplayLapsWithStints, groupByDriverNumber } from "./build-openf1-replay-pack.mjs";
 import { buildLapRecords, buildStintPack, normalizeResults, normalizeStints, normalizeWeather } from "./build-openf1-session-pack.mjs";
 
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { cachedResults, cachedEmptyStints } from "./cached-unclassified.fixture.mjs";
+import { cachedResults, cachedEmptyStints, cachedUntimedLaps } from "./cached-unclassified.fixture.mjs";
 import { SessionResultSchema, StintPackSchema } from "../../../packages/schemas/src/index.js";
 
 if (process.env.F1_CACHED_RESPONSES) {
-  for (const fixture of [...cachedResults, ...cachedEmptyStints]) {
+  for (const fixture of [...cachedResults, ...cachedEmptyStints, ...cachedUntimedLaps]) {
     const body = await readFile(`${process.env.F1_CACHED_RESPONSES}/${fixture.pointer}`);
     assert.equal(createHash("sha256").update(body).digest("hex"), fixture.sha256);
     const rows = JSON.parse(body);
@@ -108,9 +108,11 @@ assert.throws(() => normalizeStints([
 ]), /overlapping/);
 
 for (const fixture of cachedEmptyStints) {
-  assert.deepEqual(normalizeStints(fixture.rows), []);
+  assert.throws(() => normalizeStints(fixture.rows), /raw laps/);
+  assert.throws(() => normalizeStints(fixture.rows, [{ driver_number: fixture.rows[0].driver_number, lap_number: 1, lap_duration: null }]), /stint coverage/);
+  assert.deepEqual(normalizeStints(fixture.rows, []), []);
   const driver = { driverCode: "TST", driverNumber: fixture.rows[0].driver_number, team: "Test" };
-  const pack = buildStintPack("test", fixture.rows[0].session_key, [driver], normalizeStints(fixture.rows), []);
+  const pack = buildStintPack("test", fixture.rows[0].session_key, [driver], normalizeStints(fixture.rows, []), []);
   assert.deepEqual(pack.drivers.map(row => row.stints), [[]]);
   assert.equal(StintPackSchema.safeParse(pack).success, true);
   assert.throws(() => buildLapRecords([{ driver_number: driver.driverNumber, lap_number: 1, lap_duration: 90 }], new Map(), []), /stint coverage/);
@@ -118,6 +120,33 @@ for (const fixture of cachedEmptyStints) {
     assert.throws(() => normalizeStints([{ ...fixture.rows[0], ...change }]), /Stint lap/);
   }
 }
+
+for (const fixture of cachedUntimedLaps) {
+  const stints = cachedEmptyStints.find(entry => entry.rows[0].session_key === fixture.rows[0].session_key);
+  assert.throws(() => normalizeStints(stints.rows, fixture.rows), /unavailable stint coverage/);
+  assert.throws(() => buildLapRecords(fixture.rows, new Map(), []), /stint coverage/);
+}
+
+const partialRaw = [{ driver_number: 4, lap_number: 1, lap_duration: null, duration_sector_1: 22.5 }];
+const partialStints = [{ driver_number: 4, stint_number: 1, lap_start: 1, lap_end: 1, compound: "MEDIUM", tyre_age_at_start: 0 }];
+assert.throws(() => normalizeStints([], partialRaw), /stint coverage/);
+assert.throws(() => normalizeStints(partialStints, [{ lap_number: 1, lap_duration: null }]), /Lap driver number/);
+assert.throws(() => buildLapRecords(partialRaw, new Map(), []), /stint coverage/);
+assert.throws(() => buildLapRecords(partialRaw, new Map(), [...partialStints, ...partialStints]), /stint coverage/);
+assert.equal(buildReplayLaps(partialRaw, [{ driverNumber: 4, driverCode: "NOR" }])[0].lapTime, null);
+const partialRecords = buildLapRecords(partialRaw, new Map(), partialStints);
+assert.equal(partialRecords.length, 1);
+assert.equal(partialRecords[0].lapTime, null);
+assert.equal(partialRecords[0].sector1, 22.5);
+assert.equal(partialRecords[0].sector2, null);
+assert.equal(partialRecords[0].stint, 1);
+assert.equal(partialRecords[0].isFastest, false);
+assert.deepEqual(buildLapRecords([], new Map(), []), []);
+const partialPack = buildStintPack("test", 1, [{ driverNumber: 4, driverCode: "NOR", team: "Test" }], partialStints, partialRecords.map(lap => ({ ...lap, driverCode: "NOR" })));
+assert.equal(partialPack.drivers[0].stints.length, 1);
+assert.equal(partialPack.drivers[0].stints[0].averageLapTime, null);
+assert.equal(partialPack.drivers[0].stints[0].trendPerLap, null);
+assert.equal(StintPackSchema.safeParse(partialPack).success, true);
 
 assert.deepEqual([...groupByDriverNumber([
   { driver_number: 81, date: "later" },

@@ -21,5 +21,13 @@ export const cachedEmptyStints = [
     { meeting_key: 1240, session_key: 9558, stint_number: 1, driver_number: 10, lap_start: null, lap_end: null, compound: "MEDIUM", tyre_age_at_start: 0 },
   ] },
 ];
+export const cachedUntimedLaps = [
+  { pointer: "c1b3c15bc19e2b7878c3716c38fc1a349bbb3fb9f168f2d81c2e88a3526af795/response.body", sha256: "5e078cdfa96999db6a769c6425612a3f1bbfbfad9b86bc47372b19f773ce520f", rows: [
+    { meeting_key: 1252, session_key: 9662, driver_number: 11, lap_number: 1, date_start: "2024-12-08T13:03:35.033000+00:00", duration_sector_1: null, duration_sector_2: 50.797, duration_sector_3: null, i1_speed: 283, i2_speed: 128, is_pit_out_lap: false, lap_duration: null, segments_sector_1: [2048,2049,2049,2049,2049], segments_sector_2: [2049,2049,2049,2049,2049,2049,2049,2049,2049], segments_sector_3: [2048,2048,2048,2048,2048,2048,2048,2048,2048], st_speed: 305 },
+  ] },
+  { pointer: "5ebf7c1f0e1f82655f1baab332cbcd8c85e1fccdbe22ee225493faf25f94e421/response.body", sha256: "fe4b7bd936014ee0bfe10b81fa67a992517367a5945d66db70f6e37f26327371", rows: [
+    { meeting_key: 1240, session_key: 9558, driver_number: 10, lap_number: 1, date_start: "2024-07-07T14:03:12.540000+00:00", duration_sector_1: null, duration_sector_2: null, duration_sector_3: null, i1_speed: null, i2_speed: null, is_pit_out_lap: false, lap_duration: null, segments_sector_1: [2048,2048,2048,2048,2048,2048,2048], segments_sector_2: [2048,2048,2048,2048,2048,2048,2048,2048,2048,2048], segments_sector_3: [2048,2048,2048,2048,2048,2064,2064,2064], st_speed: null },
+  ] },
+];
 export const cachedRoot = "/tmp/opencode/f1-release-attempt/continuation/tmp/f1-racing-release-candidates/ca99f6569553/candidate-qm7JId/private/openf1-responses";
 export const provenance = "Bounded rows from private cached response bodies in candidate-qm7JId; hashes identify cached bodies, not independently verified original upstream responses.";

@@ -106,7 +106,7 @@ async function createOwnedRoot() {
   return root;
 }
 
-async function seedCandidate({ fullPublic = false, stale = false } = {}) {
+async function seedCandidate({ fullPublic = false, stale = false, noLapDns = false } = {}) {
   const root = await createOwnedRoot();
   const paths = candidatePaths(root);
   const base = "packs/seasons/2026/test-grand-prix/race";
@@ -220,6 +220,14 @@ async function seedCandidate({ fullPublic = false, stale = false } = {}) {
     [`${base}/replay.frames/chunk-001.json`]: { index: 1, fromTime: 2, toTime: 3, frames: replayFrames.slice(2, 4) },
     [`${base}/replay.frames/chunk-002.json`]: { index: 2, fromTime: 4, toTime: 5, frames: replayFrames.slice(4, 6) },
   };
+  if (noLapDns) {
+    files[`${base}/summary.json`].drivers.push("DNS");
+    files[`${base}/drivers.json`].push({ driverCode: "DNS", driverNumber: 3, fullName: "No Laps", team: "Test", bestLap: 0, bestLapTime: 0, tyreCompound: "UNKNOWN", stintCount: 0 });
+    files[`${base}/results.json`].push({ driverCode: "DNS", position: null, status: "DNS" });
+    files[`${base}/stints.json`].drivers.push({ driverCode: "DNS", team: "Test", stints: [] });
+    replay.drivers.push({ driverCode: "DNS", driverNumber: 3, fullName: "No Laps", team: "Test", teamColor: "#000000" });
+    for (const frame of replayFrames) frame.drivers.DNS = { ...frame.drivers.TST, driverCode: "DNS", driverNumber: 3, position: null, lap: 0 };
+  }
   delete files[`${base}/replay.meta.json`].frames;
   for (const [relativePath, value] of Object.entries(files)) await writeJson(path.join(paths.publicData, relativePath), value);
   await cp(path.join(workspaceRoot, "data", "packs", "sims"), path.join(paths.publicData, "packs", "sims"), { recursive: true });
@@ -262,10 +270,10 @@ async function seedCandidate({ fullPublic = false, stale = false } = {}) {
         observedStartAt: sourceEventStartAt,
         observedEndAt: sourceEventEndAt,
         frameCount: 6,
-        expectedDriverCount: 2,
-        observedDriverCount: 2,
-        expectedResultCount: 2,
-        observedResultCount: 2,
+        expectedDriverCount: noLapDns ? 3 : 2,
+        observedDriverCount: noLapDns ? 3 : 2,
+        expectedResultCount: noLapDns ? 3 : 2,
+        observedResultCount: noLapDns ? 3 : 2,
         limitations: [],
         requiredArtifacts: Object.fromEntries(requiredPaths.map((relativePath) => [relativePath, "complete"])),
       },
@@ -360,6 +368,47 @@ assert.deepEqual(normalizeReleaseTime(undefined, now), { now, generatedAt: nowTe
 assert.throws(() => normalizeReleaseTime("not-a-date"), /Invalid --now timestamp/);
 assert.doesNotThrow(() => assertReleaseNodeVersion("22.18.0"));
 assert.throws(() => assertReleaseNodeVersion("24.1.0"), /requires Node\.js 22/);
+
+const noLapDnsCandidate = await seedCandidate({ noLapDns: true });
+try {
+  await auditCandidate(noLapDnsCandidate, { now });
+} finally {
+  await rm(noLapDnsCandidate, { recursive: true, force: true });
+}
+
+for (const invalid of ["missing-driver", "empty-stints", "null-duration", "wrong-stint", "partial-valid"]) {
+  const candidate = await seedCandidate();
+  try {
+    const paths = candidatePaths(candidate);
+    for (const dataRoot of [paths.canonicalData, paths.publicData, path.join(paths.artifactRoot, "data")]) {
+      const edits = {
+        "stints.json": value => {
+          if (invalid === "missing-driver") value.drivers.pop();
+          else if (!["wrong-stint", "partial-valid"].includes(invalid)) value.drivers[1].stints = [];
+          if (invalid === "partial-valid") Object.assign(value.drivers[1].stints[0], { lapTimes: [], averageLapTime: null, trendPerLap: null });
+        },
+        "laps.json": value => {
+          if (["null-duration", "partial-valid"].includes(invalid)) value.filter(lap => lap.driverCode === "ALT").forEach(lap => { lap.lapTime = null; });
+          if (invalid === "wrong-stint") value[0].stint = 99;
+        },
+      };
+      for (const [file, mutate] of Object.entries(edits)) {
+        await mutateJson(path.join(dataRoot, sessionBase, file), mutate);
+        const hash = await sha256(path.join(dataRoot, sessionBase, file));
+        await mutateJson(path.join(dataRoot, "release", "provenance-ledger.json"), ledger => {
+          const session = ledger.sessions[0];
+          session.artifacts[`${sessionBase}/${file}`] = hash;
+          session.packSha256 = digest(`${JSON.stringify(Object.keys(session.artifacts).sort().map(key => [key, session.artifacts[key]]))}\n`);
+        });
+      }
+    }
+    await finalizeCandidate(candidate, { sourceCommitValue: "a".repeat(40), generatedAt: "2026-07-01T01:04:00.000Z", gateEvidence: candidateGateEvidence });
+    if (invalid === "partial-valid") await auditCandidate(candidate, { now });
+    else await assert.rejects(() => auditCandidate(candidate, { now }), /stint.*coverage/);
+  } finally {
+    await rm(candidate, { recursive: true, force: true });
+  }
+}
 
 const root = await seedCandidate();
 try {
