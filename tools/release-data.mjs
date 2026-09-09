@@ -866,6 +866,10 @@ async function auditSession(paths, ref, sourceSession, provenance, errors, now) 
   if (replayLaps && !sameUniqueStrings(replayLaps.map((lap) => `${lap.driverCode}:${lap.lapNumber}`), laps.map((lap) => `${lap.driverCode}:${lap.lapNumber}`))) {
     fail(errors, `${relativeBase}/replay.laps.json: driver/lap coverage does not match laps.json.`);
   }
+  for (const replayLap of replayLaps ?? []) {
+    const lap = laps.find((entry) => entry.driverCode === replayLap.driverCode && entry.lapNumber === replayLap.lapNumber);
+    if (lap && lap.lapTime !== replayLap.lapTime) fail(errors, `${relativeBase}/replay.laps.json: ${replayLap.driverCode} lap ${replayLap.lapNumber} timing does not match laps.json.`);
+  }
   const expectedDriverCodes = replayMeta?.drivers.map((driver) => driver.driverCode) ?? drivers.map((driver) => driver.driverCode);
   const observedDriverCodes = [...new Set(frames.flatMap((frame) => Object.keys(frame.drivers)))];
   const resultCount = Array.isArray(resultsPayload) ? resultsPayload.length : 0;

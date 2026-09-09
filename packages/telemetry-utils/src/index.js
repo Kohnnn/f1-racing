@@ -1,4 +1,5 @@
 export function formatLapTime(seconds) {
+  if (seconds === null) return "Unavailable";
   const totalMs = Math.round(seconds * 1000);
   const minutes = Math.floor(totalMs / 60000);
   const remainingMs = totalMs % 60000;

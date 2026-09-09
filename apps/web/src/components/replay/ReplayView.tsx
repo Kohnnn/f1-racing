@@ -1068,11 +1068,12 @@ export function ReplayView({ replay, availability, manifest, summary, compare, i
 
     const fastestFor = (code: string) =>
       lapRecords
-        .filter((lap) => lap.driverCode === code && Number.isFinite(lap.lapTime) && lap.lapTime > 0)
+        .filter((lap): lap is LapRecord & { lapTime: number } => lap.driverCode === code && lap.lapTime !== null && Number.isFinite(lap.lapTime) && lap.lapTime > 0)
         .sort((a, b) => a.lapTime - b.lapTime)[0] ?? null;
     const leftLap = fastestFor(leftCode);
     const rightLap = fastestFor(rightCode);
-    if (!leftLap || !rightLap) return null;
+    if (!leftLap || !rightLap || leftLap.sector1 === null || leftLap.sector2 === null || leftLap.sector3 === null
+      || rightLap.sector1 === null || rightLap.sector2 === null || rightLap.sector3 === null) return null;
 
     const leftSectors = [leftLap.sector1, leftLap.sector2, leftLap.sector3];
     const rightSectors = [rightLap.sector1, rightLap.sector2, rightLap.sector3];

@@ -376,7 +376,7 @@ try {
   await rm(noLapDnsCandidate, { recursive: true, force: true });
 }
 
-for (const invalid of ["missing-driver", "empty-stints", "null-duration", "wrong-stint", "partial-valid"]) {
+for (const invalid of ["missing-driver", "empty-stints", "null-duration", "wrong-stint", "partial-valid", "timing-null-mismatch", "timing-value-mismatch", "timing-retained-null-mismatch"]) {
   const candidate = await seedCandidate();
   try {
     const paths = candidatePaths(candidate);
@@ -384,12 +384,17 @@ for (const invalid of ["missing-driver", "empty-stints", "null-duration", "wrong
       const edits = {
         "stints.json": value => {
           if (invalid === "missing-driver") value.drivers.pop();
-          else if (!["wrong-stint", "partial-valid"].includes(invalid)) value.drivers[1].stints = [];
+          else if (!["wrong-stint", "partial-valid", "timing-null-mismatch", "timing-value-mismatch", "timing-retained-null-mismatch"].includes(invalid)) value.drivers[1].stints = [];
           if (invalid === "partial-valid") Object.assign(value.drivers[1].stints[0], { lapTimes: [], averageLapTime: null, trendPerLap: null });
         },
         "laps.json": value => {
-          if (["null-duration", "partial-valid"].includes(invalid)) value.filter(lap => lap.driverCode === "ALT").forEach(lap => { lap.lapTime = null; });
+          if (["null-duration", "partial-valid", "timing-retained-null-mismatch"].includes(invalid)) value.filter(lap => lap.driverCode === "ALT").forEach(lap => { lap.lapTime = null; });
           if (invalid === "wrong-stint") value[0].stint = 99;
+        },
+        "replay.laps.json": value => {
+          if (invalid === "partial-valid") value.filter(lap => lap.driverCode === "ALT").forEach(lap => { lap.lapTime = null; });
+          if (invalid === "timing-null-mismatch") value[2].lapTime = null;
+          if (invalid === "timing-value-mismatch") value[2].lapTime = 2.5;
         },
       };
       for (const [file, mutate] of Object.entries(edits)) {
@@ -404,7 +409,7 @@ for (const invalid of ["missing-driver", "empty-stints", "null-duration", "wrong
     }
     await finalizeCandidate(candidate, { sourceCommitValue: "a".repeat(40), generatedAt: "2026-07-01T01:04:00.000Z", gateEvidence: candidateGateEvidence });
     if (invalid === "partial-valid") await auditCandidate(candidate, { now });
-    else await assert.rejects(() => auditCandidate(candidate, { now }), /stint.*coverage/);
+    else await assert.rejects(() => auditCandidate(candidate, { now }), invalid.startsWith("timing-") ? /timing.*match/ : /stint.*coverage/);
   } finally {
     await rm(candidate, { recursive: true, force: true });
   }

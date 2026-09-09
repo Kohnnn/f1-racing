@@ -2,7 +2,8 @@ import { formatDeltaMs, formatLapTime, type PitCycleResult } from "@f1-racing/te
 import type { ComparePack, ReplayPack, StintPack, StrategyPack } from "@/lib/data";
 import { getCircuitArt } from "@/lib/art";
 
-function buildTrendLabel(value: number) {
+function buildTrendLabel(value: number | null) {
+  if (value === null) return "Unavailable";
   if (value > 0.08) {
     return "heavy fade";
   }
@@ -93,7 +94,7 @@ export function ReplayStintPanel({ stintPack, legacyHref, embedded = false }: { 
                 </div>
                 <div className="metric-chip">
                   <span>Average</span>
-                  <strong>{formatLapTime(latestStint.averageLapTime)}</strong>
+                  <strong>{latestStint.averageLapTime === null ? "Unavailable" : formatLapTime(latestStint.averageLapTime)}</strong>
                 </div>
                 <div className="metric-chip">
                   <span>Trend</span>
@@ -101,7 +102,7 @@ export function ReplayStintPanel({ stintPack, legacyHref, embedded = false }: { 
                 </div>
               </div>
               <p className="replay-stint-card__copy">
-                Laps {latestStint.lapStart}-{latestStint.lapEnd} · tyre age at start {latestStint.tyreAgeAtStart} · {latestStint.trendPerLap.toFixed(3)} s/lap
+                Laps {latestStint.lapStart}-{latestStint.lapEnd} · tyre age at start {latestStint.tyreAgeAtStart} · {latestStint.trendPerLap === null ? "Unavailable" : `${latestStint.trendPerLap.toFixed(3)} s/lap`}
               </p>
               <StintDegCurve stints={driver.stints} />
             </article>
@@ -362,11 +363,11 @@ export function ReplayStrategyPanel({ strategy, stintPack, selectedDrivers = [] 
                   </div>
                   <div className="metric-chip">
                     <span>Avg pace</span>
-                    <strong>{avg ? formatLapTime(avg) : "-"}</strong>
+                    <strong>{avg === null ? "Unavailable" : formatLapTime(avg)}</strong>
                   </div>
                   <div className="metric-chip">
                     <span>Trend / lap</span>
-                    <strong>{latestStint.trendPerLap > 0 ? "+" : ""}{latestStint.trendPerLap.toFixed(3)}s</strong>
+                    <strong>{latestStint.trendPerLap === null ? "Unavailable" : `${latestStint.trendPerLap > 0 ? "+" : ""}${latestStint.trendPerLap.toFixed(3)}s`}</strong>
                   </div>
                 </div>
                 <p className="replay-stint-card__copy">
