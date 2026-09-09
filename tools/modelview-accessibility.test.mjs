@@ -180,6 +180,8 @@ try {
   await press(page.getByRole("button", { name: "Compare side-by-side", exact: true }));
   assert.equal(await page.getByRole("button", { name: "Hide compare", exact: true }).getAttribute("aria-pressed"), "true");
   const primaryViewer = page.locator("model-viewer").first();
+  await press(page.getByRole("button", { name: "Orbit", exact: true }));
+  assert.equal(await page.getByRole("button", { name: "Orbit", exact: true }).getAttribute("aria-pressed"), "true");
   await press(page.getByRole("button", { name: "Zoom in", exact: true }));
   assert.notEqual(await primaryViewer.evaluate((node) => node.cameraOrbit), "30deg 75deg 2.4m");
   await press(page.getByRole("button", { name: "Reset view", exact: true }));

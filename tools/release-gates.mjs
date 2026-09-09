@@ -554,19 +554,109 @@ async function assertVisibleFocus(locator, label) {
   if (!visible) throw new Error(`${label} lacks visible keyboard focus.`);
 }
 
-async function browserFailureProbes(browser, baseUrl, replayPath, evidence, browserName, artifactRoot = null) {
+export function assertModelProbeCompleteness(results, capability) {
+  if (typeof capability !== "boolean") throw new Error("Model failure-probe coverage requires measured capability.");
+  const expected = capability ? ["model-script", "model-glb"] : ["model-capability-fallback"];
+  const models = results.filter((result) => result.name.startsWith("model-"));
+  if (models.length !== expected.length || expected.some((name) => !models.some((result) => result.name === name && result.status === "passed" && result.capability === capability && (capability ? result.injected > 0 && result.recovered === true : result.injected === 0 && result.retryChecked === true && result.inspectionChecked === true)))) {
+    throw new Error("Model failure-probe coverage does not match measured capability.");
+  }
+}
+
+export async function assertCapabilityInspection(page) {
+  await page.getByRole("status").filter({ hasText: "WebGL 2 is unavailable. Showing a static reference image" }).waitFor();
+  const before = await page.evaluate(() => window.__releaseWebglProbes);
+  const retry = page.getByRole("button", { name: "Retry 3D viewer", exact: true });
+  await retry.focus();
+  await assertVisibleFocus(retry, "Modelview retry");
+  await retry.press("Enter");
+  await page.getByText("WebGL 2 is still unavailable. 2D inspection remains available.", { exact: true }).waitFor();
+  if (await retry.isDisabled() || await page.evaluate(() => window.__releaseWebglProbes) <= before) throw new Error("Capability retry did not recheck WebGL.");
+  if (await page.locator("model-viewer, .car-viewer-loading__spinner").count()) throw new Error("Capability fallback initialized 3D or left a spinner.");
+  const inspect = page.getByRole("button", { name: "Inspect", exact: true });
+  await inspect.focus();
+  await assertVisibleFocus(inspect, "Modelview Inspect");
+  await inspect.press("Enter");
+  if (await inspect.getAttribute("aria-pressed") !== "true") throw new Error("Inspect did not activate.");
+  const component = page.locator(".car-focus-item").first();
+  await assertVisibleFocus(component, "Modelview component");
+  await component.press("Enter");
+  if (await component.getAttribute("aria-pressed") !== "true" || !await page.locator(".car-inspector-copy").first().isVisible()) throw new Error("Component inspection did not activate.");
+  const image = page.getByAltText("Exploded technical view");
+  await image.waitFor({ state: "visible" });
+  await page.waitForFunction(() => {
+    const image = document.querySelector('img[alt="Exploded technical view"]');
+    return image instanceof HTMLImageElement && image.complete && image.naturalWidth > 0 && /\/exploded-views\//.test(image.src);
+  });
+  const width = await image.evaluate((node) => node.getBoundingClientRect().width);
+  await page.getByRole("button", { name: "Zoom in", exact: true }).press("Enter");
+  if (await image.evaluate((node) => node.getBoundingClientRect().width) <= width) throw new Error("2D zoom did not enlarge the illustration.");
+  await page.getByRole("button", { name: "Reset view", exact: true }).press("Enter");
+  if (await image.evaluate((node) => node.getBoundingClientRect().width) !== width) throw new Error("2D reset did not restore illustration width.");
+  const paused = page.locator(".wind-tunnel__action-button", { hasText: "Paused" });
+  await paused.waitFor({ state: "visible" });
+  if (!await paused.isDisabled()) throw new Error("Capability fallback ignored reduced motion.");
+}
+
+export function assertModelCapability(capability, fallback) {
+  if (typeof capability !== "boolean") throw new Error("Model capability was not measured.");
+  if (capability && fallback) throw new Error("App reported no WebGL despite native WebGL 2 support.");
+}
+
+export async function installNativeWebglProbe(page) {
+  let captured = false;
+  let resolveCapability;
+  const capability = new Promise((resolve) => { resolveCapability = resolve; });
+  await page.exposeBinding("__captureReleaseWebgl", ({ frame }, value) => {
+    if (!captured && frame === page.mainFrame() && typeof value === "boolean") {
+      captured = true;
+      resolveCapability(value);
+    }
+  });
+  await page.addInitScript(() => {
+    if (window !== window.top) return;
+    const original = HTMLCanvasElement.prototype.getContext;
+    const canvas = document.createElement("canvas");
+    canvas.width = 1;
+    canvas.height = 1;
+    let supported = false;
+    try {
+      const context = original.call(canvas, "webgl2");
+      supported = Boolean(context);
+      context?.getExtension("WEBGL_lose_context")?.loseContext();
+    } finally {
+      window.__captureReleaseWebgl(supported);
+    }
+    window.__releaseWebglProbes = 0;
+    HTMLCanvasElement.prototype.getContext = function (type, ...args) {
+      if (type === "webgl2") window.__releaseWebglProbes += 1;
+      return original.call(this, type, ...args);
+    };
+  });
+  return () => capability;
+}
+
+export async function browserFailureProbes(browser, baseUrl, replayPath, evidence, browserName, artifactRoot = null) {
   const probes = [
     ...(replayPath ? [
       { name: "replay-chunk", route: replayPath, match: "/replay.frames/" },
       { name: "replay-3d", route: replayPath, match: "/replay-3d/" },
     ] : []),
     { name: "model-glb", route: "/cars/current-spec/", match: "/models/" },
+    { name: "model-script", route: "/cars/current-spec/", match: "/_next/static/chunks/" },
   ];
   const results = [];
+  let modelCapability;
   for (const probe of probes) {
+    if (probe.name === "model-script" && modelCapability === false) break;
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, reducedMotion: "reduce" });
     const diagnostics = [];
     let injected = 0;
+    const injectedScriptUrls = new Set();
+    let recovering = false;
+    let recoveryStart = Infinity;
+    let result = { name: probe.name };
+    const measuredCapability = await installNativeWebglProbe(page);
     page.on("request", (request) => diagnostics.push({ type: "request", method: request.method(), url: request.url() }));
     page.on("response", (response) => diagnostics.push({ type: "response", status: response.status(), url: response.url() }));
     page.on("requestfailed", (request) => diagnostics.push({ type: "requestfailed", text: request.failure()?.errorText || "failed", url: request.url() }));
@@ -574,8 +664,22 @@ async function browserFailureProbes(browser, baseUrl, replayPath, evidence, brow
     page.on("pageerror", (error) => diagnostics.push({ type: "pageerror", text: error.message }));
     page.on("crash", () => diagnostics.push({ type: "crash" }));
     await page.route("**/*", async (route) => {
-      if (new URL(route.request().url()).pathname.includes(probe.match)) {
+      const requestUrl = new URL(route.request().url());
+      if (!["http:", "https:"].includes(requestUrl.protocol)) {
+        await route.continue();
+        return;
+      }
+      const pathname = requestUrl.pathname;
+      let matches = pathname.includes(probe.match);
+      if (probe.name === "model-script" && matches) {
+        const body = artifactRoot
+          ? await readFile(path.join(artifactRoot, pathname.slice(1)), "utf8")
+          : await (await route.fetch()).text();
+        matches = body.includes("model-viewer") && body.includes("dracoDecoderLocation") && body.includes("customElements.define");
+      }
+      if (!recovering && matches) {
         injected += 1;
+        if (probe.name === "model-script") injectedScriptUrls.add(route.request().url());
         await route.fulfill({ status: 503, contentType: "text/plain", body: "release gate injected failure" });
         return;
       }
@@ -611,24 +715,47 @@ async function browserFailureProbes(browser, baseUrl, replayPath, evidence, brow
         await twoD.waitFor({ state: "visible", timeout: 10000 });
         if (await twoD.getAttribute("aria-pressed") !== "true") throw new Error("Replay 3D failure did not automatically restore explicit 2D state.");
       }
-      if (probe.name === "model-glb") await page.getByRole("button", { name: /Retry 3D (viewer|model)/i }).waitFor({ state: "visible", timeout: 10000 });
-      if (!injected) throw new Error(`${probe.name} failure was not injected.`);
-      const failures = diagnostics.filter((entry) => entry.type === "pageerror" || entry.type === "crash" || entry.type === "requestfailed");
+      if (probe.name.startsWith("model-")) {
+        await page.getByRole("button", { name: /Retry 3D (viewer|model)/i }).waitFor({ state: "visible", timeout: 10000 });
+        const capability = await measuredCapability();
+        const fallback = await page.getByRole("status").filter({ hasText: "WebGL 2 is unavailable. Showing a static reference image" }).isVisible();
+        assertModelCapability(capability, fallback);
+        if (modelCapability !== undefined && modelCapability !== capability) throw new Error("Model capability changed between failure probes.");
+        modelCapability = capability;
+        if (!capability) {
+          if (injected) throw new Error("Capability fallback unexpectedly requested the failed model resource.");
+          await assertCapabilityInspection(page);
+          const errors = diagnostics.filter((entry) => entry.type === "console" && entry.level === "error");
+          if (errors.length) throw new Error(`Capability fallback emitted console errors: ${JSON.stringify(errors)}`);
+          result = { name: "model-capability-fallback", capability: false, retryChecked: true, inspectionChecked: true };
+        } else {
+          if (!injected) throw new Error(`${probe.name} failure was not injected.`);
+          recovering = true;
+          recoveryStart = diagnostics.length;
+          await page.getByRole("button", { name: /Retry 3D (viewer|model)/i }).press("Enter");
+          await page.waitForFunction(() => document.querySelector("model-viewer")?.loaded === true, null, { timeout: 30000 });
+          result = { name: probe.name, capability: true, recovered: true };
+        }
+      } else if (!injected) throw new Error(`${probe.name} failure was not injected.`);
+      const expectedFaults = diagnostics.filter((entry, index) => index < recoveryStart && entry.type === "requestfailed" && injectedScriptUrls.has(entry.url));
+      if (expectedFaults.length) result.expectedFaults = expectedFaults;
+      const failures = diagnostics.filter((entry, index) => entry.type === "pageerror" || entry.type === "crash" || (entry.type === "requestfailed" && !expectedFaults.includes(entry)) || (index >= recoveryStart && entry.type === "console" && entry.level === "error"));
       if (failures.length) throw new Error(`${probe.name} failure emitted diagnostics: ${JSON.stringify(failures)}`);
     } catch (caught) {
       error = caught instanceof Error ? caught.message : String(caught);
     } finally {
       try {
-        await page.screenshot({ path: path.join(evidence, `${browserName}-failure-${probe.name}.png`), fullPage: true });
+        await page.screenshot({ path: path.join(evidence, `${browserName}-failure-${result.name}.png`), fullPage: true });
       } catch (caught) {
         if (!error) error = caught instanceof Error ? caught.message : String(caught);
       }
-      await writeFile(path.join(evidence, `${browserName}-failure-${probe.name}.json`), `${JSON.stringify(stable({ name: probe.name, injected, diagnostics, error }), null, 2)}\n`, "utf8");
+      await writeFile(path.join(evidence, `${browserName}-failure-${result.name}.json`), `${JSON.stringify(stable({ ...result, injected, diagnostics, error }), null, 2)}\n`, "utf8");
       await page.close();
     }
     if (error) throw new Error(error);
-    results.push({ name: probe.name, injected, status: "passed" });
+    results.push({ ...result, injected, status: "passed" });
   }
+  assertModelProbeCompleteness(results, modelCapability);
   return results;
 }
 

@@ -5,8 +5,10 @@ import path from "node:path";
 import { localizeModelViewerFallbacks } from "./build-static.mjs";
 import {
   allowedNetworkOrigins,
+  assertModelProbeCompleteness,
   assertResponseHeaderPolicy,
   auditEvidence,
+  browserFailureProbes,
   cacheControlMatches,
   fulfillLocalArtifact,
   createSecretScanner,
@@ -28,6 +30,44 @@ import {
   validateRedirectTarget,
   validateTargetUrl,
 } from "./release-gates.mjs";
+
+const fallbackProbe = { name: "model-capability-fallback", capability: false, injected: 0, retryChecked: true, inspectionChecked: true, status: "passed" };
+const networkProbes = ["model-script", "model-glb"].map((name) => ({ name, capability: true, injected: 1, recovered: true, status: "passed" }));
+assert.throws(() => assertModelProbeCompleteness([fallbackProbe], undefined), /coverage/);
+assert.throws(() => assertModelProbeCompleteness([...networkProbes, networkProbes[0]], true), /coverage/);
+assert.doesNotThrow(() => assertModelProbeCompleteness([fallbackProbe], false));
+assert.doesNotThrow(() => assertModelProbeCompleteness(networkProbes, true));
+for (const results of [[], [fallbackProbe], networkProbes.slice(1), networkProbes.map((probe) => ({ ...probe, injected: 0 })), networkProbes.map((probe) => ({ ...probe, recovered: false }))]) {
+  assert.throws(() => assertModelProbeCompleteness(results, true), /coverage/);
+}
+for (const results of [[], networkProbes, [{ ...fallbackProbe, injected: 1 }], [{ ...fallbackProbe, retryChecked: false }], [{ ...fallbackProbe, inspectionChecked: false }], [{ ...fallbackProbe, capability: true }]]) {
+  assert.throws(() => assertModelProbeCompleteness(results, false), /coverage/);
+}
+
+let probeRouter;
+const routingPage = {
+  exposeBinding: async () => {},
+  addInitScript: async () => {},
+  on: () => {},
+  route: async (_pattern, handler) => { probeRouter = handler; throw new Error("Captured probe router"); },
+};
+await assert.rejects(browserFailureProbes({ newPage: async () => routingPage }, "http://f1.test", null, "/unused", "webkit", "/missing-artifact"), /Captured probe router/);
+for (const url of ["blob:http://f1.test/texture", "data:image/png;base64,AA=="]) {
+  let continued = false;
+  await probeRouter({
+    request: () => ({ url: () => url }),
+    continue: async () => { continued = true; },
+    fulfill: async () => assert.fail("Browser-owned textures must not be fulfilled from the artifact"),
+  });
+  assert.equal(continued, true);
+}
+let injectedStatus;
+await probeRouter({
+  request: () => ({ url: () => "http://f1.test/models/car.glb" }),
+  continue: async () => assert.fail("HTTP model failure must still be injected"),
+  fulfill: async ({ status }) => { injectedStatus = status; },
+});
+assert.equal(injectedStatus, 503);
 
 const deployId = "6a62d1baea5f475a562d2f46";
 const deployPermalink = `https://${deployId}--f1-demo.netlify.app`;

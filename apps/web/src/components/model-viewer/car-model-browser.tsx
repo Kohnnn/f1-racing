@@ -4,7 +4,7 @@ import { createElement, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import type { CarModelCatalog } from "@/lib/data";
 import { saveActiveModelviewHrefInBrowser } from "@/lib/learning-trail";
-import { ensureModelViewerLoaded } from "@/lib/model-viewer-loader";
+import { ensureModelViewerLoaded, WebGLUnavailableError } from "@/lib/model-viewer-loader";
 import { focusPoints, getFocusPoint } from "./focus-points";
 import { CanvasWindTunnel } from "@/components/wind/canvas-wind-tunnel";
 
@@ -19,16 +19,24 @@ function ExplodedViewLayer({
   season,
   expanded,
   onToggle,
+  imageControls = false,
 }: {
   constructorSlug: string;
   season: number;
   expanded: boolean;
   onToggle: () => void;
+  imageControls?: boolean;
 }) {
   const [available, setAvailable] = useState(true);
+  const [loaded, setLoaded] = useState(false);
+  const [zoom, setZoom] = useState(1);
   const url = `/exploded-views/${season}/${constructorSlug}.png`;
 
-  useEffect(() => setAvailable(true), [url]);
+  useEffect(() => {
+    setAvailable(true);
+    setLoaded(false);
+    setZoom(1);
+  }, [url]);
 
   if (!available) {
     return (
@@ -49,8 +57,21 @@ function ExplodedViewLayer({
       >
         {expanded ? "Collapse" : "Expand"}
       </button>
-      <img src={url} alt="Exploded technical view" loading="eager" onError={() => setAvailable(false)} />
-      <figcaption>Exploded view · subsystems pulled apart along assembly axes</figcaption>
+      {imageControls ? (
+        <>
+          <div style={{ overflow: "auto" }} tabIndex={0} role="region" aria-label="Exploded illustration viewport">
+            <img src={url} alt="Exploded technical view" loading="eager" onLoad={() => setLoaded(true)} onError={() => setAvailable(false)} style={{ width: `${zoom * 100}%`, maxWidth: "none" }} />
+          </div>
+          {loaded ? (
+            <div role="group" aria-label="2D illustration zoom controls">
+              <button type="button" className="camera-preset" aria-label="Zoom in" disabled={zoom >= 3} onClick={() => setZoom((value) => Math.min(3, value + 0.25))}>+</button>
+              <button type="button" className="camera-preset" aria-label="Zoom out" disabled={zoom <= 1} onClick={() => setZoom((value) => Math.max(1, value - 0.25))}>-</button>
+              <button type="button" className="camera-preset" aria-label="Reset view" onClick={() => setZoom(1)}>Reset</button>
+            </div>
+          ) : null}
+        </>
+      ) : <img src={url} alt="Exploded technical view" loading="eager" onError={() => setAvailable(false)} />}
+      <figcaption>{imageControls ? "2D illustration · " : ""}Exploded view · subsystems pulled apart along assembly axes</figcaption>
     </figure>
   );
 }
@@ -115,10 +136,14 @@ function writeSelectionToUrl(season: number, constructorSlug: string, focusId: s
 export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserProps) {
   const searchParams = useSearchParams();
   const viewerRef = useRef<ModelViewerElement | null>(null);
+  const focusListRef = useRef<HTMLDivElement | null>(null);
   const [modelReady, setModelReady] = useState(false);
   const [modelLoadFailed, setModelLoadFailed] = useState(false);
   const [modelRetryKey, setModelRetryKey] = useState(0);
   const [viewerBootFailed, setViewerBootFailed] = useState(false);
+  const [webglUnavailable, setWebglUnavailable] = useState(false);
+  const [retryingViewer, setRetryingViewer] = useState(false);
+  const [retryMessage, setRetryMessage] = useState("");
 
   const seasons = useMemo(
     () => Array.from(new Set(catalog.models.map((m) => m.season))).sort((a, b) => b - a),
@@ -161,8 +186,11 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
       .then(() => {
         if (!cancelled) setViewerBootFailed(false);
       })
-      .catch(() => {
-        if (!cancelled) setViewerBootFailed(true);
+      .catch((error) => {
+        if (!cancelled) {
+          setWebglUnavailable(error instanceof WebGLUnavailableError);
+          setViewerBootFailed(true);
+        }
       });
     return () => {
       cancelled = true;
@@ -318,12 +346,24 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
   }, [selected?.id]);
 
   function retryModel() {
-    setModelReady(false);
-    setModelLoadFailed(false);
+    setRetryingViewer(true);
+    setRetryMessage("");
     ensureModelViewerLoaded()
-      .then(() => setViewerBootFailed(false))
-      .catch(() => setViewerBootFailed(true));
-    setModelRetryKey((key) => key + 1);
+      .then(() => {
+        setWebglUnavailable(false);
+        setViewerBootFailed(false);
+        setModelReady(false);
+        setModelLoadFailed(false);
+        setModelRetryKey((key) => key + 1);
+      })
+      .catch((error) => {
+        if (error instanceof WebGLUnavailableError) setWebglUnavailable(true);
+        setViewerBootFailed(true);
+        setRetryMessage(error instanceof WebGLUnavailableError
+          ? "WebGL 2 is still unavailable. 2D inspection remains available."
+          : "3D viewer could not start. Try again when it is available.");
+      })
+      .finally(() => setRetryingViewer(false));
   }
 
   useEffect(() => {
@@ -375,7 +415,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
       viewer.removeEventListener("load", markLoaded);
       viewer.removeEventListener("error", markFailed);
     };
-  }, [modelRetryKey, selected]);
+  }, [modelRetryKey, selected, webglUnavailable]);
 
   if (!selected) {
     return <div className="panel">No models available.</div>;
@@ -439,6 +479,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
               key={preset.id}
               type="button"
               className={`camera-preset${preset.id === activeCameraId ? " camera-preset--active" : ""}`}
+              disabled={webglUnavailable}
               aria-pressed={preset.id === activeCameraId}
               onClick={() => {
                 setActiveCameraId(preset.id);
@@ -452,6 +493,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
           <div className="camera-preset-row__group" aria-label="Interaction mode">
             <button
               type="button"
+              disabled={webglUnavailable}
               aria-pressed={interactionMode === "orbit"}
               className={`camera-preset${interactionMode === "orbit" ? " camera-preset--active" : ""}`}
               onClick={() => setInteractionMode("orbit")}
@@ -463,8 +505,11 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
               type="button"
               aria-pressed={interactionMode === "inspect"}
               className={`camera-preset${interactionMode === "inspect" ? " camera-preset--active" : ""}`}
-              onClick={() => setInteractionMode("inspect")}
-              title="Click hotspots without orbiting"
+              onClick={() => {
+                setInteractionMode("inspect");
+                if (webglUnavailable) focusListRef.current?.querySelector("button")?.focus();
+              }}
+              title={webglUnavailable ? "Inspect the component list" : "Click hotspots without orbiting"}
             >
               Inspect
             </button>
@@ -473,6 +518,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
           <div className="camera-preset-row__group" aria-label="Studio quality">
             <button
               type="button"
+              disabled={webglUnavailable}
               aria-pressed={studioQuality === "clean"}
               className={`camera-preset${studioQuality === "clean" ? " camera-preset--active" : ""}`}
               onClick={() => setStudioQuality("clean")}
@@ -482,6 +528,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
             </button>
             <button
               type="button"
+              disabled={webglUnavailable}
               aria-pressed={studioQuality === "studio"}
               className={`camera-preset${studioQuality === "studio" ? " camera-preset--active" : ""}`}
               onClick={() => setStudioQuality("studio")}
@@ -494,6 +541,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
           <button
             type="button"
             className={`camera-preset${compareSlug ? " camera-preset--active" : ""}`}
+            disabled={webglUnavailable}
             aria-pressed={Boolean(compareSlug)}
             onClick={() => {
               if (compareSlug) {
@@ -525,7 +573,14 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
           <div
             className={`car-viewer-canvas${compareSlug ? " car-viewer-canvas--compare" : ""} car-viewer-canvas--mode-${interactionMode}`}
           >
-            {createElement(
+            {webglUnavailable ? (
+              <figure style={{ margin: 0, width: "100%" }}>
+                <img src={selected.poster} alt={`${selected.displayName} static reference`} style={{ width: "100%", height: "min(60vh, 600px)", objectFit: "contain" }} />
+                <figcaption role="status">WebGL 2 is unavailable. Showing a static reference image; use the component list to inspect the car.</figcaption>
+                <button type="button" className="button button--secondary" disabled={retryingViewer} onClick={retryModel}>Retry 3D viewer</button>
+                <p role="status">{retryingViewer ? "Checking 3D viewer availability. 2D inspection remains available." : retryMessage}</p>
+              </figure>
+            ) : createElement(
               "model-viewer",
               {
                 key: `${selected.id}-${modelRetryKey}`,
@@ -587,7 +642,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
             ) : null}
 
             {/* Floating zoom controls. */}
-            {modelReady && !modelLoadFailed ? (
+            {interactionMode !== "inspect" && modelReady && !modelLoadFailed ? (
               <div className="car-viewer-zoom-controls" role="group" aria-label="Camera zoom controls">
                 <button type="button" onClick={() => handleZoomButton(-0.18)} aria-label="Zoom in">+</button>
                 <button type="button" onClick={() => handleZoomButton(0.18)} aria-label="Zoom out">-</button>
@@ -597,13 +652,16 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
             ) : null}
 
             {/* Exploded-view annotation pin overlay shown only in Inspect mode. */}
-            {interactionMode === "inspect" && modelReady && !modelLoadFailed ? (
+            {interactionMode === "inspect" ? (
               <div
                 className={`car-viewer-inspect-overlay${explodedExpanded ? " car-viewer-inspect-overlay--expanded" : ""}`}
+                style={webglUnavailable ? { position: "relative", inset: "auto", width: "100%", boxSizing: "border-box" } : undefined}
               >
                 <p className="car-viewer-inspect-overlay__title">Inspect mode</p>
-                <p>Click any hotspot to lock the camera. Orbit drag is disabled so the click lands cleanly.</p>
+                <p>Inspect the 2D technical illustration or select a component from the list. Image zoom does not rotate the car.</p>
                 <ExplodedViewLayer
+                  key={selected.id}
+                  imageControls
                   constructorSlug={selected.constructorSlug}
                   season={selected.season}
                   expanded={explodedExpanded}
@@ -612,7 +670,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
               </div>
             ) : null}
 
-            {!modelReady ? (
+            {!modelReady && !webglUnavailable ? (
               <div className="car-viewer-loading" role="status" aria-live="polite">
                 <span className="car-viewer-loading__spinner" aria-hidden="true" />
                 {viewerBootFailed ? (
@@ -623,7 +681,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
                 ) : `Loading ${selected.displayName} · ${selected.sizeLabel}`}
               </div>
             ) : null}
-            {modelLoadFailed ? (
+            {modelLoadFailed && !webglUnavailable ? (
               <div className="car-viewer-loading car-viewer-loading--failed" role="alert">
                 <span>3D model could not finish loading.</span>
                 <button type="button" className="button button--secondary" onClick={retryModel}>
@@ -632,7 +690,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
               </div>
             ) : null}
 
-            {compareSlug ? (
+            {compareSlug && !webglUnavailable ? (
               <div className="car-viewer-canvas__compare-pane">
                 <div className="car-viewer-canvas__compare-toolbar">
                   <span>Compare with</span>
@@ -732,7 +790,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
                 </button>
               </div>
             ) : null}
-            <div className="car-focus-list">
+            <div className="car-focus-list" ref={focusListRef}>
               {focusPoints.map((point) => (
                 <button
                   key={point.id}
