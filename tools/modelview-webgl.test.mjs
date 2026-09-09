@@ -52,6 +52,19 @@ for (const [name, engine, blocked] of [["chromium-no-webgl", chromium, true], ["
         await route.fulfill({ status: 404 });
       }
     });
+    let injected = 0;
+    if (name === "firefox-no-webgl") await page.route("**/models/**", async (route) => {
+      injected += 1;
+      await route.fulfill({ status: 503, contentType: "text/plain", body: "release gate injected failure" });
+    });
+    await page.addInitScript(() => {
+      window.webglProbeCount = 0;
+      const original = HTMLCanvasElement.prototype.getContext;
+      HTMLCanvasElement.prototype.getContext = function (type, ...args) {
+        if (type === "webgl2") window.webglProbeCount += 1;
+        return original.call(this, type, ...args);
+      };
+    });
     if (blocked) await page.addInitScript(() => {
       const getContext = HTMLCanvasElement.prototype.getContext;
       HTMLCanvasElement.prototype.getContext = function (type, ...args) {
@@ -105,6 +118,23 @@ for (const [name, engine, blocked] of [["chromium-no-webgl", chromium, true], ["
       const paused = page.locator(".wind-tunnel__action-button", { hasText: "Paused" });
       await paused.waitFor({ state: "visible" });
       assert.ok(await paused.isDisabled());
+      const probesBefore = await page.evaluate(() => window.webglProbeCount);
+      const retry = page.getByRole("button", { name: "Retry 3D viewer", exact: true });
+      await retry.focus();
+      await retry.press("Enter");
+      await page.getByText("WebGL 2 is still unavailable. 2D inspection remains available.", { exact: true }).waitFor();
+      if (name === "firefox-no-webgl") {
+        assert.ok(await page.evaluate(() => window.webglProbeCount) > probesBefore, "Retry must recheck WebGL capability");
+        assert.equal(injected, 0, "Unsupported Firefox must not fetch models just to satisfy fault injection");
+      }
+      assert.equal(await retry.isDisabled(), false);
+      assert.equal(await page.locator("model-viewer").count(), 0);
+      assert.equal(await page.locator(".car-viewer-loading__spinner").count(), 0);
+      assert.equal(await component.getAttribute("aria-pressed"), "true");
+      assert.ok(await image.isVisible());
+      await zoomIn.press("Enter");
+      assert.ok(await image.evaluate((element) => element.getBoundingClientRect().width) > width);
+      await reset.press("Enter");
       const selections = page.locator(".car-viewer-toolbar select");
       if (await selections.count() > 1) await selections.first().selectOption("2025");
       await page.locator(".car-viewer-toolbar select").last().selectOption("ferrari");

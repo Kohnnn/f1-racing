@@ -142,6 +142,8 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
   const [modelRetryKey, setModelRetryKey] = useState(0);
   const [viewerBootFailed, setViewerBootFailed] = useState(false);
   const [webglUnavailable, setWebglUnavailable] = useState(false);
+  const [retryingViewer, setRetryingViewer] = useState(false);
+  const [retryMessage, setRetryMessage] = useState("");
 
   const seasons = useMemo(
     () => Array.from(new Set(catalog.models.map((m) => m.season))).sort((a, b) => b - a),
@@ -344,12 +346,24 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
   }, [selected?.id]);
 
   function retryModel() {
-    setModelReady(false);
-    setModelLoadFailed(false);
+    setRetryingViewer(true);
+    setRetryMessage("");
     ensureModelViewerLoaded()
-      .then(() => setViewerBootFailed(false))
-      .catch(() => setViewerBootFailed(true));
-    setModelRetryKey((key) => key + 1);
+      .then(() => {
+        setWebglUnavailable(false);
+        setViewerBootFailed(false);
+        setModelReady(false);
+        setModelLoadFailed(false);
+        setModelRetryKey((key) => key + 1);
+      })
+      .catch((error) => {
+        if (error instanceof WebGLUnavailableError) setWebglUnavailable(true);
+        setViewerBootFailed(true);
+        setRetryMessage(error instanceof WebGLUnavailableError
+          ? "WebGL 2 is still unavailable. 2D inspection remains available."
+          : "3D viewer could not start. Try again when it is available.");
+      })
+      .finally(() => setRetryingViewer(false));
   }
 
   useEffect(() => {
@@ -563,6 +577,8 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
               <figure style={{ margin: 0, width: "100%" }}>
                 <img src={selected.poster} alt={`${selected.displayName} static reference`} style={{ width: "100%", height: "min(60vh, 600px)", objectFit: "contain" }} />
                 <figcaption role="status">WebGL 2 is unavailable. Showing a static reference image; use the component list to inspect the car.</figcaption>
+                <button type="button" className="button button--secondary" disabled={retryingViewer} onClick={retryModel}>Retry 3D viewer</button>
+                <p role="status">{retryingViewer ? "Checking 3D viewer availability. 2D inspection remains available." : retryMessage}</p>
               </figure>
             ) : createElement(
               "model-viewer",
