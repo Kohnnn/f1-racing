@@ -598,6 +598,44 @@ export async function assertCapabilityInspection(page) {
   if (!await paused.isDisabled()) throw new Error("Capability fallback ignored reduced motion.");
 }
 
+export function assertModelCapability(capability, fallback) {
+  if (typeof capability !== "boolean") throw new Error("Model capability was not measured.");
+  if (capability && fallback) throw new Error("App reported no WebGL despite native WebGL 2 support.");
+}
+
+export async function installNativeWebglProbe(page) {
+  let captured = false;
+  let resolveCapability;
+  const capability = new Promise((resolve) => { resolveCapability = resolve; });
+  await page.exposeBinding("__captureReleaseWebgl", ({ frame }, value) => {
+    if (!captured && frame === page.mainFrame() && typeof value === "boolean") {
+      captured = true;
+      resolveCapability(value);
+    }
+  });
+  await page.addInitScript(() => {
+    if (window !== window.top) return;
+    const original = HTMLCanvasElement.prototype.getContext;
+    const canvas = document.createElement("canvas");
+    canvas.width = 1;
+    canvas.height = 1;
+    let supported = false;
+    try {
+      const context = original.call(canvas, "webgl2");
+      supported = Boolean(context);
+      context?.getExtension("WEBGL_lose_context")?.loseContext();
+    } finally {
+      window.__captureReleaseWebgl(supported);
+    }
+    window.__releaseWebglProbes = 0;
+    HTMLCanvasElement.prototype.getContext = function (type, ...args) {
+      if (type === "webgl2") window.__releaseWebglProbes += 1;
+      return original.call(this, type, ...args);
+    };
+  });
+  return () => capability;
+}
+
 export async function browserFailureProbes(browser, baseUrl, replayPath, evidence, browserName, artifactRoot = null) {
   const probes = [
     ...(replayPath ? [
@@ -618,19 +656,7 @@ export async function browserFailureProbes(browser, baseUrl, replayPath, evidenc
     let recovering = false;
     let recoveryStart = Infinity;
     let result = { name: probe.name };
-    await page.addInitScript(() => {
-      window.__releaseWebglProbes = 0;
-      window.__releaseWebglCapability = undefined;
-      const original = HTMLCanvasElement.prototype.getContext;
-      HTMLCanvasElement.prototype.getContext = function (type, ...args) {
-        const context = original.call(this, type, ...args);
-        if (type === "webgl2") {
-          window.__releaseWebglProbes += 1;
-          window.__releaseWebglCapability = Boolean(context);
-        }
-        return context;
-      };
-    });
+    const measuredCapability = await installNativeWebglProbe(page);
     page.on("request", (request) => diagnostics.push({ type: "request", method: request.method(), url: request.url() }));
     page.on("response", (response) => diagnostics.push({ type: "response", status: response.status(), url: response.url() }));
     page.on("requestfailed", (request) => diagnostics.push({ type: "requestfailed", text: request.failure()?.errorText || "failed", url: request.url() }));
@@ -686,8 +712,9 @@ export async function browserFailureProbes(browser, baseUrl, replayPath, evidenc
       }
       if (probe.name.startsWith("model-")) {
         await page.getByRole("button", { name: /Retry 3D (viewer|model)/i }).waitFor({ state: "visible", timeout: 10000 });
-        const capability = await page.evaluate(() => window.__releaseWebglCapability);
-        if (typeof capability !== "boolean") throw new Error("Model capability was not measured.");
+        const capability = await measuredCapability();
+        const fallback = await page.getByRole("status").filter({ hasText: "WebGL 2 is unavailable. Showing a static reference image" }).isVisible();
+        assertModelCapability(capability, fallback);
         if (modelCapability !== undefined && modelCapability !== capability) throw new Error("Model capability changed between failure probes.");
         modelCapability = capability;
         if (!capability) {

@@ -29,12 +29,29 @@ for (const registered of [true, false]) {
 }
 console.log("2 loader cache regression cases passed.");
 if (process.argv.includes("--loader-only")) process.exit(0);
-const { chromium, firefox } = await import("playwright");
-const { assertCapabilityInspection } = await import("./release-gates.mjs");
+const { chromium, firefox, webkit } = await import("playwright");
+const { assertCapabilityInspection, assertModelCapability, installNativeWebglProbe } = await import("./release-gates.mjs");
+const oracleBrowser = await chromium.launch({ headless: true });
+try {
+  const page = await oracleBrowser.newPage();
+  const measured = await installNativeWebglProbe(page);
+  await page.goto("data:text/html,<html></html>");
+  assert.equal(await measured(), true);
+  await page.evaluate(() => {
+    HTMLCanvasElement.prototype.getContext = () => null;
+    window.__releaseWebglCapability = false;
+    window.__captureReleaseWebgl(false);
+  });
+  assert.equal(await measured(), true);
+  assert.throws(() => assertModelCapability(true, true), /despite native/);
+} finally {
+  await oracleBrowser.close();
+}
+console.log("Native capability oracle rejects false app fallback.");
 
 const out = path.resolve(process.env.F1_CANDIDATE_ROOT || ".", "apps/web/out");
 let passed = 0;
-for (const [name, engine, blocked] of [["chromium-no-webgl", chromium, true], ["firefox-no-webgl", firefox, false], ["firefox", firefox, false]]) {
+for (const [name, engine, blocked] of [["chromium-no-webgl", chromium, true], ["firefox-no-webgl", firefox, false], ["firefox", firefox, false], ...(process.env.F1_WEBKIT ? [["webkit", webkit, false]] : [])]) {
   if (process.env.F1_BROWSER && !name.startsWith(process.env.F1_BROWSER)) continue;
   const browser = await engine.launch({ headless: true, ...(name === "firefox-no-webgl" ? { firefoxUserPrefs: { "webgl.disabled": true } } : {}) });
   try {
@@ -77,6 +94,37 @@ for (const [name, engine, blocked] of [["chromium-no-webgl", chromium, true], ["
     console.log(JSON.stringify({ name, supported, errors }));
     assert.deepEqual(errors, [], `${name}: renderer initialization errors`);
     if (supported) {
+      const inspect = page.getByRole("button", { name: "Inspect", exact: true });
+      await inspect.press("Enter");
+      assert.equal(await inspect.getAttribute("aria-pressed"), "true");
+      const image = page.getByAltText("Exploded technical view");
+      await image.waitFor({ state: "visible", timeout: 10000 });
+      await page.waitForFunction(() => {
+        const image = document.querySelector('img[alt="Exploded technical view"]');
+        return image?.complete && image.naturalWidth > 0;
+      });
+      const width = await image.evaluate((node) => node.getBoundingClientRect().width);
+      await page.getByRole("button", { name: "Zoom in", exact: true }).press("Enter");
+      assert.ok(await image.evaluate((node) => node.getBoundingClientRect().width) > width);
+      await page.getByRole("button", { name: "Reset view", exact: true }).press("Enter");
+      assert.equal(await image.evaluate((node) => node.getBoundingClientRect().width), width);
+      await page.waitForFunction(() => document.querySelector("model-viewer")?.loaded);
+      let releaseModel;
+      const heldModel = new Promise((resolve) => { releaseModel = resolve; });
+      await page.route("**/models/**", async (route) => {
+        await heldModel;
+        await route.fallback();
+      });
+      try {
+        await page.reload({ waitUntil: "domcontentloaded" });
+        await page.waitForFunction(() => Boolean(customElements.get("model-viewer")));
+        await page.getByRole("button", { name: "Inspect", exact: true }).press("Enter");
+        await page.getByAltText("Exploded technical view").waitFor({ state: "visible", timeout: 10000 });
+        await page.getByRole("group", { name: "2D illustration zoom controls" }).waitFor();
+        assert.notEqual(await page.locator("model-viewer").first().evaluate((node) => node.loaded), true, "Illustration must be inspectable before the held GLB loads");
+      } finally {
+        releaseModel();
+      }
       await page.waitForFunction(() => document.querySelector("model-viewer")?.loaded);
     } else {
       await page.getByText("WebGL 2 is unavailable. Showing a static reference image; use the component list to inspect the car.", { exact: true }).waitFor({ timeout: 5000 });

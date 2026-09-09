@@ -642,7 +642,7 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
             ) : null}
 
             {/* Floating zoom controls. */}
-            {modelReady && !modelLoadFailed ? (
+            {interactionMode !== "inspect" && modelReady && !modelLoadFailed ? (
               <div className="car-viewer-zoom-controls" role="group" aria-label="Camera zoom controls">
                 <button type="button" onClick={() => handleZoomButton(-0.18)} aria-label="Zoom in">+</button>
                 <button type="button" onClick={() => handleZoomButton(0.18)} aria-label="Zoom out">-</button>
@@ -652,16 +652,16 @@ export function CarModelBrowser({ catalog, latestReplayHref }: CarModelBrowserPr
             ) : null}
 
             {/* Exploded-view annotation pin overlay shown only in Inspect mode. */}
-            {interactionMode === "inspect" && (webglUnavailable || (modelReady && !modelLoadFailed)) ? (
+            {interactionMode === "inspect" ? (
               <div
                 className={`car-viewer-inspect-overlay${explodedExpanded ? " car-viewer-inspect-overlay--expanded" : ""}`}
                 style={webglUnavailable ? { position: "relative", inset: "auto", width: "100%", boxSizing: "border-box" } : undefined}
               >
                 <p className="car-viewer-inspect-overlay__title">Inspect mode</p>
-                <p>{webglUnavailable ? "Inspect the 2D technical illustration or select a component from the list. Image zoom does not rotate the car." : "Click any hotspot to lock the camera. Orbit drag is disabled so the click lands cleanly."}</p>
+                <p>Inspect the 2D technical illustration or select a component from the list. Image zoom does not rotate the car.</p>
                 <ExplodedViewLayer
                   key={selected.id}
-                  imageControls={webglUnavailable}
+                  imageControls
                   constructorSlug={selected.constructorSlug}
                   season={selected.season}
                   expanded={explodedExpanded}
